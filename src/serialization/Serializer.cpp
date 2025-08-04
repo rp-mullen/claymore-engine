@@ -1,0 +1,478 @@
+#include "Serializer.h"
+#include <fstream>
+#include <iostream>
+#include <filesystem>
+#include "ecs/AnimationComponents.h"
+#include "scripting/ScriptSystem.h"
+
+namespace fs = std::filesystem;
+
+// Helper functions
+json Serializer::SerializeVec3(const glm::vec3& vec) {
+    return json{{"x", vec.x}, {"y", vec.y}, {"z", vec.z}};
+}
+
+glm::vec3 Serializer::DeserializeVec3(const json& data) {
+    return glm::vec3{data["x"], data["y"], data["z"]};
+}
+
+json Serializer::SerializeMat4(const glm::mat4& mat) {
+    json result = json::array();
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            result.push_back(mat[i][j]);
+        }
+    }
+    return result;
+}
+
+glm::mat4 Serializer::DeserializeMat4(const json& data) {
+    glm::mat4 mat(1.0f);
+    if (data.is_array() && data.size() == 16) {
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                mat[i][j] = data[i * 4 + j];
+            }
+        }
+    }
+    return mat;
+}
+
+// Component serialization
+json Serializer::SerializeTransform(const TransformComponent& transform) {
+    json data;
+    data["position"] = SerializeVec3(transform.Position);
+    data["rotation"] = SerializeVec3(transform.Rotation);
+    data["scale"] = SerializeVec3(transform.Scale);
+    data["localMatrix"] = SerializeMat4(transform.LocalMatrix);
+    data["worldMatrix"] = SerializeMat4(transform.WorldMatrix);
+    data["transformDirty"] = transform.TransformDirty;
+    return data;
+}
+
+void Serializer::DeserializeTransform(const json& data, TransformComponent& transform) {
+    if (data.contains("position")) transform.Position = DeserializeVec3(data["position"]);
+    if (data.contains("rotation")) transform.Rotation = DeserializeVec3(data["rotation"]);
+    if (data.contains("scale")) transform.Scale = DeserializeVec3(data["scale"]);
+    if (data.contains("localMatrix")) transform.LocalMatrix = DeserializeMat4(data["localMatrix"]);
+    if (data.contains("worldMatrix")) transform.WorldMatrix = DeserializeMat4(data["worldMatrix"]);
+    if (data.contains("transformDirty")) transform.TransformDirty = data["transformDirty"];
+}
+
+json Serializer::SerializeMesh(const MeshComponent& mesh) {
+    json data;
+    data["meshName"] = mesh.MeshName;
+    if (mesh.material) {
+        data["materialName"] = mesh.material->GetName();
+        // Store material properties if it's a PBR material
+        if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(mesh.material)) {
+            data["materialType"] = "PBR";
+            // Note: Texture handles are runtime-specific, we'd need to store texture paths instead
+            // This would require extending the Material system to track source paths
+        }
+    }
+    return data;
+}
+
+void Serializer::DeserializeMesh(const json& data, MeshComponent& mesh) {
+    if (data.contains("meshName")) {
+        mesh.MeshName = data["meshName"];
+        // Note: Actual mesh loading would need to be handled by the scene loading system
+        // as it requires access to the asset loading systems
+    }
+    if (data.contains("materialName")) {
+        // Material reconstruction would need to be handled by the scene loading system
+    }
+}
+
+json Serializer::SerializeLight(const LightComponent& light) {
+    json data;
+    data["type"] = static_cast<int>(light.Type);
+    data["color"] = SerializeVec3(light.Color);
+    data["intensity"] = light.Intensity;
+    return data;
+}
+
+void Serializer::DeserializeLight(const json& data, LightComponent& light) {
+    if (data.contains("type")) light.Type = static_cast<LightType>(data["type"]);
+    if (data.contains("color")) light.Color = DeserializeVec3(data["color"]);
+    if (data.contains("intensity")) light.Intensity = data["intensity"];
+}
+
+json Serializer::SerializeCollider(const ColliderComponent& collider) {
+    json data;
+    data["shapeType"] = static_cast<int>(collider.ShapeType);
+    data["offset"] = SerializeVec3(collider.Offset);
+    data["size"] = SerializeVec3(collider.Size);
+    data["radius"] = collider.Radius;
+    data["height"] = collider.Height;
+    data["meshPath"] = collider.MeshPath;
+    data["isTrigger"] = collider.IsTrigger;
+    return data;
+}
+
+void Serializer::DeserializeCollider(const json& data, ColliderComponent& collider) {
+    if (data.contains("shapeType")) collider.ShapeType = static_cast<ColliderShape>(data["shapeType"]);
+    if (data.contains("offset")) collider.Offset = DeserializeVec3(data["offset"]);
+    if (data.contains("size")) collider.Size = DeserializeVec3(data["size"]);
+    if (data.contains("radius")) collider.Radius = data["radius"];
+    if (data.contains("height")) collider.Height = data["height"];
+    if (data.contains("meshPath")) collider.MeshPath = data["meshPath"];
+    if (data.contains("isTrigger")) collider.IsTrigger = data["isTrigger"];
+}
+
+json Serializer::SerializeScripts(const std::vector<ScriptInstance>& scripts) {
+    json scriptArray = json::array();
+    for (const auto& script : scripts) {
+        json scriptData;
+        scriptData["className"] = script.ClassName;
+        // TODO: Add script property serialization when reflection system is implemented
+        scriptArray.push_back(scriptData);
+    }
+    return scriptArray;
+}
+
+void Serializer::DeserializeScripts(const json& data, std::vector<ScriptInstance>& scripts) {
+    scripts.clear();
+    if (data.is_array()) {
+        for (const auto& scriptData : data) {
+            if (scriptData.contains("className")) {
+                ScriptInstance instance;
+                instance.ClassName = scriptData["className"];
+                
+                // Create the script instance
+                auto created = ScriptSystem::Instance().Create(instance.ClassName);
+                if (created) {
+                    instance.Instance = created;
+                    scripts.push_back(instance);
+                } else {
+                    std::cerr << "[Serializer] Failed to create script of type '" << instance.ClassName << "'\n";
+                }
+            }
+        }
+    }
+}
+
+// Entity serialization
+json Serializer::SerializeEntity(EntityID id, Scene& scene) {
+   EntityData* entityData = scene.GetEntityData(id);  // <-- This is the correct call
+   if (!entityData) return json{};
+
+   json data;
+   data["id"] = id;
+   data["name"] = entityData->Name;
+   data["layer"] = entityData->Layer;
+   data["tag"] = entityData->Tag;
+   data["parent"] = entityData->Parent;
+   data["children"] = entityData->Children;
+
+   // Serialize components
+   data["transform"] = SerializeTransform(entityData->Transform);
+
+   if (entityData->Mesh) {
+      data["mesh"] = SerializeMesh(*entityData->Mesh);
+      }
+
+   if (entityData->Light) {
+      data["light"] = SerializeLight(*entityData->Light);
+      }
+
+   if (entityData->Collider) {
+      data["collider"] = SerializeCollider(*entityData->Collider);
+      }
+
+   // Serialize scripts
+   if (!entityData->Scripts.empty()) {
+      data["scripts"] = SerializeScripts(entityData->Scripts);
+      }
+
+   return data;
+   }
+
+
+EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
+    if (!data.contains("name")) return 0;
+
+    std::string name = data["name"];
+    Entity entity = scene.CreateEntity(name);
+    EntityID id = entity.GetID();
+    
+    auto* entityData = scene.GetEntityData(id);
+    if (!entityData) return 0;
+
+    // Deserialize basic properties
+    if (data.contains("layer")) entityData->Layer = data["layer"];
+    if (data.contains("tag")) entityData->Tag = data["tag"];
+    if (data.contains("parent")) entityData->Parent = data["parent"];
+    if (data.contains("children")) {
+       entityData->Children.clear();
+       for (const auto& child : data["children"]) {
+          entityData->Children.push_back(child.get<EntityID>());
+          }
+       }
+
+
+    // Deserialize transform
+    if (data.contains("transform")) {
+        DeserializeTransform(data["transform"], entityData->Transform);
+    }
+
+    // Deserialize components
+    if (data.contains("mesh")) {
+        entityData->Mesh = new MeshComponent();
+        DeserializeMesh(data["mesh"], *entityData->Mesh);
+    }
+
+    if (data.contains("light")) {
+        entityData->Light = new LightComponent();
+        DeserializeLight(data["light"], *entityData->Light);
+    }
+
+    if (data.contains("collider")) {
+        entityData->Collider = new ColliderComponent();
+        DeserializeCollider(data["collider"], *entityData->Collider);
+    }
+
+    // Deserialize scripts
+    if (data.contains("scripts")) {
+        DeserializeScripts(data["scripts"], entityData->Scripts);
+    }
+
+    return id;
+}
+
+// Scene serialization
+json Serializer::SerializeScene( Scene& scene) {
+    json sceneData;
+    sceneData["version"] = "1.0";
+    sceneData["entities"] = json::array();
+
+    for (const auto& entity : scene.GetEntities()) {
+        json entityData = SerializeEntity(entity.GetID(), scene);
+        if (!entityData.empty()) {
+            sceneData["entities"].push_back(entityData);
+        }
+    }
+
+    return sceneData;
+}
+
+bool Serializer::DeserializeScene(const json& data, Scene& scene) {
+    if (!data.contains("entities")) return false;
+
+    // Clear existing scene (but preserve the scene structure)
+    // Note: This would need to be implemented in the Scene class
+    
+    // First pass: Create all entities
+    std::unordered_map<EntityID, EntityID> idMapping; // old ID -> new ID
+    
+    for (const auto& entityData : data["entities"]) {
+        EntityID newId = DeserializeEntity(entityData, scene);
+        if (newId != 0 && entityData.contains("id")) {
+            EntityID oldId = entityData["id"];
+            idMapping[oldId] = newId;
+        }
+    }
+
+    // Second pass: Fix up parent-child relationships
+    for (const auto& entityData : data["entities"]) {
+        if (entityData.contains("id") && entityData.contains("parent")) {
+            EntityID oldId = entityData["id"];
+            EntityID oldParent = entityData["parent"];
+            
+            if (idMapping.find(oldId) != idMapping.end() && 
+                idMapping.find(oldParent) != idMapping.end()) {
+                scene.SetParent(idMapping[oldId], idMapping[oldParent]);
+            }
+        }
+    }
+
+    return true;
+}
+
+bool Serializer::SaveSceneToFile(Scene& scene, const std::string& filepath) {
+    try {
+        json sceneData = SerializeScene(scene);
+        
+        // Ensure directory exists
+        fs::path path(filepath);
+        fs::create_directories(path.parent_path());
+        
+        std::ofstream file(filepath);
+        if (!file.is_open()) {
+            std::cerr << "[Serializer] Failed to open file for writing: " << filepath << std::endl;
+            return false;
+        }
+        
+        file << sceneData.dump(4); // Pretty print with 4 spaces
+        file.close();
+        
+        std::cout << "[Serializer] Scene saved to: " << filepath << std::endl;
+        return true;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "[Serializer] Error saving scene: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool Serializer::LoadSceneFromFile(const std::string& filepath, Scene& scene) {
+    try {
+        if (!fs::exists(filepath)) {
+            std::cerr << "[Serializer] Scene file does not exist: " << filepath << std::endl;
+            return false;
+        }
+        
+        std::ifstream file(filepath);
+        if (!file.is_open()) {
+            std::cerr << "[Serializer] Failed to open scene file: " << filepath << std::endl;
+            return false;
+        }
+        
+        json sceneData;
+        file >> sceneData;
+        file.close();
+        
+        bool success = DeserializeScene(sceneData, scene);
+        if (success) {
+            std::cout << "[Serializer] Scene loaded from: " << filepath << std::endl;
+        }
+        return success;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "[Serializer] Error loading scene: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// Prefab serialization
+json Serializer::SerializePrefab(const EntityData& entityData, Scene& scene) {
+    json prefabData;
+    prefabData["version"] = "1.0";
+    prefabData["type"] = "prefab";
+    
+    // Create a temporary entity to serialize
+    // Note: This is a simplified approach - in a full implementation,
+    // we might want to serialize the EntityData directly
+    json entityJson;
+    entityJson["name"] = entityData.Name;
+    entityJson["layer"] = entityData.Layer;
+    entityJson["tag"] = entityData.Tag;
+    entityJson["transform"] = SerializeTransform(entityData.Transform);
+    
+    if (entityData.Mesh) {
+        entityJson["mesh"] = SerializeMesh(*entityData.Mesh);
+    }
+    
+    if (entityData.Light) {
+        entityJson["light"] = SerializeLight(*entityData.Light);
+    }
+    
+    if (entityData.Collider) {
+        entityJson["collider"] = SerializeCollider(*entityData.Collider);
+    }
+
+    if (!entityData.Scripts.empty()) {
+        entityJson["scripts"] = SerializeScripts(entityData.Scripts);
+    }
+
+    prefabData["entity"] = entityJson;
+    return prefabData;
+}
+
+bool Serializer::DeserializePrefab(const json& data, EntityData& entityData, Scene& scene) {
+    if (!data.contains("entity")) return false;
+
+    const json& entityJson = data["entity"];
+    
+    // Reset the entity data
+    entityData = EntityData{};
+    
+    // Deserialize basic properties
+    if (entityJson.contains("name")) entityData.Name = entityJson["name"];
+    if (entityJson.contains("layer")) entityData.Layer = entityJson["layer"];
+    if (entityJson.contains("tag")) entityData.Tag = entityJson["tag"];
+
+    // Deserialize transform
+    if (entityJson.contains("transform")) {
+        DeserializeTransform(entityJson["transform"], entityData.Transform);
+    }
+
+    // Deserialize components
+    if (entityJson.contains("mesh")) {
+        entityData.Mesh = new MeshComponent();
+        DeserializeMesh(entityJson["mesh"], *entityData.Mesh);
+    }
+
+    if (entityJson.contains("light")) {
+        entityData.Light = new LightComponent();
+        DeserializeLight(entityJson["light"], *entityData.Light);
+    }
+
+    if (entityJson.contains("collider")) {
+        entityData.Collider = new ColliderComponent();
+        DeserializeCollider(entityJson["collider"], *entityData.Collider);
+    }
+
+    // Deserialize scripts
+    if (entityJson.contains("scripts")) {
+        DeserializeScripts(entityJson["scripts"], entityData.Scripts);
+    }
+
+    return true;
+}
+
+bool Serializer::SavePrefabToFile(const EntityData& entityData, Scene& scene, const std::string& filepath) {
+    try {
+        json prefabData = SerializePrefab(entityData, scene);
+        
+        // Ensure directory exists
+        fs::path path(filepath);
+        fs::create_directories(path.parent_path());
+        
+        std::ofstream file(filepath);
+        if (!file.is_open()) {
+            std::cerr << "[Serializer] Failed to open file for writing: " << filepath << std::endl;
+            return false;
+        }
+        
+        file << prefabData.dump(4); // Pretty print with 4 spaces
+        file.close();
+        
+        std::cout << "[Serializer] Prefab saved to: " << filepath << std::endl;
+        return true;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "[Serializer] Error saving prefab: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool Serializer::LoadPrefabFromFile(const std::string& filepath, EntityData& entityData, Scene& scene) {
+    try {
+        if (!fs::exists(filepath)) {
+            std::cerr << "[Serializer] Prefab file does not exist: " << filepath << std::endl;
+            return false;
+        }
+        
+        std::ifstream file(filepath);
+        if (!file.is_open()) {
+            std::cerr << "[Serializer] Failed to open prefab file: " << filepath << std::endl;
+            return false;
+        }
+        
+        json prefabData;
+        file >> prefabData;
+        file.close();
+        
+        bool success = DeserializePrefab(prefabData, entityData, scene);
+        if (success) {
+            std::cout << "[Serializer] Prefab loaded from: " << filepath << std::endl;
+        }
+        return success;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "[Serializer] Error loading prefab: " << e.what() << std::endl;
+        return false;
+    }
+}

@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<RuntimeFrameworkVersion>8.0.15</RuntimeFrameworkVersion>
+
+		<!-- Required to generate runtimeconfig.json and deps.json -->
+		<GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+
+		<AssemblyName>ClaymoreEngine</AssemblyName>
+		<!-- Required for native interop -->
+		<OutputType>Library</OutputType>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<ImplicitUsings>false</ImplicitUsings>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<Nullable>enable</Nullable>
+
+		<!-- Prevent trimming or AOT from stripping methods -->
+		<PublishTrimmed>false</PublishTrimmed>
+		<PublishAot>false</PublishAot>
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+	</PropertyGroup>
+
+	<!-- Explicitly preserve native entry point method -->
+	<ItemGroup>
+		<MethodImpl Remove="*" />
+		<MethodImpl Include="Engine.Scripting.EngineEntry.ManagedStart" />
+	</ItemGroup>
+</Project>

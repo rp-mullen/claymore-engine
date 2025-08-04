@@ -1,0 +1,31 @@
+{
+    "version": "1.0",
+    "type": "prefab",
+    "entity": {
+        "name": "Enemy",
+        "layer": 0,
+        "tag": "Enemy",
+        "transform": {
+            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "scale": {"x": 1.0, "y": 1.0, "z": 1.0},
+            "localMatrix": [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+            "worldMatrix": [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+            "transformDirty": false
+        },
+        "collider": {
+            "shapeType": 1,
+            "offset": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "size": {"x": 1.0, "y": 1.8, "z": 1.0},
+            "radius": 0.4,
+            "height": 1.8,
+            "meshPath": "",
+            "isTrigger": false
+        },
+        "scripts": [
+            {
+                "className": "EnemyAI"
+            }
+        ]
+    }
+}

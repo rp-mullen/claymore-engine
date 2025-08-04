@@ -1,0 +1,84 @@
+#pragma once
+#include <bgfx/bgfx.h>
+#include <glm/glm.hpp>
+#include <memory>
+#include "ecs/Scene.h"
+#include "Camera.h"
+#include "Mesh.h"
+#include "Material.h"
+#include "DebugMaterial.h"
+
+struct LightData {
+    LightType type;
+    glm::vec3 color;
+    glm::vec3 position;
+    glm::vec3 direction;
+};
+
+
+
+class Renderer {
+public:
+    static Renderer& Get() {
+        static Renderer instance;
+        return instance;
+    }
+
+    Renderer(const Renderer&) = delete;
+    Renderer& operator=(const Renderer&) = delete;
+
+    // Initialization & lifecycle
+    void Init(uint32_t width, uint32_t height, void* windowHandle);
+    void Shutdown();
+    void BeginFrame(float r, float g, float b);
+    void EndFrame();
+    void Resize(uint32_t width, uint32_t height);
+
+    // Scene rendering
+    void RenderScene(Scene& scene);
+
+    // Mesh submission
+    void DrawMesh(const Mesh& mesh, const float* transform, const Material& material);
+
+    // Camera
+    Camera* GetCamera() const { return m_Camera; }
+    void SetCamera(Camera* cam) { m_Camera = cam; }
+
+    // Viewport info
+    int GetWidth() const { return m_Width; }
+    int GetHeight() const { return m_Height; }
+    bgfx::TextureHandle GetSceneTexture() const { return m_SceneTexture; }
+
+    // Debug utilities
+	void InitGrid(float size, float step);
+    void DrawGrid();
+    void DrawDebugRay(const glm::vec3& origin, const glm::vec3& dir, float length = 10.0f);
+
+    void UploadLightsToShader(const std::vector<LightData>& lights);
+
+private:
+    Renderer() = default;
+    ~Renderer() = default;
+
+    uint32_t m_Width = 0;
+    uint32_t m_Height = 0;
+    Camera* m_Camera = nullptr;
+
+    bgfx::FrameBufferHandle m_SceneFrameBuffer = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle m_SceneTexture = BGFX_INVALID_HANDLE;
+
+    float m_view[16]{};
+    float m_proj[16]{};
+
+    // Create a bgfx uniform (e.g., for 4 lights max)
+    bgfx::UniformHandle u_LightColor = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_LightDirection = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_LightPosition = BGFX_INVALID_HANDLE;
+	bgfx::UniformHandle u_cameraPos = BGFX_INVALID_HANDLE;
+
+    bgfx::ProgramHandle m_DebugLineProgram = BGFX_INVALID_HANDLE;
+
+    bgfx::VertexBufferHandle m_GridVB = BGFX_INVALID_HANDLE;
+    uint32_t m_GridVertexCount = 0;
+
+};

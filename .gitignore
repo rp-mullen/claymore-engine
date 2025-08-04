@@ -1,0 +1,57 @@
+# ==========================
+# Build output
+# ==========================
+/out/
+/Builds/
+/bin/
+/obj/
+
+# ==========================
+# External dependencies
+# ==========================
+/external/
+
+# ==========================
+# C# project build output
+# ==========================
+/scripts/ClaymoreEngine/bin/
+/scripts/ClaymoreEngine/obj/
+/scripts/ScriptCompiler/bin/
+/scripts/ScriptCompiler/obj/
+
+# Track .cs files, ignore binaries
+!scripts/ClaymoreEngine/*.cs
+!scripts/ScriptCompiler/*.cs
+
+
+# ==========================
+# Editor & IDE clutter
+# ==========================
+*.user
+*.suo
+*.sdf
+*.cache
+*.db
+*.VC.db
+*.log
+.vscode/
+.vs/
+
+# ==========================
+# Engine-generated stuff
+# ==========================
+*.dll
+*.pdb
+*.exe
+*.lib
+*.exp
+*.ilk
+
+# ==========================
+# Temporary & misc
+# ==========================
+*.tmp
+*.bak
+*.swp
+*.DS_Store
+Thumbs.db

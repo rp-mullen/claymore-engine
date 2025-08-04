@@ -1,0 +1,43 @@
+#pragma once
+#include <string>
+#include <GLFW/glfw3.h>
+#include <memory>
+#include "ui/UILayer.h"
+#include "pipeline/AssetWatcher.h"
+#include "pipeline/AssetPipeline.h"
+
+class Application {
+public:
+    Application(int width, int height, const std::string& title); 
+    ~Application();
+
+    static Application& Get();
+
+    AssetWatcher* GetAssetWatcher() const { return m_AssetWatcher.get(); }
+
+    void Run();
+
+    void StartPlayMode();
+    void StopPlayMode();
+    bool IsPlaying() const { return m_IsPlaying; }
+
+    std::filesystem::path defaultProjPath;
+private:
+    static Application* s_Instance;
+
+    void InitWindow(int width, int height, const std::string& title);
+    void InitBgfx();
+    void Shutdown();
+    void InitImGui();
+
+    std::shared_ptr<Scene> m_EditScene;
+    std::shared_ptr<Scene> m_RuntimeScene;
+    bool m_IsPlaying = false;
+
+    GLFWwindow* m_window;
+    int m_width;
+    int m_height;
+    std::unique_ptr<UILayer> uiLayer;
+	std::unique_ptr<AssetPipeline> m_AssetPipeline;
+	std::unique_ptr<AssetWatcher> m_AssetWatcher;
+};
