@@ -43,6 +43,9 @@ public:
     static glm::mat4 GetBodyTransform(JPH::BodyID bodyID);
     static glm::vec3 GetGravity();
 
+    // New helper to expose Jolt's body interface
+    static JPH::BodyInterface& GetBodyInterface();
+
 
 private:
 	Physics() = default;

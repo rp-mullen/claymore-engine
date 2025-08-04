@@ -9,6 +9,8 @@ namespace fs = std::filesystem;
 #include "ecs/AnimationComponents.h"
 #include <rendering/TextureLoader.h>
 #include <rendering/MaterialManager.h>
+#include <Jolt/Physics/Body/BodyCreationSettings.h>
+
 
 #include <sstream> // Include for std::ostringstream
 #include <assimp/Importer.hpp>
@@ -452,17 +454,14 @@ std::shared_ptr<Scene> Scene::RuntimeClone() {
       EntityID id = e.GetID();
       auto& data = clone->m_Entities[id];
 
+      // Only create physics bodies for entities with colliders
       if (data.Collider) {
+          // Update collider size based on entity scale for box shapes
+          if (data.Collider->ShapeType == ColliderShape::Box) {
+              data.Collider->Size = glm::abs(data.Collider->Size * data.Transform.Scale);
+          }
           data.Collider->BuildShape(data.Mesh && data.Mesh->mesh ? data.Mesh->mesh.get() : nullptr);
-         clone->CreatePhysicsBody(id, data.Transform, *data.Collider);
-         }
-
-      // Create physics bodies for RigidBody and StaticBody components
-      if (data.RigidBody && data.Collider) {
-         clone->CreatePhysicsBody(id, data.Transform, *data.Collider);
-      }
-      if (data.StaticBody && data.Collider) {
-         clone->CreatePhysicsBody(id, data.Transform, *data.Collider);
+          clone->CreatePhysicsBody(id, data.Transform, *data.Collider);
       }
       }
 
@@ -525,52 +524,99 @@ void Scene::DestroyPhysicsBody(EntityID id) {
     }
 }
 
+
+
 void Scene::CreatePhysicsBody(EntityID id, const TransformComponent& transform, const ColliderComponent& collider) {
-    if (!collider.Shape) {
-        std::cerr << "[Scene] Cannot create physics body: shape is null\n";
-        return;
-    }
+   if (!collider.Shape) {
+      std::cerr << "[Scene] Cannot create physics body: shape is null\n";
+      return;
+      }
 
-    auto* data = GetEntityData(id);
-    if (!data) return;
+   auto* data = GetEntityData(id);
+   if (!data) return;
 
-    glm::mat4 world = transform.WorldMatrix * glm::translate(glm::mat4(1.0f), collider.Offset);
-    bool isStatic = false;
+   // Check if a physics body already exists for this entity
+   if ((data->RigidBody && !data->RigidBody->BodyID.IsInvalid()) ||
+      (data->StaticBody && !data->StaticBody->BodyID.IsInvalid()) ||
+      m_BodyMap.find(id) != m_BodyMap.end()) {
+      std::cout << "[Scene] Physics body already exists for Entity " << id << ", skipping creation\n";
+      return;
+      }
 
-    // Determine if this should be a static body
-    if (data->StaticBody) {
-        isStatic = true;
-    } else if (data->RigidBody) {
-        isStatic = data->RigidBody->IsKinematic;
-    } else {
-        // Default behavior for collider-only entities
-        isStatic = collider.ShapeType == ColliderShape::Mesh || collider.IsTrigger;
-    }
+   // Combine world transform with collider offset
+   glm::mat4 world = transform.WorldMatrix * glm::translate(glm::mat4(1.0f), collider.Offset);
 
-    // Debug: Print the transform being used for physics body creation
-    glm::vec3 position = glm::vec3(world[3]);
-    std::cout << "[Scene] Creating physics body for Entity " << id 
-              << " at position (" << position.x << ", " << position.y << ", " << position.z << ")"
-              << " (Static: " << (isStatic ? "Yes" : "No") << ")" << std::endl;
+   // --- Decompose matrix into position and rotation ---
+   glm::vec3 pos, scale, skew;
+   glm::quat rot;
+   glm::vec4 perspective;
+   if (!glm::decompose(world, scale, rot, pos, skew, perspective)) {
+      std::cerr << "[Scene] Failed to decompose transform for Entity " << id << "\n";
+      return;
+      }
 
-    JPH::BodyID bodyID = Physics::Get().CreateBody(world, collider.Shape, isStatic);
-    if (bodyID.IsInvalid()) {
-        std::cerr << "[Scene] Failed to create physics body for Entity " << id << std::endl;
-        return;
-    }
+   // Convert to Jolt types
+   JPH::RVec3 joltPosition(pos.x, pos.y, pos.z);
+   JPH::Quat joltRotation(rot.x, rot.y, rot.z, rot.w);
 
-    // Store the body ID in the appropriate component
-    if (data->RigidBody) {
-        data->RigidBody->BodyID = bodyID;
-    } else if (data->StaticBody) {
-        data->StaticBody->BodyID = bodyID;
-    } else {
-        // Fallback to the old m_BodyMap for collider-only entities
-        m_BodyMap[id] = bodyID;
-    }
+   // Determine motion type
+   JPH::EMotionType motionType = JPH::EMotionType::Static;
+   if (data->RigidBody) {
+      motionType = data->RigidBody->IsKinematic
+         ? JPH::EMotionType::Kinematic
+         : JPH::EMotionType::Dynamic;
+      }
 
-    std::cout << "[Scene] Created physics body for Entity " << id << " (Static: " << (isStatic ? "Yes" : "No") << ")" << std::endl;
-}
+   // Print debug info
+   std::cout << "[Scene] Creating " << (motionType == JPH::EMotionType::Static ? "Static" :
+      motionType == JPH::EMotionType::Kinematic ? "Kinematic" : "Dynamic")
+      << " body for Entity " << id
+      << " at position (" << pos.x << ", " << pos.y << ", " << pos.z << ")\n";
+
+   // Create body (specify object layer 0 for static, 1 for moving)
+   uint8_t objectLayer = (motionType == JPH::EMotionType::Static) ? 0 : 1;
+   JPH::BodyCreationSettings settings(collider.Shape, joltPosition, joltRotation, motionType, objectLayer);
+   // Set friction: prefer RigidBody value, fall back to StaticBody, otherwise default
+   if (data->RigidBody)
+      settings.mFriction = data->RigidBody->Friction;
+   else if (data->StaticBody)
+      settings.mFriction = data->StaticBody->Friction;
+   else
+      settings.mFriction = 0.5f;
+   settings.mRestitution = data->RigidBody ? data->RigidBody->Restitution : data->StaticBody ? data->StaticBody->Restitution : 0.0f;
+   settings.mAllowSleeping = true;
+   settings.mIsSensor = collider.IsTrigger;
+
+   if (data->RigidBody) {
+      settings.mMotionQuality = JPH::EMotionQuality::LinearCast; // Optional: for fast-moving objects
+      settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateMassAndInertia;
+      settings.mMassPropertiesOverride.mMass = data->RigidBody->Mass;
+      }
+
+   JPH::BodyInterface& bodyInterface = Physics::Get().GetBodyInterface();
+   JPH::Body* body = bodyInterface.CreateBody(settings);
+
+   if (!body) {
+      std::cerr << "[Scene] Failed to create Jolt body for Entity " << id << std::endl;
+      return;
+      }
+
+   JPH::BodyID bodyID = body->GetID();
+   bodyInterface.AddBody(bodyID, JPH::EActivation::Activate);
+
+   // Store the BodyID
+   if (data->RigidBody) {
+      data->RigidBody->BodyID = bodyID;
+      }
+   else if (data->StaticBody) {
+      data->StaticBody->BodyID = bodyID;
+      }
+   else {
+      m_BodyMap[id] = bodyID; // Fallback
+      }
+
+   std::cout << "[Scene] Created physics body with ID " << bodyID.GetIndex() << "\n";
+   }
 
 void Scene::Update(float dt) {
    UpdateTransforms();

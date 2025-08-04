@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
@@ -111,6 +112,7 @@ struct ColliderComponent {
 		case ColliderShape::Box: {
 			JPH::BoxShapeSettings settings(JPH::Vec3(Size.x * 0.5f, Size.y * 0.5f, Size.z * 0.5f));
 			Shape = settings.Create().Get();
+			std::cout << "[Collider] Created box shape with size (" << Size.x << ", " << Size.y << ", " << Size.z << ")" << std::endl;
 			break;
 		}
 		case ColliderShape::Capsule: {

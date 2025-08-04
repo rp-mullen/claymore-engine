@@ -193,11 +193,31 @@ void InspectorPanel::DrawAddComponentButton(EntityID entity) {
         if (!data->RigidBody && !data->StaticBody && ImGui::MenuItem("RigidBody Component")) {
             data->RigidBody = new RigidBodyComponent();
             EnsureCollider(data->RigidBody, data);
+
+            // If the scene is currently playing, create the physics body immediately
+            if (m_Context && m_Context->m_IsPlaying && data->Collider) {
+                // Update collider size to respect current scale for box shapes
+                if (data->Collider->ShapeType == ColliderShape::Box) {
+                    data->Collider->Size = glm::abs(data->Collider->Size * data->Transform.Scale);
+                }
+                // Build the collision shape and create the Jolt body
+                data->Collider->BuildShape();
+                m_Context->CreatePhysicsBody(entity, data->Transform, *data->Collider);
+            }
         }
 
         if (!data->RigidBody && !data->StaticBody && ImGui::MenuItem("StaticBody Component")) {
             data->StaticBody = new StaticBodyComponent();
             EnsureCollider(data->StaticBody, data);
+
+            // If the scene is currently playing, create the physics body immediately
+            if (m_Context && m_Context->m_IsPlaying && data->Collider) {
+                if (data->Collider->ShapeType == ColliderShape::Box) {
+                    data->Collider->Size = glm::abs(data->Collider->Size * data->Transform.Scale);
+                }
+                data->Collider->BuildShape();
+                m_Context->CreatePhysicsBody(entity, data->Transform, *data->Collider);
+            }
         }
 
         ImGui::Separator();

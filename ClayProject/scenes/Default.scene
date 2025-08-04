@@ -7,7 +7,12 @@
             "mesh": {
                 "materialName": "DefaultPBR",
                 "materialType": "PBR",
-                "meshName": "DebugCube"
+                "meshName": "DebugCube",
+                "meshReference": {
+                    "fileID": 0,
+                    "guid": "00000000000000000000000000000000",
+                    "type": 0
+                }
             },
             "name": "Debug Cube_1",
             "parent": 4294967295,

@@ -89,7 +89,7 @@ void Physics::Init() {
     );
 
     // Set gravity explicitly (Jolt defaults to (0, -9.81, 0) but let's be explicit)
-    s_PhysicsSystem->SetGravity(JPH::Vec3(0.0f, -9.81f, 0.0f));
+    s_PhysicsSystem->SetGravity(JPH::Vec3(0.0f, -0.81f, 0.0f));
 
     std::cout << "[Physics] Jolt Physics initialized with gravity (0, -9.81, 0).\n";
 }
@@ -191,6 +191,14 @@ void Physics::SetBodyAngularVelocity(JPH::BodyID bodyID, const glm::vec3& veloci
         JPH::Vec3 joltVelocity(velocity.x, velocity.y, velocity.z);
         s_PhysicsSystem->GetBodyInterface().SetAngularVelocity(bodyID, joltVelocity);
     }
+}
+
+// -----------------------------------------------------------------------------
+// Public helper to retrieve BodyInterface so that other systems (e.g. Scene)
+// can create / manipulate bodies without touching the Physics internals.
+// -----------------------------------------------------------------------------
+JPH::BodyInterface& Physics::GetBodyInterface() {
+    return s_PhysicsSystem->GetBodyInterface();
 }
 
 glm::mat4 Physics::GetBodyTransform(JPH::BodyID bodyID) {

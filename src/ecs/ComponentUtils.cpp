@@ -1,6 +1,6 @@
 #include "ComponentUtils.h"
-#include "Components.h"
-#include "EntityData.h"
+#include "ecs/Components.h"
+#include "ecs/EntityData.h"
 
 void EnsureCollider(RigidBodyComponent* rigidBody, EntityData* entityData) {
 	if (!entityData->Collider) {
