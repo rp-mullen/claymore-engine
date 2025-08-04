@@ -19,7 +19,7 @@ extern "C"
     {
         auto data = Scene::Get().GetEntityData(entityID);
         data->Transform.Position = glm::vec3(x, y, z);
-		data->Transform.TransformDirty = true;
+        Scene::Get().MarkTransformDirty(entityID);
     }
 
     __declspec(dllexport) int FindEntityByName(const char* name)

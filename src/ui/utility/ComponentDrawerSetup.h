@@ -3,6 +3,7 @@
 #include "ecs/Components.h"
 #include "ecs/AnimationComponents.h" // adjust path to where TransformComponent etc. live
 #include "rendering/TextureLoader.h"
+#include "rendering/Renderer.h"
 #include "physics/Physics.h"
 
 #include <imgui.h>
@@ -106,4 +107,42 @@ inline void RegisterComponentDrawers() {
                 break;
         }
         });
+
+    registry.Register<CameraComponent>("Camera", [](CameraComponent& c) {
+        ImGui::Checkbox("Active", &c.Active);
+        ImGui::DragInt("Priority", &c.priority, 1, 0, 100);
+        ImGui::Separator();
+        
+        ImGui::Text("Projection Settings:");
+        ImGui::DragFloat("Field of View", &c.FieldOfView, 1.0f, 1.0f, 179.0f);
+        ImGui::DragFloat("Near Clip", &c.NearClip, 0.01f, 0.01f, 100.0f);
+        ImGui::DragFloat("Far Clip", &c.FarClip, 1.0f, 1.0f, 10000.0f);
+        ImGui::Checkbox("Perspective", &c.IsPerspective);
+        
+        // Update the camera's projection when parameters change
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
+            float aspectRatio = (float)Renderer::Get().GetWidth() / (float)Renderer::Get().GetHeight();
+            c.UpdateProjection(aspectRatio);
+        }
+    });
+
+    registry.Register<RigidBodyComponent>("RigidBody", [](RigidBodyComponent& rb) {
+        ImGui::DragFloat("Mass", &rb.Mass, 0.1f, 0.01f, 1000.0f);
+        ImGui::DragFloat("Friction", &rb.Friction, 0.01f, 0.0f, 1.0f);
+        ImGui::DragFloat("Restitution", &rb.Restitution, 0.01f, 0.0f, 1.0f);
+        ImGui::Checkbox("Use Gravity", &rb.UseGravity);
+        ImGui::Checkbox("Is Kinematic", &rb.IsKinematic);
+        
+        if (rb.IsKinematic) {
+            ImGui::Separator();
+            ImGui::Text("Kinematic Properties:");
+            ImGui::DragFloat3("Linear Velocity", &rb.LinearVelocity.x, 0.1f);
+            ImGui::DragFloat3("Angular Velocity", &rb.AngularVelocity.x, 0.1f);
+        }
+    });
+
+    registry.Register<StaticBodyComponent>("StaticBody", [](StaticBodyComponent& sb) {
+        ImGui::DragFloat("Friction", &sb.Friction, 0.01f, 0.0f, 1.0f);
+        ImGui::DragFloat("Restitution", &sb.Restitution, 0.01f, 0.0f, 1.0f);
+    });
 }

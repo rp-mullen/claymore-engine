@@ -11,8 +11,11 @@ public:
 
     // Accessors for standard meshes
     std::shared_ptr<Mesh> GetCubeMesh();
-    Mesh& GetPlaneMesh();
-    Mesh& GetSphereMesh();
+    std::shared_ptr<Mesh> GetPlaneMesh();
+    std::shared_ptr<Mesh> GetSphereMesh();
+    
+    // Register primitive meshes with AssetLibrary
+    void RegisterPrimitiveMeshes();
 
 private:
     StandardMeshManager() = default;

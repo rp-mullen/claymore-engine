@@ -1,6 +1,7 @@
 #include "AssetPipeline.h"
 #include "AssetRegistry.h"
 #include "AssetMetadata.h"
+#include "AssetLibrary.h"
 #include "rendering/ModelLoader.h"
 #include "rendering/TextureLoader.h"
 #include "rendering/ShaderManager.h"
@@ -156,14 +157,26 @@ void AssetPipeline::ImportAsset(const std::string& path) {
     meta.processedPath = "cache/" + fs::path(path).filename().string();
     meta.hash = hash;
     meta.lastImported = GetCurrentTimestamp();
+    
+            // Generate GUID and asset reference if not already present
+        if (meta.guid.high == 0 && meta.guid.low == 0) {
+            meta.guid = ClaymoreGUID::Generate();
+            meta.reference = AssetReference(meta.guid, 0, static_cast<int32_t>(AssetType::Mesh));
+        }
 
     json j = meta;
     std::ofstream out(metaPath);
     out << j.dump(4);
 
     AssetRegistry::Instance().SetMetadata(path, meta);
+    
+    // Register asset in AssetLibrary
+    AssetLibrary::Instance().RegisterAsset(meta.reference, 
+        static_cast<AssetType>(meta.reference.type), 
+        path, 
+        fs::path(path).filename().string());
 
-    std::cout << "[AssetPipeline] Imported: " << path << std::endl;
+    std::cout << "[AssetPipeline] Imported: " << path << " (GUID: " << meta.guid.ToString() << ")" << std::endl;
 }
 
 

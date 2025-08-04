@@ -21,7 +21,7 @@ public:
       auto* data = eScene->GetEntityData(id);
       float offset = sinf((float)Time::GetTotalTime()) * 0.5f;
       data->Transform.Position = m_StartPos + glm::vec3(offset, 0.0f, 0.0f);
-      data->Transform.TransformDirty = true;
+      eScene->MarkTransformDirty(id);
       }
 
    std::shared_ptr<ScriptComponent> Clone() const override {

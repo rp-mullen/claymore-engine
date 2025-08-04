@@ -6,9 +6,10 @@
 #include "ecs/Entity.h"
 #include "ecs/EntityData.h"
 #include "rendering/MaterialManager.h"
+#include "rendering/StandardMeshManager.h"
 
 using json = nlohmann::json;
-
+ 
 class Serializer {
 public:
     // Scene serialization
@@ -35,6 +36,12 @@ public:
     
     static json SerializeCollider(const ColliderComponent& collider);
     static void DeserializeCollider(const json& data, ColliderComponent& collider);
+
+    static json SerializeRigidBody(const RigidBodyComponent& rigidbody);
+    static void DeserializeRigidBody(const json& data, RigidBodyComponent& rigidbody);
+
+    static json SerializeStaticBody(const StaticBodyComponent& staticbody);
+    static void DeserializeStaticBody(const json& data, StaticBodyComponent& staticbody);
 
     // Script serialization
     static json SerializeScripts(const std::vector<ScriptInstance>& scripts);

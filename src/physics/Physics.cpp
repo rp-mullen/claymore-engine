@@ -88,7 +88,10 @@ void Physics::Init() {
         *s_ObjectLayerPairFilter
     );
 
-    std::cout << "[Physics] Jolt Physics initialized.\n";
+    // Set gravity explicitly (Jolt defaults to (0, -9.81, 0) but let's be explicit)
+    s_PhysicsSystem->SetGravity(JPH::Vec3(0.0f, -9.81f, 0.0f));
+
+    std::cout << "[Physics] Jolt Physics initialized with gravity (0, -9.81, 0).\n";
 }
 
 
@@ -102,6 +105,12 @@ void Physics::Shutdown() {
 
 void Physics::Step(float deltaTime) {
     s_PhysicsSystem->Update(deltaTime, 1, s_TempAllocator, s_JobSystem);
+}
+
+glm::vec3 Physics::GetGravity() {
+    if (!s_PhysicsSystem) return glm::vec3(0.0f, -9.81f, 0.0f);
+    JPH::Vec3 gravity = s_PhysicsSystem->GetGravity();
+    return glm::vec3(gravity.GetX(), gravity.GetY(), gravity.GetZ());
 }
 
 void Physics::DestroyBody(JPH::BodyID bodyID) {
@@ -121,6 +130,15 @@ JPH::BodyID Physics::CreateBody(const glm::mat4& transform, JPH::RefConst<JPH::S
     glm::vec3 position = glm::vec3(transform[3]); // Extract translation
     glm::quat rotation = glm::quat_cast(transform); // Convert matrix to quaternion
 
+    // Normalize the quaternion to ensure it's valid for Jolt
+    rotation = glm::normalize(rotation);
+
+    // Debug: Verify quaternion normalization
+    float quatLength = glm::length(rotation);
+    if (std::abs(quatLength - 1.0f) > 0.001f) {
+        std::cout << "[Physics] Warning: Quaternion not properly normalized, length: " << quatLength << std::endl;
+    }
+
     // Convert to Jolt types
     JPH::Vec3 joltPosition(position.x, position.y, position.z);
     JPH::Quat joltRotation(rotation.x, rotation.y, rotation.z, rotation.w);
@@ -134,6 +152,13 @@ JPH::BodyID Physics::CreateBody(const glm::mat4& transform, JPH::RefConst<JPH::S
         isStatic ? OBJECT_LAYER_NON_MOVING : OBJECT_LAYER_MOVING
     );
 
+    // Set mass for dynamic bodies (default to 1.0 kg)
+    if (!isStatic) {
+        settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+        settings.mMassPropertiesOverride.mMass = 1.0f;
+        settings.mGravityFactor = 1.0f; // Ensure gravity is applied
+    }
+
     JPH::BodyInterface& bodyInterface = s_PhysicsSystem->GetBodyInterface();
 
     // Create and add the body to the simulation
@@ -144,6 +169,45 @@ JPH::BodyID Physics::CreateBody(const glm::mat4& transform, JPH::RefConst<JPH::S
     }
 
     bodyInterface.AddBody(body->GetID(), JPH::EActivation::Activate);
+    
+    // Debug: Print body info
+    if (!isStatic) {
+        std::cout << "[Physics] Created dynamic body with ID " << body->GetID().GetIndex() 
+                  << " at position (" << position.x << ", " << position.y << ", " << position.z << ")" << std::endl;
+    }
+    
     return body->GetID();
+}
+
+void Physics::SetBodyLinearVelocity(JPH::BodyID bodyID, const glm::vec3& velocity) {
+    if (!bodyID.IsInvalid() && s_PhysicsSystem) {
+        JPH::Vec3 joltVelocity(velocity.x, velocity.y, velocity.z);
+        s_PhysicsSystem->GetBodyInterface().SetLinearVelocity(bodyID, joltVelocity);
+    }
+}
+
+void Physics::SetBodyAngularVelocity(JPH::BodyID bodyID, const glm::vec3& velocity) {
+    if (!bodyID.IsInvalid() && s_PhysicsSystem) {
+        JPH::Vec3 joltVelocity(velocity.x, velocity.y, velocity.z);
+        s_PhysicsSystem->GetBodyInterface().SetAngularVelocity(bodyID, joltVelocity);
+    }
+}
+
+glm::mat4 Physics::GetBodyTransform(JPH::BodyID bodyID) {
+    if (bodyID.IsInvalid() || !s_PhysicsSystem) {
+        return glm::mat4(0.0f); // Return invalid transform
+    }
+
+    JPH::Mat44 joltTransform = s_PhysicsSystem->GetBodyInterface().GetWorldTransform(bodyID);
+    
+    // Convert Jolt matrix to GLM matrix
+    glm::mat4 glmTransform;
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            glmTransform[i][j] = joltTransform(i, j);
+        }
+    }
+    
+    return glmTransform;
 }
 

@@ -5,6 +5,8 @@
 #include <string>
 #include "scripting/ScriptSystem.h"
 #include "scripting/ScriptReflection.h"
+#include "ecs/EntityData.h"
+#include "ecs/ComponentUtils.h"
 
 bool DrawVec3Control(const char* label, glm::vec3& values, float resetValue = 0.0f) {
     bool changed = false;
@@ -72,14 +74,74 @@ void InspectorPanel::DrawComponents(EntityID entity) {
 
     if (data->Mesh && ImGui::CollapsingHeader("Mesh")) {
         registry.DrawComponentUI("Mesh", data->Mesh);
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+        if (ImGui::Button("Remove Mesh Component", ImVec2(-1, 0))) {
+            delete data->Mesh;
+            data->Mesh = nullptr;
+        }
+        ImGui::PopStyleColor(2);
     }
 
     if (data->Light && ImGui::CollapsingHeader("Light")) {
         registry.DrawComponentUI("Light", data->Light);
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+        if (ImGui::Button("Remove Light Component", ImVec2(-1, 0))) {
+            delete data->Light;
+            data->Light = nullptr;
+        }
+        ImGui::PopStyleColor(2);
     }
 
     if (data->Collider && ImGui::CollapsingHeader("Collider")) {
         registry.DrawComponentUI("Collider", data->Collider);
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+        if (ImGui::Button("Remove Collider Component", ImVec2(-1, 0))) {
+            delete data->Collider;
+            data->Collider = nullptr;
+        }
+        ImGui::PopStyleColor(2);
+    }
+
+    if (data->Camera && ImGui::CollapsingHeader("Camera")) {
+        registry.DrawComponentUI("Camera", data->Camera);
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+        if (ImGui::Button("Remove Camera Component", ImVec2(-1, 0))) {
+            delete data->Camera;
+            data->Camera = nullptr;
+        }
+        ImGui::PopStyleColor(2);
+    }
+
+    if (data->RigidBody && ImGui::CollapsingHeader("RigidBody")) {
+        registry.DrawComponentUI("RigidBody", data->RigidBody);
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+        if (ImGui::Button("Remove RigidBody Component", ImVec2(-1, 0))) {
+            delete data->RigidBody;
+            data->RigidBody = nullptr;
+        }
+        ImGui::PopStyleColor(2);
+    }
+
+    if (data->StaticBody && ImGui::CollapsingHeader("StaticBody")) {
+        registry.DrawComponentUI("StaticBody", data->StaticBody);
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+        if (ImGui::Button("Remove StaticBody Component", ImVec2(-1, 0))) {
+            delete data->StaticBody;
+            data->StaticBody = nullptr;
+        }
+        ImGui::PopStyleColor(2);
     }
 
     // Draw script components
@@ -122,6 +184,20 @@ void InspectorPanel::DrawAddComponentButton(EntityID entity) {
 
         if (!data->Collider && ImGui::MenuItem("Collider Component")) {
             data->Collider = new ColliderComponent();
+        }
+
+        if (!data->Camera && ImGui::MenuItem("Camera Component")) {
+           data->Camera = new CameraComponent();
+           }
+
+        if (!data->RigidBody && !data->StaticBody && ImGui::MenuItem("RigidBody Component")) {
+            data->RigidBody = new RigidBodyComponent();
+            EnsureCollider(data->RigidBody, data);
+        }
+
+        if (!data->RigidBody && !data->StaticBody && ImGui::MenuItem("StaticBody Component")) {
+            data->StaticBody = new StaticBodyComponent();
+            EnsureCollider(data->StaticBody, data);
         }
 
         ImGui::Separator();

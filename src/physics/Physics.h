@@ -37,6 +37,11 @@ public:
     static void DestroyBody(JPH::BodyID bodyID);
     static JPH::BodyID CreateBody(const glm::mat4& transform, JPH::RefConst<JPH::Shape> shape, bool isStatic = false);
 
+    // Body control methods
+    static void SetBodyLinearVelocity(JPH::BodyID bodyID, const glm::vec3& velocity);
+    static void SetBodyAngularVelocity(JPH::BodyID bodyID, const glm::vec3& velocity);
+    static glm::mat4 GetBodyTransform(JPH::BodyID bodyID);
+    static glm::vec3 GetGravity();
 
 
 private:

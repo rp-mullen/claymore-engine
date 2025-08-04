@@ -20,6 +20,7 @@
 #include <utils/Time.h>
 #include <scripting/DotNetHost.h>
 #include "editor/Project.h"
+#include "physics/Physics.h"
 // Application.cpp
 Application* Application::s_Instance = nullptr;
 
@@ -60,6 +61,9 @@ Application::Application(int width, int height, const std::string& title)
 
     // 3. Initialize ImGui
     InitImGui();
+
+    // 4. Initialize Physics System
+    Physics::Get().Init();
 
     // Init Dotnet
     std::filesystem::path fullPath = std::filesystem::current_path() / "ClaymoreEngine.dll";
@@ -252,6 +256,9 @@ void Application::Run() {
 // =============================================================
 void Application::Shutdown() {
     std::cout << "[Application] Shutting down..." << std::endl;
+
+    // Shutdown Physics System
+    Physics::Get().Shutdown();
 
     if (m_AssetWatcher) {
         m_AssetWatcher->Stop();

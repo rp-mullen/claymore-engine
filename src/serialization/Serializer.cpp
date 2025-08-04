@@ -4,6 +4,8 @@
 #include <filesystem>
 #include "ecs/AnimationComponents.h"
 #include "scripting/ScriptSystem.h"
+#include "ecs/EntityData.h"
+#include "pipeline/AssetLibrary.h"
 
 namespace fs = std::filesystem;
 
@@ -61,7 +63,11 @@ void Serializer::DeserializeTransform(const json& data, TransformComponent& tran
 
 json Serializer::SerializeMesh(const MeshComponent& mesh) {
     json data;
+    
+    // Serialize both the old name-based system and new asset reference system
     data["meshName"] = mesh.MeshName;
+    data["meshReference"] = mesh.meshReference;
+    
     if (mesh.material) {
         data["materialName"] = mesh.material->GetName();
         // Store material properties if it's a PBR material
@@ -75,13 +81,44 @@ json Serializer::SerializeMesh(const MeshComponent& mesh) {
 }
 
 void Serializer::DeserializeMesh(const json& data, MeshComponent& mesh) {
-    if (data.contains("meshName")) {
-        mesh.MeshName = data["meshName"];
-        // Note: Actual mesh loading would need to be handled by the scene loading system
-        // as it requires access to the asset loading systems
+    // First try to load using the new asset reference system
+    if (data.contains("meshReference")) {
+        data["meshReference"].get_to(mesh.meshReference);
+        
+        // Load mesh from AssetLibrary using the reference
+        mesh.mesh = AssetLibrary::Instance().LoadMesh(mesh.meshReference);
+        
+        if (!mesh.mesh) {
+            std::cout << "[Serializer] Warning: Failed to load mesh from asset reference, falling back to name-based system" << std::endl;
+        }
     }
+    
+    // Fallback to the old name-based system
+    if (!mesh.mesh && data.contains("meshName")) {
+        mesh.MeshName = data["meshName"];
+        
+        // Load the actual mesh from StandardMeshManager based on the name
+        if (mesh.MeshName == "Cube" || mesh.MeshName == "DebugCube") {
+            mesh.mesh = StandardMeshManager::Instance().GetCubeMesh();
+        } else if (mesh.MeshName == "Sphere") {
+            mesh.mesh = StandardMeshManager::Instance().GetSphereMesh();
+        } else if (mesh.MeshName == "Plane") {
+            mesh.mesh = StandardMeshManager::Instance().GetPlaneMesh();
+        } else if (mesh.MeshName == "ImageQuad") {
+            mesh.mesh = StandardMeshManager::Instance().GetPlaneMesh();
+        } else {
+            // For other mesh names, try to get a default cube mesh as fallback
+            std::cout << "[Serializer] Warning: Unknown mesh name '" << mesh.MeshName << "', using default cube mesh" << std::endl;
+            mesh.mesh = StandardMeshManager::Instance().GetCubeMesh();
+        }
+    }
+    
     if (data.contains("materialName")) {
-        // Material reconstruction would need to be handled by the scene loading system
+        // Load material from MaterialManager
+        mesh.material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+    } else {
+        // Set default material if none specified
+        mesh.material = MaterialManager::Instance().CreateDefaultPBRMaterial();
     }
 }
 
@@ -119,6 +156,42 @@ void Serializer::DeserializeCollider(const json& data, ColliderComponent& collid
     if (data.contains("height")) collider.Height = data["height"];
     if (data.contains("meshPath")) collider.MeshPath = data["meshPath"];
     if (data.contains("isTrigger")) collider.IsTrigger = data["isTrigger"];
+}
+
+// RigidBody serialization
+json Serializer::SerializeRigidBody(const RigidBodyComponent& rigidbody) {
+    json data;
+    data["mass"] = rigidbody.Mass;
+    data["friction"] = rigidbody.Friction;
+    data["restitution"] = rigidbody.Restitution;
+    data["useGravity"] = rigidbody.UseGravity;
+    data["isKinematic"] = rigidbody.IsKinematic;
+    data["linearVelocity"] = SerializeVec3(rigidbody.LinearVelocity);
+    data["angularVelocity"] = SerializeVec3(rigidbody.AngularVelocity);
+    return data;
+}
+
+void Serializer::DeserializeRigidBody(const json& data, RigidBodyComponent& rigidbody) {
+    if (data.contains("mass")) rigidbody.Mass = data["mass"];
+    if (data.contains("friction")) rigidbody.Friction = data["friction"];
+    if (data.contains("restitution")) rigidbody.Restitution = data["restitution"];
+    if (data.contains("useGravity")) rigidbody.UseGravity = data["useGravity"];
+    if (data.contains("isKinematic")) rigidbody.IsKinematic = data["isKinematic"];
+    if (data.contains("linearVelocity")) rigidbody.LinearVelocity = DeserializeVec3(data["linearVelocity"]);
+    if (data.contains("angularVelocity")) rigidbody.AngularVelocity = DeserializeVec3(data["angularVelocity"]);
+}
+
+// StaticBody serialization
+json Serializer::SerializeStaticBody(const StaticBodyComponent& staticbody) {
+    json data;
+    data["friction"] = staticbody.Friction;
+    data["restitution"] = staticbody.Restitution;
+    return data;
+}
+
+void Serializer::DeserializeStaticBody(const json& data, StaticBodyComponent& staticbody) {
+    if (data.contains("friction")) staticbody.Friction = data["friction"];
+    if (data.contains("restitution")) staticbody.Restitution = data["restitution"];
 }
 
 json Serializer::SerializeScripts(const std::vector<ScriptInstance>& scripts) {
@@ -181,6 +254,14 @@ json Serializer::SerializeEntity(EntityID id, Scene& scene) {
       data["collider"] = SerializeCollider(*entityData->Collider);
       }
 
+   if (entityData->RigidBody) {
+      data["rigidbody"] = SerializeRigidBody(*entityData->RigidBody);
+      }
+
+   if (entityData->StaticBody) {
+      data["staticbody"] = SerializeStaticBody(*entityData->StaticBody);
+      }
+
    // Serialize scripts
    if (!entityData->Scripts.empty()) {
       data["scripts"] = SerializeScripts(entityData->Scripts);
@@ -233,6 +314,16 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
         DeserializeCollider(data["collider"], *entityData->Collider);
     }
 
+    if (data.contains("rigidbody")) {
+        entityData->RigidBody = new RigidBodyComponent();
+        DeserializeRigidBody(data["rigidbody"], *entityData->RigidBody);
+    }
+
+    if (data.contains("staticbody")) {
+        entityData->StaticBody = new StaticBodyComponent();
+        DeserializeStaticBody(data["staticbody"], *entityData->StaticBody);
+    }
+
     // Deserialize scripts
     if (data.contains("scripts")) {
         DeserializeScripts(data["scripts"], entityData->Scripts);
@@ -260,8 +351,15 @@ json Serializer::SerializeScene( Scene& scene) {
 bool Serializer::DeserializeScene(const json& data, Scene& scene) {
     if (!data.contains("entities")) return false;
 
-    // Clear existing scene (but preserve the scene structure)
-    // Note: This would need to be implemented in the Scene class
+    // Clear existing scene by removing all entities
+    std::vector<EntityID> entitiesToRemove;
+    for (const auto& entity : scene.GetEntities()) {
+        entitiesToRemove.push_back(entity.GetID());
+    }
+    
+    for (EntityID id : entitiesToRemove) {
+        scene.RemoveEntity(id);
+    }
     
     // First pass: Create all entities
     std::unordered_map<EntityID, EntityID> idMapping; // old ID -> new ID

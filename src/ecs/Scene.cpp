@@ -1,4 +1,5 @@
 #include "Scene.h"
+#include "EntityData.h"
 #include <algorithm>
 #include <functional>
 #include <filesystem>
@@ -36,9 +37,85 @@ Entity Scene::CreateEntity(const std::string& name) {
 }
 
 void Scene::RemoveEntity(EntityID id) {
+    auto* data = GetEntityData(id);
+    if (!data) return;
+
+    // 1. Clean up parent-child relationships
+    if (data->Parent != INVALID_ENTITY_ID) {
+        auto* parentData = GetEntityData(data->Parent);
+        if (parentData) {
+            parentData->Children.erase(
+                std::remove(parentData->Children.begin(), parentData->Children.end(), id),
+                parentData->Children.end()
+            );
+        }
+    }
+
+    // 2. Clean up children (recursively remove all children)
+    // Make a copy to avoid issues with iterating while removing
+    std::vector<EntityID> childrenToRemove = data->Children;
+    for (EntityID childID : childrenToRemove) {
+        RemoveEntity(childID);
+    }
+
+    // 3. Clean up physics body
+    DestroyPhysicsBody(id);
+
+    // 4. Clean up allocated components
+    if (data->Mesh) {
+        delete data->Mesh;
+        data->Mesh = nullptr;
+    }
+    if (data->Light) {
+        delete data->Light;
+        data->Light = nullptr;
+    }
+    if (data->Collider) {
+        delete data->Collider;
+        data->Collider = nullptr;
+    }
+    if (data->Camera) {
+        delete data->Camera;
+        data->Camera = nullptr;
+    }
+    if (data->RigidBody) {
+        delete data->RigidBody;
+        data->RigidBody = nullptr;
+    }
+    if (data->StaticBody) {
+        delete data->StaticBody;
+        data->StaticBody = nullptr;
+    }
+    if (data->BlendShapes) {
+        delete data->BlendShapes;
+        data->BlendShapes = nullptr;
+    }
+    if (data->Skeleton) {
+        delete data->Skeleton;
+        data->Skeleton = nullptr;
+    }
+    if (data->Skinning) {
+        delete data->Skinning;
+        data->Skinning = nullptr;
+    }
+
+    // 5. Clean up scripts
+    for (auto& script : data->Scripts) {
+        // Note: Script_Destroy is not exposed to C++, so we just clear the vector
+        // The shared_ptr will handle cleanup of native script instances
+        // For managed scripts, the GCHandle cleanup happens in C# when the script is destroyed
+    }
+    data->Scripts.clear();
+
+    // 6. Remove from entity collections
     m_Entities.erase(id);
-    m_EntityList.erase(std::remove_if(m_EntityList.begin(), m_EntityList.end(),
-        [&](const Entity& e) { return e.GetID() == id; }), m_EntityList.end());
+    m_EntityList.erase(
+        std::remove_if(m_EntityList.begin(), m_EntityList.end(),
+            [&](const Entity& e) { return e.GetID() == id; }), 
+        m_EntityList.end()
+    );
+
+    std::cout << "[Scene] Removed entity " << id << " and all its children" << std::endl;
 }
 
 EntityData* Scene::GetEntityData(EntityID id) {
@@ -78,12 +155,12 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
       data->Transform.Rotation = glm::vec3(0.0f);
       data->Transform.Scale = glm::vec3(1.0f);
 
-      Mesh* quadMesh = &StandardMeshManager::Instance().GetPlaneMesh();
+      std::shared_ptr<Mesh> quadMesh = StandardMeshManager::Instance().GetPlaneMesh();
 
       bgfx::TextureHandle tex = TextureLoader::Load2D(path);
 
       data->Mesh = new MeshComponent();
-      data->Mesh->mesh = std::shared_ptr<Mesh>(quadMesh, [](Mesh*) {});
+      data->Mesh->mesh = quadMesh;
 
       data->Mesh->MeshName = "ImageQuad";
       data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
@@ -276,6 +353,15 @@ void Scene::UpdateTransforms() {
          data->Transform.CalculateLocalMatrix();
          data->Transform.WorldMatrix = parentWorld * data->Transform.LocalMatrix;
          data->Transform.TransformDirty = false;
+         
+         // Debug: Print transform updates for parent-child relationships
+         if (data->Parent != -1) {
+            std::cout << "[Transform] Updated Entity " << id << " (Parent: " << data->Parent 
+                      << ") - Local Pos: (" << data->Transform.Position.x << ", " 
+                      << data->Transform.Position.y << ", " << data->Transform.Position.z << ")"
+                      << " - World Pos: (" << data->Transform.WorldMatrix[3].x << ", "
+                      << data->Transform.WorldMatrix[3].y << ", " << data->Transform.WorldMatrix[3].z << ")" << std::endl;
+         }
          }
       }
    }
@@ -349,21 +435,49 @@ std::shared_ptr<Scene> Scene::RuntimeClone() {
       
       auto& data = clone->m_Entities[id];
 
+      // Mark transform as dirty so world matrices are computed
+      data.Transform.TransformDirty = true;
+
       for (auto& script : data.Scripts) {
          if (script.Instance)
             toInitialize.emplace_back(&script, Entity(id, clone.get()));
          }
+      }
+
+   // Initialize transforms for the cloned scene BEFORE creating physics bodies
+   clone->UpdateTransforms();
+
+   // Now create physics bodies with properly computed transforms
+   for (const Entity& e : clone->m_EntityList) {
+      EntityID id = e.GetID();
+      auto& data = clone->m_Entities[id];
 
       if (data.Collider) {
           data.Collider->BuildShape(data.Mesh && data.Mesh->mesh ? data.Mesh->mesh.get() : nullptr);
          clone->CreatePhysicsBody(id, data.Transform, *data.Collider);
          }
+
+      // Create physics bodies for RigidBody and StaticBody components
+      if (data.RigidBody && data.Collider) {
+         clone->CreatePhysicsBody(id, data.Transform, *data.Collider);
+      }
+      if (data.StaticBody && data.Collider) {
+         clone->CreatePhysicsBody(id, data.Transform, *data.Collider);
+      }
       }
 
    // Initialize scripts after cloning
    for (auto& [scriptPtr, entity] : toInitialize) {
       scriptPtr->Instance->OnCreate(entity);
       }
+
+   // Debug: Print parent-child relationships
+   std::cout << "[Scene] Cloned scene parent-child relationships:" << std::endl;
+   for (const auto& [id, data] : clone->m_Entities) {
+      if (data.Parent != INVALID_ENTITY_ID) {
+         std::cout << "  Entity " << id << " -> Parent " << data.Parent << std::endl;
+      }
+   }
 
    std::cout << "[Scene] Cloned scene with " << clone->m_Entities.size() << " entities\n";
    return clone;
@@ -379,10 +493,34 @@ void Scene::OnStop() {
 
 
 void Scene::DestroyPhysicsBody(EntityID id) {
-    auto it = m_BodyMap.find(id);
-    if (it != m_BodyMap.end()) {
-        Physics::Get().DestroyBody(it->second);
-        m_BodyMap.erase(it);
+    auto* data = GetEntityData(id);
+    if (!data) return;
+
+    JPH::BodyID bodyID;
+
+    // Check RigidBody component first
+    if (data->RigidBody && !data->RigidBody->BodyID.IsInvalid()) {
+        bodyID = data->RigidBody->BodyID;
+        data->RigidBody->BodyID = JPH::BodyID();
+    }
+    // Check StaticBody component
+    else if (data->StaticBody && !data->StaticBody->BodyID.IsInvalid()) {
+        bodyID = data->StaticBody->BodyID;
+        data->StaticBody->BodyID = JPH::BodyID();
+    }
+    // Fallback to old m_BodyMap
+    else {
+        auto it = m_BodyMap.find(id);
+        if (it != m_BodyMap.end()) {
+            bodyID = it->second;
+            m_BodyMap.erase(it);
+        } else {
+            return; // No body found
+        }
+    }
+
+    if (!bodyID.IsInvalid()) {
+        Physics::Get().DestroyBody(bodyID);
         std::cout << "[Scene] Destroyed physics body for Entity " << id << std::endl;
     }
 }
@@ -393,31 +531,112 @@ void Scene::CreatePhysicsBody(EntityID id, const TransformComponent& transform, 
         return;
     }
 
+    auto* data = GetEntityData(id);
+    if (!data) return;
+
     glm::mat4 world = transform.WorldMatrix * glm::translate(glm::mat4(1.0f), collider.Offset);
-    bool isStatic = collider.ShapeType == ColliderShape::Mesh || collider.IsTrigger;
+    bool isStatic = false;
+
+    // Determine if this should be a static body
+    if (data->StaticBody) {
+        isStatic = true;
+    } else if (data->RigidBody) {
+        isStatic = data->RigidBody->IsKinematic;
+    } else {
+        // Default behavior for collider-only entities
+        isStatic = collider.ShapeType == ColliderShape::Mesh || collider.IsTrigger;
+    }
+
+    // Debug: Print the transform being used for physics body creation
+    glm::vec3 position = glm::vec3(world[3]);
+    std::cout << "[Scene] Creating physics body for Entity " << id 
+              << " at position (" << position.x << ", " << position.y << ", " << position.z << ")"
+              << " (Static: " << (isStatic ? "Yes" : "No") << ")" << std::endl;
 
     JPH::BodyID bodyID = Physics::Get().CreateBody(world, collider.Shape, isStatic);
-    if (bodyID.IsInvalid())
-        return; // error case
+    if (bodyID.IsInvalid()) {
+        std::cerr << "[Scene] Failed to create physics body for Entity " << id << std::endl;
+        return;
+    }
 
-    m_BodyMap[id] = bodyID;
-    std::cout << "[Scene] Created physics body for Entity " << id << std::endl;
-    
+    // Store the body ID in the appropriate component
+    if (data->RigidBody) {
+        data->RigidBody->BodyID = bodyID;
+    } else if (data->StaticBody) {
+        data->StaticBody->BodyID = bodyID;
+    } else {
+        // Fallback to the old m_BodyMap for collider-only entities
+        m_BodyMap[id] = bodyID;
+    }
+
+    std::cout << "[Scene] Created physics body for Entity " << id << " (Static: " << (isStatic ? "Yes" : "No") << ")" << std::endl;
 }
 
 void Scene::Update(float dt) {
    UpdateTransforms();
 
    if (m_IsPlaying) {
-      /*Physics::Step(dt);*/
+      // Step physics simulation
+      static int physicsStepCount = 0;
+      physicsStepCount++;
+      
+      // Debug: Print gravity and step info (only for first few steps)
+      if (physicsStepCount <= 5) {
+         glm::vec3 gravity = Physics::Get().GetGravity();
+         std::cout << "[Physics] Step " << physicsStepCount << " - dt: " << dt 
+                   << " - Gravity: (" << gravity.x << ", " << gravity.y << ", " << gravity.z << ")" << std::endl;
+      }
+      
+      Physics::Get().Step(dt);
 
       for (auto& [id, data] : m_Entities) {
+         // Sync camera with transform
+         if (data.Camera) {
+            data.Camera->SyncWithTransform(data.Transform);
+         }
+
+         // Sync physics bodies with transforms
+         if (data.RigidBody && !data.RigidBody->BodyID.IsInvalid()) {
+            // For kinematic bodies, apply velocity
+            if (data.RigidBody->IsKinematic) {
+               // Apply linear and angular velocity
+               Physics::Get().SetBodyLinearVelocity(data.RigidBody->BodyID, data.RigidBody->LinearVelocity);
+               Physics::Get().SetBodyAngularVelocity(data.RigidBody->BodyID, data.RigidBody->AngularVelocity);
+            } else {
+               // For dynamic bodies, sync transform from physics
+               glm::mat4 physicsTransform = Physics::Get().GetBodyTransform(data.RigidBody->BodyID);
+               if (physicsTransform != glm::mat4(0.0f)) { // Check if valid transform
+                  // Extract position and rotation from physics transform
+                  glm::vec3 position = glm::vec3(physicsTransform[3]);
+                  glm::mat3 rotationMatrix = glm::mat3(physicsTransform);
+                  glm::vec3 rotation = glm::degrees(glm::eulerAngles(glm::quat_cast(rotationMatrix)));
+                  
+                  // Debug: Print physics transform sync (only for first few frames)
+                  static int frameCount = 0;
+                  if (frameCount < 10) {
+                     std::cout << "[Physics] Frame " << frameCount << " - Entity " << id 
+                               << " physics pos: (" << position.x << ", " << position.y << ", " << position.z << ")" << std::endl;
+                  }
+                  frameCount++;
+                  
+                  // Update entity transform
+                  data.Transform.Position = position;
+                  data.Transform.Rotation = rotation;
+                  data.Transform.TransformDirty = true;
+               }
+            }
+         }
+
+         // Sync static bodies (they don't move, but we need to ensure they're positioned correctly)
+         if (data.StaticBody && !data.StaticBody->BodyID.IsInvalid()) {
+            // Static bodies don't move, but we can sync their initial position
+            // This is mainly for when static bodies are created
+         }
+
          for (auto& script : data.Scripts) {
             if (script.Instance)
                script.Instance->OnUpdate(dt);
-
             }
-
          }
       }
    }
@@ -432,6 +651,12 @@ bool Scene::HasComponent(const char* componentName) {
          return true;
       if (strcmp(componentName, "ColliderComponent") == 0 && data->Collider)
          return true;
+      if (strcmp(componentName, "CameraComponent") == 0 && data->Camera)
+         return true;
+      if (strcmp(componentName, "RigidBodyComponent") == 0 && data->RigidBody)
+         return true;
+      if (strcmp(componentName, "StaticBodyComponent") == 0 && data->StaticBody)
+         return true;
       if (strcmp(componentName, "BlendShapeComponent") == 0 && data->BlendShapes)
          return true;
       if (strcmp(componentName, "SkeletonComponent") == 0 && data->Skeleton)
@@ -441,3 +666,27 @@ bool Scene::HasComponent(const char* componentName) {
       }
    return false;
    }
+
+Camera* Scene::GetActiveCamera() {
+   int minPriority = std::numeric_limits<int>::max();
+   EntityID selectedEntity = INVALID_ENTITY_ID;
+
+   for (auto entity : m_EntityList) {
+      auto* data = GetEntityData(entity.GetID());
+      if (data && data->Camera && data->Camera->Active) {
+         if (data->Camera->priority < minPriority) {
+            minPriority = data->Camera->priority;
+            selectedEntity = entity.GetID();
+            }
+         }
+      }
+
+   if (selectedEntity != INVALID_ENTITY_ID) {
+      auto* entityData = GetEntityData(selectedEntity);
+      return entityData ? &entityData->Camera->Camera : nullptr;
+      }
+
+   return nullptr;
+   }
+
+   

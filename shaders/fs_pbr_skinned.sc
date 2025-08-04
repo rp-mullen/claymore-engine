@@ -6,21 +6,15 @@ SAMPLER2D(s_albedo, 0);
 SAMPLER2D(s_metallicRoughness, 1);
 SAMPLER2D(s_normalMap, 2);
 
-uniform vec4 u_lightDir;
-uniform vec4 u_lightColor;
+// Light uniforms - support up to 4 lights
+uniform vec4 u_lightColors[4];     // rgb = color, a = intensity
+uniform vec4 u_lightPositions[4];  // xyz = position/direction, w = light type (0=directional, 1=point)
+uniform vec4 u_lightParams[4];     // x = range (for point lights), y = constant, z = linear, w = quadratic
 
-void main()
-{
-    vec3 N = normalize(v_normal);
-    vec3 V = normalize(v_viewDir);
-    vec3 L = normalize(-u_lightDir.xyz);
+// PBR lighting calculation function
+vec3 CalculatePBRLighting(vec3 N, vec3 V, vec3 L, vec3 baseColor, float metallic, float roughness, vec3 lightColor, float lightIntensity) {
     vec3 H = normalize(V + L);
-
-    // Sample material properties
-    vec3 baseColor = texture2D(s_albedo, v_uv0).rgb;
-    float metallic = texture2D(s_metallicRoughness, v_uv0).r;
-    float roughness = texture2D(s_metallicRoughness, v_uv0).g;
-
+    
     // Fresnel-Schlick
     vec3 F0 = mix(vec3(0.04,0.04,0.04), baseColor, metallic);
     float VdotH = max(dot(V, H), 0.0);
@@ -51,7 +45,55 @@ void main()
     vec3 kD = (1.0 - kS) * (1.0 - metallic);
     vec3 diffuse = baseColor / 3.14159;
 
-    vec3 color = (kD * diffuse + specular) * NdotL * u_lightColor.rgb;
+    return (kD * diffuse + specular) * NdotL * lightColor * lightIntensity;
+}
 
-    gl_FragColor = vec4(color, 1.0);
+void main()
+{
+    vec3 N = normalize(v_normal);
+    vec3 V = normalize(v_viewDir);
+    
+    // Sample material properties
+    vec3 baseColor = texture2D(s_albedo, v_uv0).rgb;
+    float metallic = texture2D(s_metallicRoughness, v_uv0).r;
+    float roughness = texture2D(s_metallicRoughness, v_uv0).g;
+
+    vec3 finalColor = vec3(0.0, 0.0, 0.0);
+    
+    // Process each light
+    for (int i = 0; i < 4; i++) {
+        float lightType = u_lightPositions[i].w;
+        vec3 lightColor = u_lightColors[i].rgb;
+        float lightIntensity = u_lightColors[i].a;
+        
+        vec3 L;
+        float attenuation = 1.0;
+        
+        if (lightType < 0.5) {
+            // Directional light
+            L = normalize(-u_lightPositions[i].xyz);
+        } else {
+            // Point light
+            vec3 lightPos = u_lightPositions[i].xyz;
+            vec3 lightDir = lightPos - v_worldPos;
+            float distance = length(lightDir);
+            L = normalize(lightDir);
+            
+            // Check if light is within range
+            float range = u_lightParams[i].x;
+            if (range > 0.0 && distance > range) {
+                continue; // Skip this light if out of range
+            }
+            
+            // Calculate attenuation
+            float constant = u_lightParams[i].y;
+            float linearTerm = u_lightParams[i].z;
+            float quadratic = u_lightParams[i].w;
+            attenuation = 1.0 / (constant + linearTerm * distance + quadratic * distance * distance);
+        }
+        
+        finalColor += CalculatePBRLighting(N, V, L, baseColor, metallic, roughness, lightColor, lightIntensity) * attenuation;
+    }
+
+    gl_FragColor = vec4(finalColor, 1.0);
 }

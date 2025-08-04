@@ -6,7 +6,8 @@
 #include "EntityData.h"
 #include <assimp/scene.h>
 #include <rendering/ModelLoader.h>
-
+#include <rendering/Camera.h>
+#include "Components.h"
 
 class Scene {
 public:
@@ -60,6 +61,8 @@ public:
    void OnStop();
 
    bool HasComponent(const char* componentName);
+
+   Camera* GetActiveCamera();
 
 private:
    std::unordered_map<EntityID, EntityData> m_Entities;

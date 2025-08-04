@@ -4,6 +4,10 @@
 #include <vector>
 #include <cstdio>
 #include "MaterialManager.h"
+#include "pipeline/AssetLibrary.h"
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/ext/scalar_constants.hpp>
 
 StandardMeshManager& StandardMeshManager::Instance() {
     static StandardMeshManager instance;
@@ -21,17 +25,17 @@ StandardMeshManager::~StandardMeshManager() {
 
 std::shared_ptr<Mesh> StandardMeshManager::GetCubeMesh() {  
    if (!m_CubeMesh) CreateCubeMesh();  
-   return std::shared_ptr<Mesh>(m_CubeMesh.release());  
+   return std::shared_ptr<Mesh>(m_CubeMesh.get(), [](Mesh*) {}); // Non-owning shared_ptr
 }
 
-Mesh& StandardMeshManager::GetPlaneMesh() {
+std::shared_ptr<Mesh> StandardMeshManager::GetPlaneMesh() {
     if (!m_PlaneMesh) CreatePlaneMesh();
-    return *m_PlaneMesh;
+    return std::shared_ptr<Mesh>(m_PlaneMesh.get(), [](Mesh*) {}); // Non-owning shared_ptr
 }
 
-Mesh& StandardMeshManager::GetSphereMesh() {
+std::shared_ptr<Mesh> StandardMeshManager::GetSphereMesh() {
     if (!m_SphereMesh) CreateSphereMesh();
-    return *m_SphereMesh;
+    return std::shared_ptr<Mesh>(m_SphereMesh.get(), [](Mesh*) {}); // Non-owning shared_ptr
 }
 
 void StandardMeshManager::CreateCubeMesh() {
@@ -104,9 +108,132 @@ void StandardMeshManager::CreateCubeMesh() {
 
 
 void StandardMeshManager::CreatePlaneMesh() {
-    // TODO: Implement similar to cube (flat quad)
+    static PBRVertex planeVertices[] = {
+        // Front face (facing +Z)
+        {-1,  1,  0,  0, 0, 1,  0, 0},  // Top-left
+        { 1,  1,  0,  0, 0, 1,  1, 0},  // Top-right
+        {-1, -1,  0,  0, 0, 1,  0, 1},  // Bottom-left
+        { 1, -1,  0,  0, 0, 1,  1, 1}   // Bottom-right
+    };
+
+    static const uint16_t planeIndices[] = {
+        0, 1, 2, 1, 3, 2  // Two triangles forming a quad
+    };
+
+    m_PlaneMesh = std::make_unique<Mesh>();
+
+    m_PlaneMesh->vbh = bgfx::createVertexBuffer(bgfx::makeRef(planeVertices, sizeof(planeVertices)), PBRVertex::layout);
+    m_PlaneMesh->ibh = bgfx::createIndexBuffer(bgfx::makeRef(planeIndices, sizeof(planeIndices)));
+
+    // CPU-side storage for picking
+    m_PlaneMesh->Vertices.reserve(4);
+    for (auto& v : planeVertices) {
+        m_PlaneMesh->Vertices.push_back(glm::vec3(v.x, v.y, v.z));
+    }
+
+    size_t indexCount = sizeof(planeIndices) / sizeof(uint16_t);
+    m_PlaneMesh->Indices.assign(planeIndices, planeIndices + indexCount);
+    m_PlaneMesh->numIndices = (uint32_t)indexCount;
+
+    m_PlaneMesh->ComputeBounds();
+    printf("[StandardMeshManager] Plane Mesh created (PBR).\n");
 }
 
 void StandardMeshManager::CreateSphereMesh() {
-    // TODO: Implement UV sphere or icosphere
+    const int segments = 32;  // Horizontal segments
+    const int rings = 16;     // Vertical rings
+    const float radius = 1.0f;
+    
+    std::vector<PBRVertex> sphereVertices;
+    std::vector<uint16_t> sphereIndices;
+    
+    // Generate vertices
+    for (int ring = 0; ring <= rings; ++ring) {
+        float phi = (float)ring / rings * glm::pi<float>();
+        float y = radius * cos(phi);
+        float ringRadius = radius * sin(phi);
+        
+        for (int segment = 0; segment <= segments; ++segment) {
+            float theta = (float)segment / segments * 2.0f * glm::pi<float>();
+            float x = ringRadius * cos(theta);
+            float z = ringRadius * sin(theta);
+            
+            // Position
+            float px = x;
+            float py = y;
+            float pz = z;
+            
+            // Normal (normalized position for unit sphere)
+            float nx = x / radius;
+            float ny = y / radius;
+            float nz = z / radius;
+            
+            // UV coordinates
+            float u = (float)segment / segments;
+            float v = (float)ring / rings;
+            
+            sphereVertices.push_back({px, py, pz, nx, ny, nz, u, v});
+        }
+    }
+    
+    // Generate indices
+    for (int ring = 0; ring < rings; ++ring) {
+        for (int segment = 0; segment < segments; ++segment) {
+            uint16_t current = ring * (segments + 1) + segment;
+            uint16_t next = current + segments + 1;
+            
+            // First triangle
+            sphereIndices.push_back(current);
+            sphereIndices.push_back(next);
+            sphereIndices.push_back(current + 1);
+            
+            // Second triangle
+            sphereIndices.push_back(next);
+            sphereIndices.push_back(next + 1);
+            sphereIndices.push_back(current + 1);
+        }
+    }
+    
+    m_SphereMesh = std::make_unique<Mesh>();
+    
+    m_SphereMesh->vbh = bgfx::createVertexBuffer(
+        bgfx::makeRef(sphereVertices.data(), sphereVertices.size() * sizeof(PBRVertex)), 
+        PBRVertex::layout
+    );
+    m_SphereMesh->ibh = bgfx::createIndexBuffer(
+        bgfx::makeRef(sphereIndices.data(), sphereIndices.size() * sizeof(uint16_t))
+    );
+    
+    // CPU-side storage for picking
+    m_SphereMesh->Vertices.reserve(sphereVertices.size());
+    for (auto& v : sphereVertices) {
+        m_SphereMesh->Vertices.push_back(glm::vec3(v.x, v.y, v.z));
+    }
+    
+    m_SphereMesh->Indices = sphereIndices;
+    m_SphereMesh->numIndices = (uint32_t)sphereIndices.size();
+    
+    m_SphereMesh->ComputeBounds();
+    printf("[StandardMeshManager] Sphere Mesh created (PBR) - %zu vertices, %zu indices.\n", 
+           sphereVertices.size(), sphereIndices.size());
+}
+
+void StandardMeshManager::RegisterPrimitiveMeshes() {
+    // Register primitive meshes with AssetLibrary
+    // Use special GUIDs for primitives
+    static const ClaymoreGUID PRIMITIVE_GUID = ClaymoreGUID::FromString("00000000000000000000000000000001");
+    
+    // Register Cube primitive
+    AssetReference cubeRef(PRIMITIVE_GUID, 0, static_cast<int32_t>(AssetType::Mesh));
+    AssetLibrary::Instance().RegisterAsset(cubeRef, AssetType::Mesh, "", "Cube");
+    
+    // Register Sphere primitive
+    AssetReference sphereRef(PRIMITIVE_GUID, 1, static_cast<int32_t>(AssetType::Mesh));
+    AssetLibrary::Instance().RegisterAsset(sphereRef, AssetType::Mesh, "", "Sphere");
+    
+    // Register Plane primitive
+    AssetReference planeRef(PRIMITIVE_GUID, 2, static_cast<int32_t>(AssetType::Mesh));
+    AssetLibrary::Instance().RegisterAsset(planeRef, AssetType::Mesh, "", "Plane");
+    
+    std::cout << "[StandardMeshManager] Registered primitive meshes with AssetLibrary" << std::endl;
 }

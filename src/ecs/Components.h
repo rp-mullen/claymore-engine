@@ -1,14 +1,28 @@
 #pragma once
 #include <string>
 #include <glm/glm.hpp>
+#include <glm/gtc/constants.hpp>
 
 #include "rendering/Material.h"
 #include "rendering/Mesh.h"
+#include "rendering/Camera.h"
+#include "pipeline/AssetReference.h"
+
 #include <memory>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/ext/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/euler_angles.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/transform.hpp>
 #include <physics/Physics.h>
+#include <Jolt/Physics/Collision/Shape/Shape.h>
+#include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/MeshShape.h>
+
 
 struct TransformComponent {
 	glm::vec3 Position = glm::vec3(0.0f);
@@ -41,7 +55,8 @@ struct BlendShapeComponent; // forward decl
 
 struct MeshComponent {
 	std::shared_ptr<Mesh> mesh;
-	std::string MeshName;
+	std::string MeshName;  // Keep for backward compatibility
+	AssetReference meshReference;  // New asset reference system
 	std::shared_ptr<Material> material;
 
 	BlendShapeComponent* BlendShapes = nullptr;
@@ -91,7 +106,6 @@ struct ColliderComponent {
 
 	ColliderComponent() = default;
 
-	// Runtime shape generation
 	void BuildShape(const Mesh* mesh = nullptr) {
 		switch (ShapeType) {
 		case ColliderShape::Box: {
@@ -105,38 +119,94 @@ struct ColliderComponent {
 			break;
 		}
 		case ColliderShape::Mesh: {
-			if (!mesh || mesh->Vertices.empty() || mesh->Indices.empty()) {
-				std::cerr << "[Collider] Mesh collider requires valid mesh data!\n";
-				Shape = nullptr;
-				break;
-			}
-
-			const auto& verts = mesh->Vertices;
-			const auto& indices = mesh->Indices;
-
-			JPH::TriangleList triangles;
-			for (size_t i = 0; i + 2 < indices.size(); i += 3) {
-				const glm::vec3& v0 = verts[indices[i + 0]];
-				const glm::vec3& v1 = verts[indices[i + 1]];
-				const glm::vec3& v2 = verts[indices[i + 2]];
-				triangles.emplace_back(
-					JPH::Float3(v0.x, v0.y, v0.z),
-					JPH::Float3(v1.x, v1.y, v1.z),
-					JPH::Float3(v2.x, v2.y, v2.z)
-				);
-			}
-
-			JPH::MeshShapeSettings settings(std::move(triangles));
-			auto result = settings.Create();
-			if (result.HasError()) {
-				std::cerr << "[Collider] MeshShape creation failed: " << result.GetError().c_str() << "\n";
-				Shape = nullptr;
-			}
-			else {
-				Shape = result.Get();
+			if (mesh) {
+				// Auto-detect appropriate collision shape based on mesh bounds
+				glm::vec3 boundsSize = mesh->BoundsMax - mesh->BoundsMin;
+				glm::vec3 boundsCenter = (mesh->BoundsMax + mesh->BoundsMin) * 0.5f;
+				
+				// Auto-detect shape type based on bounds
+				if (boundsSize.x > 0.9f && boundsSize.x < 1.1f && 
+					boundsSize.y > 0.9f && boundsSize.y < 1.1f && 
+					boundsSize.z > 0.9f && boundsSize.z < 1.1f) {
+					// Use sphere shape for approximately unit sphere meshes
+					float radius = std::max({boundsSize.x, boundsSize.y, boundsSize.z}) * 0.5f;
+					JPH::SphereShapeSettings settings(radius);
+					Shape = settings.Create().Get();
+				} else if (boundsSize.y < 0.1f && boundsSize.x > 0.5f && boundsSize.z > 0.5f) {
+					// Use box shape for plane meshes (thin box)
+					JPH::BoxShapeSettings settings(JPH::Vec3(boundsSize.x * 0.5f, 0.01f, boundsSize.z * 0.5f));
+					Shape = settings.Create().Get();
+				} else {
+					// Default to box shape for other meshes
+					JPH::BoxShapeSettings settings(JPH::Vec3(boundsSize.x * 0.5f, boundsSize.y * 0.5f, boundsSize.z * 0.5f));
+					Shape = settings.Create().Get();
+				}
+			} else {
+				// Fallback to box shape if no mesh provided
+				JPH::BoxShapeSettings settings(JPH::Vec3(Size.x * 0.5f, Size.y * 0.5f, Size.z * 0.5f));
+				Shape = settings.Create().Get();
 			}
 			break;
 		}
 		}
 	}
 };
+
+struct RigidBodyComponent {
+	float Mass = 1.0f;
+	float Friction = 0.5f;
+	float Restitution = 0.0f; // Bounciness
+	bool UseGravity = true;
+	bool IsKinematic = false;
+	
+	// Physics body reference
+	JPH::BodyID BodyID = JPH::BodyID();
+	
+	// Velocity and angular velocity (for kinematic bodies)
+	glm::vec3 LinearVelocity = glm::vec3(0.0f);
+	glm::vec3 AngularVelocity = glm::vec3(0.0f);
+	
+	RigidBodyComponent() = default;
+};
+
+struct StaticBodyComponent {
+	float Friction = 0.5f;
+	float Restitution = 0.0f;
+	
+	// Physics body reference
+	JPH::BodyID BodyID = JPH::BodyID();
+	
+	StaticBodyComponent() = default;
+};
+
+struct CameraComponent {
+	Camera Camera; // Your existing Camera class
+	bool Active = false;
+
+   int priority = 0; // Lower values render first, higher values render last
+
+	// Settings
+	float FieldOfView = 60.0f;
+	float NearClip = 0.1f;
+	float FarClip = 1000.0f;
+	bool IsPerspective = true;
+
+	CameraComponent() = default;
+
+	void UpdateProjection(float aspectRatio) {
+		if (IsPerspective)
+			Camera.SetPerspective(FieldOfView, aspectRatio, NearClip, FarClip);
+		else {
+			// Orthographic projection
+			float orthoSize = 10.0f; // Default ortho size
+			Camera.SetPerspective(orthoSize, aspectRatio, NearClip, FarClip);
+		}
+	}
+
+	void SyncWithTransform(const TransformComponent& transform) {
+		Camera.SetPosition(transform.Position);
+		Camera.SetRotation(transform.Rotation);
+		// Note: SetPosition and SetRotation automatically call RecalculateView()
+	}
+};
+

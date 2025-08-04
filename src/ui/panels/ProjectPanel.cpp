@@ -5,6 +5,7 @@
 #include <iostream>
 #include <filesystem>
 #include <algorithm>
+#include "ecs/EntityData.h"
 
 namespace fs = std::filesystem;
 

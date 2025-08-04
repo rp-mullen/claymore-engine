@@ -17,6 +17,7 @@
 #include "utility/ComponentDrawerSetup.h"
 #include <ecs/debug/TestScript.h>
 #include <core/application.h>
+#include "ecs/EntityData.h"
 
 namespace fs = std::filesystem;
 std::vector<std::string> g_RegisteredScriptNames;
@@ -26,7 +27,7 @@ UILayer::UILayer()
    m_ProjectPanel(&m_Scene),
    m_ViewportPanel(m_Scene, &m_SelectedEntity),
    m_SceneHierarchyPanel(&m_Scene, &m_SelectedEntity),
-   m_MenuBarPanel(&m_Scene, &m_SelectedEntity, &m_ProjectPanel) // NEW
+   m_MenuBarPanel(&m_Scene, &m_SelectedEntity, &m_ProjectPanel, this) // Pass UILayer reference
    {
 
    m_ToolbarPanel = ToolbarPanel(this);
@@ -40,6 +41,9 @@ UILayer::UILayer()
    
    RegisterComponentDrawers();
    RegisterSampleScriptProperties();
+   
+   // Register primitive meshes with AssetLibrary
+   StandardMeshManager::Instance().RegisterPrimitiveMeshes();
    
    CreateDebugCubeEntity();
    CreateDefaultLight();
@@ -126,6 +130,9 @@ void UILayer::OnUIRender() {
 
    // Pass Renderer’s output texture to viewport
    m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());
+   
+   // Process deferred scene loading at the end of the frame
+   ProcessDeferredSceneLoad();
    }
 
 
@@ -247,5 +254,26 @@ void UILayer::BeginDockspace() {
     m_InspectorPanel.SetContext(activeScene);
     m_ViewportPanel.SetContext(activeScene);
     }
+
+void UILayer::DeferSceneLoad(const std::string& filepath) {
+    m_DeferredScenePath = filepath;
+    m_HasDeferredSceneLoad = true;
+}
+
+void UILayer::ProcessDeferredSceneLoad() {
+    if (m_HasDeferredSceneLoad) {
+        std::cout << "[UILayer] Processing deferred scene load: " << m_DeferredScenePath << std::endl;
+        
+        if (Serializer::LoadSceneFromFile(m_DeferredScenePath, m_Scene)) {
+            std::cout << "[UILayer] Successfully loaded scene: " << m_DeferredScenePath << std::endl;
+            m_SelectedEntity = -1; // Clear selection
+        } else {
+            std::cerr << "[UILayer] Failed to load scene: " << m_DeferredScenePath << std::endl;
+        }
+        
+        m_HasDeferredSceneLoad = false;
+        m_DeferredScenePath.clear();
+    }
+}
 
 

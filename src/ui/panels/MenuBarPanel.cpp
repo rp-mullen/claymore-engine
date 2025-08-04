@@ -3,6 +3,8 @@
 #include "ecs/Components.h"
 #include <editor/Project.h>
 #include "serialization/Serializer.h"
+#include "ecs/EntityData.h"
+#include "ui/UILayer.h"
 
 #include <filesystem>
 #include <fstream>
@@ -40,6 +42,73 @@ std::string ShowOpenFolderDialog() {
     return "";
 }
 
+std::string ShowSaveFileDialog(const std::string& defaultName = "scene.scene") {
+    IFileDialog* pFileDialog;
+    HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&pFileDialog));
+    if (FAILED(hr)) return "";
+
+    // Set file type filter
+    COMDLG_FILTERSPEC filterSpec[] = {
+        { L"Scene Files", L"*.scene" },
+        { L"All Files", L"*.*" }
+    };
+    pFileDialog->SetFileTypes(2, filterSpec);
+    pFileDialog->SetDefaultExtension(L"scene");
+
+    // Set default file name
+    std::wstring defaultNameW(defaultName.begin(), defaultName.end());
+    pFileDialog->SetFileName(defaultNameW.c_str());
+
+    hr = pFileDialog->Show(nullptr);
+    if (SUCCEEDED(hr)) {
+        IShellItem* pItem;
+        hr = pFileDialog->GetResult(&pItem);
+        if (SUCCEEDED(hr)) {
+            PWSTR path;
+            pItem->GetDisplayName(SIGDN_FILESYSPATH, &path);
+            std::wstring ws(path);
+            CoTaskMemFree(path);
+            pItem->Release();
+            pFileDialog->Release();
+            return std::string(ws.begin(), ws.end());
+        }
+    }
+
+    pFileDialog->Release();
+    return "";
+}
+
+std::string ShowOpenFileDialog() {
+    IFileDialog* pFileDialog;
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&pFileDialog));
+    if (FAILED(hr)) return "";
+
+    // Set file type filter
+    COMDLG_FILTERSPEC filterSpec[] = {
+        { L"Scene Files", L"*.scene" },
+        { L"All Files", L"*.*" }
+    };
+    pFileDialog->SetFileTypes(2, filterSpec);
+
+    hr = pFileDialog->Show(nullptr);
+    if (SUCCEEDED(hr)) {
+        IShellItem* pItem;
+        hr = pFileDialog->GetResult(&pItem);
+        if (SUCCEEDED(hr)) {
+            PWSTR path;
+            pItem->GetDisplayName(SIGDN_FILESYSPATH, &path);
+            std::wstring ws(path);
+            CoTaskMemFree(path);
+            pItem->Release();
+            pFileDialog->Release();
+            return std::string(ws.begin(), ws.end());
+        }
+    }
+
+    pFileDialog->Release();
+    return "";
+}
+
 void MenuBarPanel::OnImGuiRender() {
     // FILE MENU
     if (ImGui::BeginMenu("File")) {
@@ -50,20 +119,42 @@ void MenuBarPanel::OnImGuiRender() {
 
         ImGui::Separator();
         
-        if (ImGui::MenuItem("Save Scene As...")) {
-            // TODO: Implement file dialog for saving
+        if (ImGui::MenuItem("Save Scene")) {
+            // TODO: Save to current scene file if one exists, otherwise show save dialog
             std::string scenePath = "assets/scenes/CurrentScene.scene";
             if (Serializer::SaveSceneToFile(*m_Context, scenePath)) {
-                std::cout << "Scene saved successfully!" << std::endl;
+                std::cout << "[MenuBarPanel] Scene saved successfully to: " << scenePath << std::endl;
+            } else {
+                std::cerr << "[MenuBarPanel] Failed to save scene to: " << scenePath << std::endl;
+            }
+        }
+        
+        if (ImGui::MenuItem("Save Scene As...")) {
+            std::string scenePath = ShowSaveFileDialog("NewScene.scene");
+            if (!scenePath.empty()) {
+                if (Serializer::SaveSceneToFile(*m_Context, scenePath)) {
+                    std::cout << "[MenuBarPanel] Scene saved successfully to: " << scenePath << std::endl;
+                } else {
+                    std::cerr << "[MenuBarPanel] Failed to save scene to: " << scenePath << std::endl;
+                }
             }
         }
         
         if (ImGui::MenuItem("Load Scene...")) {
-            // TODO: Implement file dialog for loading
-            std::string scenePath = "assets/scenes/SampleScene.scene";
-            if (Serializer::LoadSceneFromFile(scenePath, *m_Context)) {
-                std::cout << "Scene loaded successfully!" << std::endl;
-                *m_SelectedEntity = -1; // Clear selection
+            std::string scenePath = ShowOpenFileDialog();
+            if (!scenePath.empty()) {
+                if (m_UILayer) {
+                    // Use deferred scene loading to avoid race conditions
+                    m_UILayer->DeferSceneLoad(scenePath);
+                } else {
+                    // Fallback to immediate loading if UILayer not available
+                    if (Serializer::LoadSceneFromFile(scenePath, *m_Context)) {
+                        std::cout << "[MenuBarPanel] Scene loaded successfully from: " << scenePath << std::endl;
+                        *m_SelectedEntity = -1; // Clear selection
+                    } else {
+                        std::cerr << "[MenuBarPanel] Failed to load scene from: " << scenePath << std::endl;
+                    }
+                }
             }
         }
 
@@ -133,6 +224,29 @@ void MenuBarPanel::OnImGuiRender() {
 					data->Mesh = new MeshComponent();
 					data->Mesh->mesh = StandardMeshManager::Instance().GetCubeMesh();
 					data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+					data->Mesh->MeshName = "Cube";
+				}
+				*m_SelectedEntity = entity.GetID();
+			}
+
+			if (ImGui::MenuItem("Plane")) {
+				auto entity = m_Context->CreateEntity("Plane");
+				if (auto* data = m_Context->GetEntityData(entity.GetID())) {
+					data->Mesh = new MeshComponent();
+					data->Mesh->mesh = StandardMeshManager::Instance().GetPlaneMesh();
+					data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+					data->Mesh->MeshName = "Plane";
+				}
+				*m_SelectedEntity = entity.GetID();
+			}
+
+			if (ImGui::MenuItem("Sphere")) {
+				auto entity = m_Context->CreateEntity("Sphere");
+				if (auto* data = m_Context->GetEntityData(entity.GetID())) {
+					data->Mesh = new MeshComponent();
+					data->Mesh->mesh = StandardMeshManager::Instance().GetSphereMesh();
+					data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+					data->Mesh->MeshName = "Sphere";
 				}
 				*m_SelectedEntity = entity.GetID();
 			}
@@ -159,3 +273,4 @@ void MenuBarPanel::OnImGuiRender() {
         ImGui::EndMenu();
     }
 }
+

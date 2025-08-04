@@ -13,6 +13,10 @@ struct LightData {
     glm::vec3 color;
     glm::vec3 position;
     glm::vec3 direction;
+    float range;           // For point lights
+    float constant;        // Attenuation constant
+    float linear;          // Attenuation linear
+    float quadratic;       // Attenuation quadratic
 };
 
 
@@ -41,8 +45,17 @@ public:
     void DrawMesh(const Mesh& mesh, const float* transform, const Material& material);
 
     // Camera
-    Camera* GetCamera() const { return m_Camera; }
-    void SetCamera(Camera* cam) { m_Camera = cam; }
+    Camera* GetCamera() const { 
+       
+       if (Scene::CurrentScene->m_IsPlaying) {
+          Camera* cam = Scene::CurrentScene->GetActiveCamera();
+          if (cam) {
+             return cam;
+             }
+          }
+       return m_RendererCamera; 
+       }
+    void SetCamera(Camera* cam) { m_RendererCamera = cam; }
 
     // Viewport info
     int GetWidth() const { return m_Width; }
@@ -53,6 +66,7 @@ public:
 	void InitGrid(float size, float step);
     void DrawGrid();
     void DrawDebugRay(const glm::vec3& origin, const glm::vec3& dir, float length = 10.0f);
+    void DrawCollider(const ColliderComponent& collider, const TransformComponent& transform);
 
     void UploadLightsToShader(const std::vector<LightData>& lights);
 
@@ -62,7 +76,7 @@ private:
 
     uint32_t m_Width = 0;
     uint32_t m_Height = 0;
-    Camera* m_Camera = nullptr;
+    Camera* m_RendererCamera = nullptr;
 
     bgfx::FrameBufferHandle m_SceneFrameBuffer = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle m_SceneTexture = BGFX_INVALID_HANDLE;
@@ -70,10 +84,10 @@ private:
     float m_view[16]{};
     float m_proj[16]{};
 
-    // Create a bgfx uniform (e.g., for 4 lights max)
-    bgfx::UniformHandle u_LightColor = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle u_LightDirection = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle u_LightPosition = BGFX_INVALID_HANDLE;
+    // Multi-light uniforms (support up to 4 lights)
+    bgfx::UniformHandle u_LightColors = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_LightPositions = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_LightParams = BGFX_INVALID_HANDLE;
 	bgfx::UniformHandle u_cameraPos = BGFX_INVALID_HANDLE;
 
     bgfx::ProgramHandle m_DebugLineProgram = BGFX_INVALID_HANDLE;

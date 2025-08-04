@@ -6,6 +6,8 @@
 #include <ImGuizmo.h>
 #include <glm/gtc/type_ptr.hpp>
 #include <cmath>
+#include <cstring>
+#include "ecs/EntityData.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/euler_angles.hpp>
@@ -271,6 +273,12 @@ void ViewportPanel::DecomposeMatrix(const float* matrix, glm::vec3& pos, glm::ve
     glm::vec3 skew;
     glm::vec4 perspective;
     glm::quat orientation;
+    
+    // Initialize output parameters
+    pos = glm::vec3(0.0f);
+    rot = glm::vec3(0.0f);
+    scale = glm::vec3(1.0f);
+    
     glm::decompose(m, scale, orientation, pos, skew, perspective);
     rot = glm::degrees(glm::eulerAngles(orientation));
 }

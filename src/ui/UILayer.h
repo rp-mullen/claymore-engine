@@ -38,6 +38,11 @@ public:
     void SetSelectedEntity(EntityID id) { m_SelectedEntity = id; }
 
     void TogglePlayMode();
+    
+    // Deferred scene loading
+    void DeferSceneLoad(const std::string& filepath);
+    void ProcessDeferredSceneLoad();
+    
 private:
     void BeginDockspace();
     void CreateDebugCubeEntity();
@@ -61,4 +66,8 @@ private:
 
     uint32_t m_LastViewportWidth = 0;
     uint32_t m_LastViewportHeight = 0;
+    
+    // Deferred scene loading
+    std::string m_DeferredScenePath;
+    bool m_HasDeferredSceneLoad = false;
 };

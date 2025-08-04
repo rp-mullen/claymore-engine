@@ -1,5 +1,6 @@
 #include "SceneHierarchyPanel.h"
 #include <iostream>
+#include "ecs/EntityData.h"
 
 SceneHierarchyPanel::SceneHierarchyPanel(Scene* scene, EntityID* selectedEntity)
    : m_SelectedEntity(selectedEntity) {
@@ -53,6 +54,7 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
       }
 
    // Context menu
+   bool entityDeleted = false;
    if (ImGui::BeginPopupContextItem()) {
       if (ImGui::MenuItem("Rename")) {
          // TODO: implement rename UI
@@ -64,10 +66,17 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
          m_Context->RemoveEntity(id);
          if (*m_SelectedEntity == id)
             *m_SelectedEntity = -1;
-         ImGui::EndPopup();
-         return;
+         entityDeleted = true;
          }
       ImGui::EndPopup();
+      }
+
+   // If entity was deleted, close the tree node if it was opened and return
+   if (entityDeleted) {
+      if (opened) {
+         ImGui::TreePop();
+         }
+      return;
       }
 
    // Drag source
