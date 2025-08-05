@@ -1,4 +1,5 @@
 #include "Scene.h"
+#include "scripting/DotNetHost.h"
 #include "EntityData.h"
 #include <algorithm>
 #include <functional>
@@ -699,6 +700,10 @@ void Scene::Update(float dt) {
                script.Instance->OnUpdate(dt);
             }
          }
+
+      // Flush managed SynchronizationContext so that await continuations run on the main thread
+      if(FlushSyncContextPtr)
+         FlushSyncContextPtr();
       }
    }
 

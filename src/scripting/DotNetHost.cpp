@@ -39,10 +39,14 @@ Script_Create_fn g_Script_Create = nullptr;
 Script_OnCreate_fn g_Script_OnCreate = nullptr;
 Script_OnUpdate_fn g_Script_OnUpdate = nullptr;
 
+// SyncContext flush pointer
+FlushSyncContext_fn FlushSyncContextPtr = nullptr;
+
 // ----------------------------------------
 // Managed script registration
 // ----------------------------------------
-static std::vector<std::string> g_RegisteredScriptNames;
+// Vector defined in UILayer.cpp so the UI and interop use the same list
+extern std::vector<std::string> g_RegisteredScriptNames;
 
 using RegisterScriptCallbackFn = void(CORECLR_DELEGATE_CALLTYPE*)(const char* className);
 
@@ -213,11 +217,26 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
       (void**)&g_Script_OnUpdate
    );
 
+   // Load FlushSyncContext from managed side
+   rc |= load_assembly_and_get_function_pointer(
+      fullPath.c_str(),
+      L"ClaymoreEngine.EngineSyncContext, ClaymoreEngine",
+      L"Flush",
+      L"ClaymoreEngine.FlushDelegate, ClaymoreEngine",
+      nullptr,
+      (void**)&FlushSyncContextPtr
+   );
+
    if (!g_Script_Create || !g_Script_OnCreate || !g_Script_OnUpdate)
       {
       std::cerr << "[Interop] Failed to resolve one or more script interop functions.\n";
       return false;
       }
+
+   if (!FlushSyncContextPtr) {
+	   std::cerr << "[Interop] Failed to resolve FlushSyncContext function.\n";
+	   return false;
+   }
 
    // Resolve RegisterAllScripts on startup
    if (!g_RegisterAllScripts)
@@ -339,7 +358,18 @@ void SetupEntityInterop(std::filesystem::path fullPath)
         {
            (void*)GetEntityPositionPtr,
            (void*)SetEntityPositionPtr,
-           (void*)FindEntityByNamePtr
+           (void*)FindEntityByNamePtr,
+           (void*)CreateEntityPtr,
+           (void*)DestroyEntityPtr,
+           (void*)GetEntityRotationPtr,
+           (void*)SetEntityRotationPtr,
+           (void*)GetEntityScalePtr,
+           (void*)SetEntityScalePtr,
+           (void*)SetLinearVelocityPtr,
+           (void*)SetAngularVelocityPtr,
+           (void*)SetLightColorPtr,
+           (void*)SetLightIntensityPtr,
+           (void*)SetBlendShapeWeightPtr
         };
 
         using EntityInteropInitFn = void(*)(void**, int);
@@ -362,6 +392,6 @@ void SetupEntityInterop(std::filesystem::path fullPath)
         }
 
         if (rc == 0 && initInteropFn)
-            initInteropFn(initArgs, 3);
+            initInteropFn(initArgs, 14);
     }
 }

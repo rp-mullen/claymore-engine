@@ -25,11 +25,41 @@ void SetupEntityInterop(std::filesystem::path fullPath);
 
 
 // Function pointer types
-using GetEntityPosition_fn = void(*)(int entityID, float* outX, float* outY, float* outZ);
-using SetEntityPosition_fn = void(*)(int entityID, float x, float y, float z);
-using FindEntityByName_fn = int (*)(const char* name);
+using GetEntityPosition_fn     = void(*)(int entityID, float* outX, float* outY, float* outZ);
+using SetEntityPosition_fn     = void(*)(int entityID, float x, float y, float z);
+using FindEntityByName_fn      = int (*)(const char* name);
+// Entity management
+using CreateEntity_fn          = int (*)(const char* name);
+using DestroyEntity_fn         = void(*)(int entityID);
+// Rotation & Scale
+using GetEntityRotation_fn     = void(*)(int entityID, float* outX, float* outY, float* outZ);
+using SetEntityRotation_fn     = void(*)(int entityID, float x, float y, float z);
+using GetEntityScale_fn        = void(*)(int entityID, float* outX, float* outY, float* outZ);
+using SetEntityScale_fn        = void(*)(int entityID, float x, float y, float z);
+// Physics
+using SetLinearVelocity_fn     = void(*)(int entityID, float x, float y, float z);
+using SetAngularVelocity_fn    = void(*)(int entityID, float x, float y, float z);
+// Lighting
+using SetLightColor_fn         = void(*)(int entityID, float r, float g, float b);
+using SetLightIntensity_fn     = void(*)(int entityID, float intensity);
+// BlendShapes
+using SetBlendShapeWeight_fn   = void(*)(int entityID, const char* shapeName, float weight);
+// SyncContext flush
+using FlushSyncContext_fn      = void(*)();
 
 // Pointers to assign in Claymore main.cpp or initialization
-extern GetEntityPosition_fn GetEntityPositionPtr;
-extern SetEntityPosition_fn SetEntityPositionPtr;
-extern FindEntityByName_fn  FindEntityByNamePtr;
+extern GetEntityPosition_fn   GetEntityPositionPtr;
+extern SetEntityPosition_fn   SetEntityPositionPtr;
+extern FindEntityByName_fn    FindEntityByNamePtr;
+extern CreateEntity_fn        CreateEntityPtr;
+extern DestroyEntity_fn       DestroyEntityPtr;
+extern GetEntityRotation_fn   GetEntityRotationPtr;
+extern SetEntityRotation_fn   SetEntityRotationPtr;
+extern GetEntityScale_fn      GetEntityScalePtr;
+extern SetEntityScale_fn      SetEntityScalePtr;
+extern SetLinearVelocity_fn   SetLinearVelocityPtr;
+extern SetAngularVelocity_fn  SetAngularVelocityPtr;
+extern SetLightColor_fn       SetLightColorPtr;
+extern SetLightIntensity_fn   SetLightIntensityPtr;
+extern SetBlendShapeWeight_fn SetBlendShapeWeightPtr;
+extern FlushSyncContext_fn   FlushSyncContextPtr;

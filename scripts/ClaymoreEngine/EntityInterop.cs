@@ -7,77 +7,123 @@ namespace ClaymoreEngine
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public unsafe delegate void EntityInteropInitDelegate(IntPtr* functionPointers, int count);
 
-
-    public static class EntityInterop
+    // -----------------------------------------------------------------------------
+    // Managed side wrapper around native EntityInterop functions.
+    // The order of delegates MUST match the order of function pointers passed from
+    // the native side (see DotNetHost.cpp::SetupEntityInterop).
+    // -----------------------------------------------------------------------------
+    public static unsafe class EntityInterop
     {
-        
-        // Position
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void GetEntityPositionFn(int entityID, out float x, out float y, out float z);
+        // ---------------------- Core Transform ----------------------
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void GetEntityPositionFn(int entityID, out float x, out float y, out float z);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetEntityPositionFn(int entityID, float x, float y, float z);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  FindEntityByNameFn([MarshalAs(UnmanagedType.LPStr)] string name);
 
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void SetEntityPositionFn(int entityID, float x, float y, float z);
+        // Entity management
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  CreateEntityFn([MarshalAs(UnmanagedType.LPStr)] string name);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void DestroyEntityFn(int entityID);
 
-        // Rotation, Scale, etc. can follow same pattern...
+        // Rotation / Scale
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void GetRotationFn(int entityID, out float x, out float y, out float z);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetRotationFn(int entityID, float x, float y, float z);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void GetScaleFn(int entityID, out float x, out float y, out float z);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetScaleFn(int entityID, float x, float y, float z);
 
-        // Entity Lookup
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate int FindEntityByNameFn([MarshalAs(UnmanagedType.LPStr)] string name);
+        // Physics
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetLinearVelocityFn(int entityID, float x, float y, float z);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetAngularVelocityFn(int entityID, float x, float y, float z);
 
-        // Public delegate instances to be set from native
-        public static GetEntityPositionFn GetEntityPosition;
-        public static SetEntityPositionFn SetEntityPosition;
-        public static FindEntityByNameFn FindEntityByName;
+        // Lighting
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetLightColorFn(int entityID, float r, float g, float b);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetLightIntensityFn(int entityID, float intensity);
 
+        // BlendShapes
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetBlendShapeWeightFn(int entityID, [MarshalAs(UnmanagedType.LPStr)] string shape, float weight);
 
-        public static unsafe void InitializeInteropExport(IntPtr* ptrs, int count)
+        // ---------------------- Delegate instances ----------------------
+        public static GetEntityPositionFn  GetEntityPosition;
+        public static SetEntityPositionFn  SetEntityPosition;
+        public static FindEntityByNameFn   FindEntityByName;
+
+        public static CreateEntityFn       CreateEntity;
+        public static DestroyEntityFn      DestroyEntity;
+
+        public static GetRotationFn        GetEntityRotation;
+        public static SetRotationFn        SetEntityRotation;
+        public static GetScaleFn           GetEntityScale;
+        public static SetScaleFn           SetEntityScale;
+
+        public static SetLinearVelocityFn  SetLinearVelocity;
+        public static SetAngularVelocityFn SetAngularVelocity;
+
+        public static SetLightColorFn      SetLightColor;
+        public static SetLightIntensityFn  SetLightIntensity;
+
+        public static SetBlendShapeWeightFn SetBlendShapeWeight;
+
+        // -----------------------------------------------------------------
+        // Initialization from native side.  The native code passes an array
+        // of function pointers in the exact order defined above.
+        // -----------------------------------------------------------------
+        public static void InitializeInteropExport(IntPtr* ptrs, int count) => InitializeInterop(ptrs, count);
+
+        public static unsafe void InitializeInterop(IntPtr* ptrs, int count)
         {
-            InitializeInterop(ptrs[0], ptrs[1], ptrs[2]);
-        }
-
-
-        public static void InitializeInterop(
-            IntPtr getPos,
-            IntPtr setPos,
-            IntPtr findByName)
-        {
-            GetEntityPosition = Marshal.GetDelegateForFunctionPointer<GetEntityPositionFn>(getPos);
-            SetEntityPosition = Marshal.GetDelegateForFunctionPointer<SetEntityPositionFn>(setPos);
-            FindEntityByName = Marshal.GetDelegateForFunctionPointer<FindEntityByNameFn>(findByName);
-
-            Console.WriteLine("[Managed] EntityInterop delegates initialized.");
-        }
-
-        public static void InitializeInterop(IntPtr[] functionPointers, int count)
-        {
-            if (count < 3)
+            if (count < 14)
             {
-                Console.WriteLine("[EntityInterop] Invalid number of function pointers.");
+                Console.WriteLine($"[EntityInterop] Expected >=14 function pointers, received {count}.");
                 return;
             }
 
-            InitializeInterop(
-                functionPointers[0],
-                functionPointers[1],
-                functionPointers[2]
-            );
+            int i = 0;
+            GetEntityPosition  = Marshal.GetDelegateForFunctionPointer<GetEntityPositionFn> (ptrs[i++]);
+            SetEntityPosition  = Marshal.GetDelegateForFunctionPointer<SetEntityPositionFn> (ptrs[i++]);
+            FindEntityByName   = Marshal.GetDelegateForFunctionPointer<FindEntityByNameFn>  (ptrs[i++]);
+
+            CreateEntity       = Marshal.GetDelegateForFunctionPointer<CreateEntityFn>      (ptrs[i++]);
+            DestroyEntity      = Marshal.GetDelegateForFunctionPointer<DestroyEntityFn>     (ptrs[i++]);
+
+            GetEntityRotation  = Marshal.GetDelegateForFunctionPointer<GetRotationFn>       (ptrs[i++]);
+            SetEntityRotation  = Marshal.GetDelegateForFunctionPointer<SetRotationFn>       (ptrs[i++]);
+            GetEntityScale     = Marshal.GetDelegateForFunctionPointer<GetScaleFn>          (ptrs[i++]);
+            SetEntityScale     = Marshal.GetDelegateForFunctionPointer<SetScaleFn>          (ptrs[i++]);
+
+            SetLinearVelocity  = Marshal.GetDelegateForFunctionPointer<SetLinearVelocityFn> (ptrs[i++]);
+            SetAngularVelocity = Marshal.GetDelegateForFunctionPointer<SetAngularVelocityFn>(ptrs[i++]);
+
+            SetLightColor      = Marshal.GetDelegateForFunctionPointer<SetLightColorFn>     (ptrs[i++]);
+            SetLightIntensity  = Marshal.GetDelegateForFunctionPointer<SetLightIntensityFn> (ptrs[i++]);
+
+            SetBlendShapeWeight= Marshal.GetDelegateForFunctionPointer<SetBlendShapeWeightFn>(ptrs[i++]);
+
+            Console.WriteLine("[Managed] EntityInterop delegates initialized (extended set).");
         }
 
-        // Example high-level API
+        // ---------------------- Convenience Wrappers ----------------------
         public static Vector3 GetPosition(int entityID)
         {
             GetEntityPosition(entityID, out float x, out float y, out float z);
             return new Vector3(x, y, z);
         }
 
-        public static void SetPosition(int entityID, Vector3 position)
+        public static void SetPosition(int entityID, Vector3 position) => SetEntityPosition(entityID, position.X, position.Y, position.Z);
+
+        public static int FindByName(string name) => FindEntityByName(name);
+
+        public static Vector3 GetRotation(int entityID)
         {
-            SetEntityPosition(entityID, position.X, position.Y, position.Z);
+            GetEntityRotation(entityID, out float x, out float y, out float z);
+            return new Vector3(x, y, z);
         }
 
-        public static int FindByName(string name)
+        public static void SetRotation(int entityID, Vector3 rot) => SetEntityRotation(entityID, rot.X, rot.Y, rot.Z);
+
+        public static Vector3 GetScale(int entityID)
         {
-            return FindEntityByName(name);
+            GetEntityScale(entityID, out float x, out float y, out float z);
+            return new Vector3(x, y, z);
         }
+        public static void SetScale(int entityID, Vector3 scale) => SetEntityScale(entityID, scale.X, scale.Y, scale.Z);
+
     }
 }

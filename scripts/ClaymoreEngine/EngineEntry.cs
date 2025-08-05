@@ -8,7 +8,9 @@ namespace ClaymoreEngine
     public static class EngineEntry
     {
         public static int ManagedStart(IntPtr args, int size)
-        {
+    {
+        // Install our main-thread SynchronizationContext so that awaits resume on the engine thread.
+        System.Threading.SynchronizationContext.SetSynchronizationContext(EngineSyncContext.Instance);
             Console.WriteLine("[C#] ManagedStart invoked!");
 
 
