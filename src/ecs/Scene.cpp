@@ -8,6 +8,7 @@ namespace fs = std::filesystem;
 #include <rendering/ModelLoader.h>
 #include <rendering/StandardMeshManager.h>
 #include "ecs/AnimationComponents.h"
+#include "ecs/ParticleEmitterSystem.h"
 #include <rendering/TextureLoader.h>
 #include <rendering/MaterialManager.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
@@ -88,6 +89,10 @@ void Scene::RemoveEntity(EntityID id) {
     if (data->StaticBody) {
         delete data->StaticBody;
         data->StaticBody = nullptr;
+    }
+    if (data->Emitter) {
+        delete data->Emitter;
+        data->Emitter = nullptr;
     }
     if (data->BlendShapes) {
         delete data->BlendShapes;
@@ -637,6 +642,9 @@ void Scene::CreatePhysicsBody(EntityID id, const TransformComponent& transform, 
 void Scene::Update(float dt) {
    UpdateTransforms();
 
+   // Update particle emitters so they preview both in edit and play mode
+   ecs::ParticleEmitterSystem::Get().Update(*this, dt);
+
    if (m_IsPlaying) {
       // Step physics simulation
       static int physicsStepCount = 0;
@@ -699,6 +707,8 @@ void Scene::Update(float dt) {
             if (script.Instance)
                script.Instance->OnUpdate(dt);
             }
+
+
          }
 
       // Flush managed SynchronizationContext so that await continuations run on the main thread

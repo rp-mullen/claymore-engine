@@ -1,8 +1,12 @@
 #pragma once
 #include <string>
 #include <iostream>
+#include <vector>
+#include <bgfx/bgfx.h>
+#include "rendering/VertexTypes.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
+#include "particles/ParticleSystem.h"
 
 #include "rendering/Material.h"
 #include "rendering/Mesh.h"
@@ -183,7 +187,7 @@ struct StaticBodyComponent {
 
 struct CameraComponent {
 	Camera Camera; // Your existing Camera class
-	bool Active = false;
+	bool Active = false; 
 
    int priority = 0; // Lower values render first, higher values render last
 
@@ -212,3 +216,59 @@ struct CameraComponent {
 	}
 };
 
+// ---------------- Terrain ----------------
+struct TerrainBrush
+{
+    bool Raise = true;
+    int Size = 10;
+    float Power = 0.5f;
+};
+
+struct TerrainComponent
+{
+    // 0 = VertexBuffer, 1 = DynamicVertexBuffer, 2 = HeightTexture
+    int Mode = 0;
+    bool Dirty = true;
+
+    uint32_t Size = 256; // Grid resolution (Size x Size)
+
+    std::vector<uint8_t> HeightMap;
+    std::vector<TerrainVertex> Vertices;
+    std::vector<uint16_t> Indices;
+
+    // GPU resources
+    bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
+    bgfx::IndexBufferHandle ibh = BGFX_INVALID_HANDLE;
+    bgfx::DynamicVertexBufferHandle dvbh = BGFX_INVALID_HANDLE;
+    bgfx::DynamicIndexBufferHandle dibh = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle HeightTexture = BGFX_INVALID_HANDLE;
+
+    TerrainBrush Brush;
+
+    bool PaintMode = false;
+
+    TerrainComponent()
+        : HeightMap(Size * Size, 0)
+    {
+    }
+};
+
+// ---------------- Particle System ----------------
+/* Legacy particle system component removed in favour of new emitter-based particle system. */
+struct ParticleEmitterComponent
+{
+    ps::EmitterHandle Handle{ uint16_t{UINT16_MAX} };
+    ps::EmitterUniforms Uniforms; // customised per emitter
+
+    uint32_t MaxParticles = 1024;
+
+    // Sprite for this emitter (created via ParticleSystem utility functions)
+    ps::EmitterSpriteHandle SpriteHandle{ uint16_t{UINT16_MAX} };
+
+    bool Enabled = true;
+
+    ParticleEmitterComponent()
+    {
+        Uniforms.reset();
+    }
+};

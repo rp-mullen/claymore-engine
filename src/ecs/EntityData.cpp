@@ -29,6 +29,14 @@ EntityData EntityData::DeepCopy(EntityID ID, Scene* newScene) const {
    if (StaticBody)
       copy.StaticBody = new StaticBodyComponent(*StaticBody);
 
+   // Deep copy TerrainComponent
+   if (Terrain)
+      copy.Terrain = new TerrainComponent(*Terrain);
+
+   // Deep copy ParticleEmitterComponent
+    if (Emitter)
+      copy.Emitter = new ParticleEmitterComponent(*Emitter);
+
    if (BlendShapes)
       copy.BlendShapes = new BlendShapeComponent(*BlendShapes);
    if (Skeleton)

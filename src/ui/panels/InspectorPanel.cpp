@@ -144,6 +144,23 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         ImGui::PopStyleColor(2);
     }
 
+    if (data->Terrain && ImGui::CollapsingHeader("Terrain")) {
+        registry.DrawComponentUI("Terrain", data->Terrain);
+    }
+
+    // Particle System
+    if (data->Emitter && ImGui::CollapsingHeader("Particle Emitter")) {
+        registry.DrawComponentUI("ParticleEmitter", data->Emitter);
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+        if (ImGui::Button("Remove Particle System Component", ImVec2(-1, 0))) {
+            delete data->Emitter;
+            data->Emitter = nullptr;
+        }
+        ImGui::PopStyleColor(2);
+    }
+
     // Draw script components
     for (size_t i = 0; i < data->Scripts.size(); ++i) {
         DrawScriptComponent(data->Scripts[i], static_cast<int>(i), entity);
@@ -218,6 +235,10 @@ void InspectorPanel::DrawAddComponentButton(EntityID entity) {
                 data->Collider->BuildShape();
                 m_Context->CreatePhysicsBody(entity, data->Transform, *data->Collider);
             }
+        }
+
+        if (!data->Emitter && ImGui::MenuItem("Particle Emitter Component")) {
+            data->Emitter = new ParticleEmitterComponent();
         }
 
         ImGui::Separator();

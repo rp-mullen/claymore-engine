@@ -4,6 +4,7 @@
 #include "ecs/AnimationComponents.h" // adjust path to where TransformComponent etc. live
 #include "rendering/TextureLoader.h"
 #include "rendering/Renderer.h"
+#include "particles/SpriteLoader.h"
 #include "physics/Physics.h"
 
 #include <imgui.h>
@@ -107,6 +108,92 @@ inline void RegisterComponentDrawers() {
                 break;
         }
         });
+
+#if 0
+    registry.Register<ParticleSystemComponent>("ParticleSystem", [](ParticleSystemComponent& ps) {
+        ImGui::DragFloat("Emission Rate", &ps.EmissionRate, 1.0f, 0.0f, 100000.0f);
+        ImGui::DragFloat2("Lifetime Min/Max", &ps.LifetimeMin, 0.1f, 0.0f, 10.0f);
+        ImGui::DragFloat3("Gravity", &ps.Gravity.x, 0.1f, -100.0f, 100.0f);
+        ImGui::DragFloat("Start Size", &ps.StartSize, 0.01f, 0.0f, 100.0f);
+        ImGui::DragFloat("End Size", &ps.EndSize, 0.01f, 0.0f, 100.0f);
+        ImGui::ColorEdit4("Start Color", &ps.StartColor.x);
+        ImGui::ColorEdit4("End Color", &ps.EndColor.x);
+
+        ImGui::Separator();
+        ImGui::Text("Particle Texture");
+        ImGui::SameLine();
+        ImTextureID texId = (ImTextureID)(uintptr_t)(bgfx::isValid(ps.Texture) ? ps.Texture.idx : 0);
+        ImVec2 size(64, 64);
+        ImGui::Image(texId, size);
+
+        // Drag-drop target for assigning texture
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+                const char* path = (const char*)payload->Data;
+                std::string ext = std::filesystem::path(path).extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga") {
+                    bgfx::TextureHandle newTex = TextureLoader::Load2D(path);
+                    if (bgfx::isValid(newTex)) {
+                        ps.Texture = newTex;
+                    }
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+    });
+#endif
+
+    // New ParticleEmitter drawer
+    registry.Register<ParticleEmitterComponent>("ParticleEmitter", [](ParticleEmitterComponent& e) {
+        ImGui::DragInt("Particles/Second", (int*)&e.Uniforms.m_particlesPerSecond, 1, 0, 100000);
+        ImGui::DragFloat3("Position", e.Uniforms.m_position, 0.1f);
+        ImGui::Checkbox("Enabled", &e.Enabled);
+
+        ImGui::Separator();
+        ImGui::Text("Sprite");
+        ImGui::SameLine();
+        ImTextureID imgID = 0; // No preview yet
+        ImVec2 preview(48,48);
+        ImGui::Image(imgID, preview);
+        if (ImGui::BeginDragDropTarget())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE"))
+            {
+                const char* path = (const char*)payload->Data;
+                std::string ext = std::filesystem::path(path).extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga")
+                {
+                    auto sprite = particles::LoadSprite(path);
+                    if (ps::isValid(sprite))
+                    {
+                        e.SpriteHandle = sprite;
+                        e.Uniforms.m_handle = sprite;
+                    }
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+    });
+
+    registry.Register<TerrainComponent>("Terrain", [](TerrainComponent& t) {
+        bool dirty = false;
+        int mode = t.Mode;
+        const char* modes[] = { "Vertex Buffer", "Dynamic Vertex Buffer", "Height Texture" };
+        if (ImGui::Combo("Mode", &mode, modes, IM_ARRAYSIZE(modes))) {
+            t.Mode = mode;
+            t.Dirty = true;
+        }
+
+        ImGui::Checkbox("Raise Terrain", &t.Brush.Raise);
+        ImGui::DragInt("Brush Size", &t.Brush.Size, 1, 1, 50);
+        ImGui::DragFloat("Brush Power", &t.Brush.Power, 0.01f, 0.0f, 1.0f);
+
+        ImGui::Separator();
+        ImGui::Checkbox("Paint Mode", &t.PaintMode);
+        });
+
 
     registry.Register<CameraComponent>("Camera", [](CameraComponent& c) {
         ImGui::Checkbox("Active", &c.Active);

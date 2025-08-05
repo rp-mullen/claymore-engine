@@ -10,3 +10,5 @@ vec3 v_worldPos   : TEXCOORD1; // World-space position for lighting
 vec3 v_normal     : TEXCOORD2; // Normal vector
 vec2 v_uv0        : TEXCOORD0; // Primary UV channel
 vec3 v_viewDir    : TEXCOORD3; // View direction
+vec2 v_texcoord0  : TEXCOORD4; // Secondary UV channel
+vec3 v_position   : TEXCOORD5; // Position in object space

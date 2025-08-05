@@ -7,4 +7,6 @@ bgfx::VertexLayout PBRVertex::layout;
 
 bgfx::VertexLayout GridVertex::layout;
 
+bgfx::VertexLayout TerrainVertex::layout;
+
 bgfx::VertexLayout SkinnedPBRVertex::layout;

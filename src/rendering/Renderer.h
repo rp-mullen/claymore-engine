@@ -5,6 +5,7 @@
 #include "ecs/Scene.h"
 #include "Camera.h"
 #include "Mesh.h"
+#include "ecs/Components.h"
 #include "Material.h"
 #include "DebugMaterial.h"
 
@@ -88,9 +89,16 @@ private:
     bgfx::UniformHandle u_LightColors = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_LightPositions = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_LightParams = BGFX_INVALID_HANDLE;
-	bgfx::UniformHandle u_cameraPos = BGFX_INVALID_HANDLE;
+	    bgfx::UniformHandle u_cameraPos = BGFX_INVALID_HANDLE;
+
 
     bgfx::ProgramHandle m_DebugLineProgram = BGFX_INVALID_HANDLE;
+
+
+    // Terrain rendering resources
+    bgfx::ProgramHandle m_TerrainProgram = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle m_TerrainHeightTexProgram = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle s_TerrainHeightTexture = BGFX_INVALID_HANDLE;
 
     bgfx::VertexBufferHandle m_GridVB = BGFX_INVALID_HANDLE;
     uint32_t m_GridVertexCount = 0;

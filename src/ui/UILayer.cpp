@@ -15,6 +15,7 @@
 #include "utility/ComponentDrawerRegistry.h"
 #include "scripting/ScriptReflectionSetup.h"
 #include "utility/ComponentDrawerSetup.h"
+#include "utils/TerrainPainter.h"
 #include <ecs/debug/TestScript.h>
 #include <core/application.h>
 #include "ecs/EntityData.h"
@@ -114,7 +115,7 @@ void UILayer::ApplyStyle() {
    // Styling tweaks
    style.FrameRounding = 6.0f;
    style.WindowRounding = 8.0f;
-   style.ScrollbarRounding = 9.0f;
+   style.ScrollbarRounding = 9.0f; 
    style.GrabRounding = 4.0f;
    }
 
@@ -130,6 +131,9 @@ void UILayer::OnUIRender() {
 
    // Pass Renderer’s output texture to viewport
    m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());
+
+   // Terrain painting update (editor only)
+   TerrainPainter::Update(m_Scene, m_SelectedEntity);
    
    // Process deferred scene loading at the end of the frame
    ProcessDeferredSceneLoad();

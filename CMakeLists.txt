@@ -98,6 +98,7 @@ target_include_directories(imgui_bgfx PUBLIC
     external/bx/include
     external/stb
     external/ImGuizmo
+    external/imnodes
     external/bimg/include
 )
 target_link_libraries(imgui_bgfx PRIVATE imgui OpenSSL::SSL OpenSSL::Crypto JoltPhysics)
@@ -125,6 +126,7 @@ target_include_directories(Claymore PRIVATE
     external/glm
     external/assimp/include
     external/ImGuizmo
+    external/imnodes
     external/json/include
     external/JoltPhysics
     external/dotnet_hosting

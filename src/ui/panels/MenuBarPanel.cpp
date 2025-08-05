@@ -240,16 +240,34 @@ void MenuBarPanel::OnImGuiRender() {
 				*m_SelectedEntity = entity.GetID();
 			}
 
-			if (ImGui::MenuItem("Sphere")) {
-				auto entity = m_Context->CreateEntity("Sphere");
-				if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-					data->Mesh = new MeshComponent();
-					data->Mesh->mesh = StandardMeshManager::Instance().GetSphereMesh();
-					data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
-					data->Mesh->MeshName = "Sphere";
+							if (ImGui::MenuItem("Sphere")) {
+					auto entity = m_Context->CreateEntity("Sphere");
+					if (auto* data = m_Context->GetEntityData(entity.GetID())) {
+						data->Mesh = new MeshComponent();
+						data->Mesh->mesh = StandardMeshManager::Instance().GetSphereMesh();
+						data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+						data->Mesh->MeshName = "Sphere";
+					}
+					*m_SelectedEntity = entity.GetID();
 				}
-				*m_SelectedEntity = entity.GetID();
-			}
+
+                if (ImGui::MenuItem("Terrain")) {
+                    auto entity = m_Context->CreateEntity("Terrain");
+                    if (auto* data = m_Context->GetEntityData(entity.GetID())) {
+                        data->Terrain = new TerrainComponent();
+                        // Center terrain by offsetting transform so that terrain lies around origin
+                        data->Transform.Position = glm::vec3(-0.5f * data->Terrain->Size, 0.0f, -0.5f * data->Terrain->Size);
+                    }
+                    *m_SelectedEntity = entity.GetID();
+                }
+
+                if (ImGui::MenuItem("Particle Emitter")) {
+                    auto entity = m_Context->CreateEntity("Particle Emitter");
+                    if (auto* data = m_Context->GetEntityData(entity.GetID())) {
+                        data->Emitter = new ParticleEmitterComponent();
+                    }
+                    *m_SelectedEntity = entity.GetID();
+                }
 
             if (ImGui::BeginMenu("Light")) {
                 if (ImGui::MenuItem("Directional")) {

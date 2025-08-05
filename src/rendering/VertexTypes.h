@@ -52,6 +52,22 @@ struct SkinnedPBRVertex {
 };
 
 
+struct TerrainVertex {
+    float x, y, z;    // Position
+    float nx, ny, nz; // Normal
+    float u, v;       // UV
+
+    static void Init() {
+        layout.begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Normal,   3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+            .end();
+    }
+
+    static bgfx::VertexLayout layout;
+};
+
 struct GridVertex {
     float x, y, z;
 

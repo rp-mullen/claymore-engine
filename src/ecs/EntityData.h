@@ -24,6 +24,8 @@ struct EntityData {
    CameraComponent* Camera = nullptr; // Optional Camera
    RigidBodyComponent* RigidBody = nullptr; // Optional RigidBody
    StaticBodyComponent* StaticBody = nullptr; // Optional StaticBody
+   TerrainComponent* Terrain = nullptr; // Optional Terrain
+   ParticleEmitterComponent* Emitter = nullptr; // Optional particle emitter
 
    std::vector<ScriptInstance> Scripts;
 

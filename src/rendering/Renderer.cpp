@@ -5,9 +5,113 @@
 #include "Picking.h"
 #include "MaterialManager.h"
 #include "VertexTypes.h"
+#include "ecs/ParticleEmitterSystem.h"
 #include <bx/math.h>
+#include <glm/gtx/transform.hpp>
 #include <cstring>
 #include "ecs/Components.h"
+
+// ---------------- Particle Vertex ----------------
+struct ParticleVertex {
+    float x, y, z, size;
+    uint32_t abgr;
+    static bgfx::VertexLayout layout;
+    static void Init() {
+        layout.begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::TexCoord0, 1, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true, true)
+            .end();
+    }
+};
+bgfx::VertexLayout ParticleVertex::layout;
+
+// ---------------- Terrain Support ----------------
+static void BuildTerrainMesh(TerrainComponent& terrain)
+{
+    const uint32_t size = terrain.Size;
+
+    terrain.Vertices.resize(size * size);
+
+    for (uint32_t y = 0; y < size; ++y)
+    {
+        for (uint32_t x = 0; x < size; ++x)
+        {
+            uint32_t idx = y * size + x;
+            TerrainVertex& vert = terrain.Vertices[idx];
+            vert.x = static_cast<float>(x);
+            vert.y = static_cast<float>(terrain.HeightMap[idx]);
+            vert.z = static_cast<float>(y);
+
+            // Upward normal (will be wrong on cliffs but fine for now)
+            vert.nx = 0.0f; vert.ny = 1.0f; vert.nz = 0.0f;
+
+            vert.u = (x + 0.5f) / static_cast<float>(size);
+            vert.v = (y + 0.5f) / static_cast<float>(size);
+        }
+    }
+
+    terrain.Indices.resize((size - 1) * (size - 1) * 6);
+    uint32_t index = 0;
+    for (uint16_t y = 0; y < size - 1; ++y)
+    {
+        uint16_t y_offset = y * size;
+        for (uint16_t x = 0; x < size - 1; ++x)
+        {
+            terrain.Indices[index + 0] = y_offset + x + 1;
+            terrain.Indices[index + 1] = y_offset + x + size;
+            terrain.Indices[index + 2] = y_offset + x;
+            terrain.Indices[index + 3] = y_offset + x + size + 1;
+            terrain.Indices[index + 4] = y_offset + x + size;
+            terrain.Indices[index + 5] = y_offset + x + 1;
+            index += 6;
+        }
+    }
+}
+
+static void UpdateTerrainBuffers(TerrainComponent& terrain)
+{
+    // Rebuild CPU mesh data
+    BuildTerrainMesh(terrain);
+
+    const bgfx::Memory* vMem = bgfx::copy(terrain.Vertices.data(), (uint32_t)(terrain.Vertices.size() * sizeof(TerrainVertex)));
+    const bgfx::Memory* iMem = bgfx::copy(terrain.Indices.data(), (uint32_t)(terrain.Indices.size() * sizeof(uint16_t)));
+
+    switch (terrain.Mode)
+    {
+        default:
+        case 0: // Static VB
+            if (bgfx::isValid(terrain.vbh)) bgfx::destroy(terrain.vbh);
+            if (bgfx::isValid(terrain.ibh)) bgfx::destroy(terrain.ibh);
+            terrain.vbh = bgfx::createVertexBuffer(vMem, TerrainVertex::layout);
+            terrain.ibh = bgfx::createIndexBuffer(iMem);
+            break;
+        case 1: // Dynamic VB
+            if (!bgfx::isValid(terrain.dvbh))
+                terrain.dvbh = bgfx::createDynamicVertexBuffer((uint32_t)terrain.Vertices.size(), TerrainVertex::layout);
+            if (!bgfx::isValid(terrain.dibh))
+                terrain.dibh = bgfx::createDynamicIndexBuffer((uint32_t)terrain.Indices.size());
+            bgfx::update(terrain.dvbh, 0, vMem);
+            bgfx::update(terrain.dibh, 0, iMem);
+            break;
+        case 2: // Height texture mode (not fully implemented yet)
+            // Build initial geometry once
+            if (!bgfx::isValid(terrain.vbh) || !bgfx::isValid(terrain.ibh))
+            {
+                terrain.vbh = bgfx::createVertexBuffer(vMem, TerrainVertex::layout);
+                terrain.ibh = bgfx::createIndexBuffer(iMem);
+            }
+            // Update height texture
+            if (!bgfx::isValid(terrain.HeightTexture))
+            {
+                terrain.HeightTexture = bgfx::createTexture2D(terrain.Size, terrain.Size, false, 1, bgfx::TextureFormat::R8);
+            }
+            const bgfx::Memory* tMem = bgfx::copy(terrain.HeightMap.data(), (uint32_t)terrain.HeightMap.size());
+            bgfx::updateTexture2D(terrain.HeightTexture, 0, 0, 0, 0, terrain.Size, terrain.Size, tMem);
+            break;
+    }
+}
+
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/euler_angles.hpp>
@@ -52,7 +156,10 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
     // Initialize vertex layouts globally
     PBRVertex::Init();
     GridVertex::Init();
+    TerrainVertex::Init(); 
+    ParticleVertex::Init();
     
+
     // Debug line program
     m_DebugLineProgram = ShaderManager::Instance().LoadProgram("vs_debug", "fs_debug");
 	InitGrid(20.0f, 1.0f);
@@ -61,6 +168,12 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
     u_LightPositions = bgfx::createUniform("u_lightPositions", bgfx::UniformType::Vec4, 4);
     u_LightParams = bgfx::createUniform("u_lightParams", bgfx::UniformType::Vec4, 4);
     u_cameraPos = bgfx::createUniform("u_cameraPos", bgfx::UniformType::Vec4);
+
+
+    // Terrain resources
+    m_TerrainProgram = ShaderManager::Instance().LoadProgram("vs_pbr", "fs_pbr");
+    m_TerrainHeightTexProgram = ShaderManager::Instance().LoadProgram("vs_terrain_height_texture", "fs_terrain");
+    s_TerrainHeightTexture = bgfx::createUniform("s_heightTexture", bgfx::UniformType::Sampler);
 
 
 }
@@ -123,6 +236,8 @@ void Renderer::RenderScene(Scene& scene) {
     glm::vec4 camPos(activeCamera->GetPosition(), 1.0f);
     bgfx::setUniform(u_cameraPos, &camPos);
 
+
+
     // --------------------------------------
     // Collect lights from ECS
     // --------------------------------------
@@ -173,6 +288,7 @@ void Renderer::RenderScene(Scene& scene) {
     // --------------------------------------
     // Draw all meshes
     // --------------------------------------
+    // Draw all meshes
     for (auto& entity : scene.GetEntities()) {
         auto* data = scene.GetEntityData(entity.GetID());
         if (!data || !data->Mesh) continue;
@@ -206,6 +322,68 @@ void Renderer::RenderScene(Scene& scene) {
         }
  
         DrawMesh(*data->Mesh->mesh.get(), transform, *data->Mesh->material);
+    }
+
+    // --------------------------------------
+    // Draw all terrains
+    // --------------------------------------
+    for (auto& entity : scene.GetEntities())
+    {
+        auto* data = scene.GetEntityData(entity.GetID());
+        if (!data || !data->Terrain) continue;
+
+        TerrainComponent& terrain = *data->Terrain;
+
+        if (terrain.Dirty)
+        {
+            UpdateTerrainBuffers(terrain);
+            terrain.Dirty = false;
+        }
+
+        float transform[16];
+        memcpy(transform, glm::value_ptr(data->Transform.WorldMatrix), sizeof(float) * 16);
+        bgfx::setTransform(transform);
+
+        switch (terrain.Mode)
+        {
+            case 0:
+            default:
+                if (bgfx::isValid(terrain.vbh) && bgfx::isValid(terrain.ibh))
+                {
+                    bgfx::setVertexBuffer(0, terrain.vbh);
+                    bgfx::setIndexBuffer(terrain.ibh);
+                    bgfx::setState(BGFX_STATE_DEFAULT);
+                    bgfx::submit(1, m_TerrainProgram);
+                }
+                break;
+            case 1:
+                if (bgfx::isValid(terrain.dvbh) && bgfx::isValid(terrain.dibh))
+                {
+                    bgfx::setVertexBuffer(0, terrain.dvbh);
+                    bgfx::setIndexBuffer(terrain.dibh);
+                    bgfx::setState(BGFX_STATE_DEFAULT);
+                    bgfx::submit(1, m_TerrainProgram);
+                }
+                break;
+            case 2:
+                if (bgfx::isValid(terrain.vbh) && bgfx::isValid(terrain.ibh) && bgfx::isValid(terrain.HeightTexture))
+                {
+                    bgfx::setVertexBuffer(0, terrain.vbh);
+                    bgfx::setIndexBuffer(terrain.ibh);
+                    bgfx::setTexture(0, s_TerrainHeightTexture, terrain.HeightTexture);
+                    bgfx::setState(BGFX_STATE_DEFAULT);
+                    bgfx::submit(1, m_TerrainHeightTexProgram);
+                }
+                break;
+        }
+    }
+
+    // --------------------------------------
+    // Draw particle emitters (new system)
+    // --------------------------------------
+    {
+        bx::Vec3 eye = { camPos.x, camPos.y, camPos.z };
+        ecs::ParticleEmitterSystem::Get().Render(1, m_view, eye);
     }
 
     // --------------------------------------
@@ -261,6 +439,73 @@ void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material
 
     bgfx::submit(1, materialProgram);
 }
+
+#if 0
+
+
+        return;
+#endif
+
+    #if 0
+bgfx::allocInstanceDataBuffer(&idb, (uint16_t)ps.Particles.size(), sizeof(float) * 16);
+    if (idb.data == nullptr)
+        return; // not enough space 
+
+    float* mtx = (float*)idb.data;
+     
+    // Build billboard transform matrices per particle
+    glm::mat4 viewMat = glm::make_mat4(m_view);
+    glm::mat3 billboardRot = glm::transpose(glm::mat3(viewMat)); // inverse of view rotation
+
+    for (size_t i = 0; i < ps.Particles.size(); ++i)
+    {
+        const auto& p = ps.Particles[i];
+        float t = p.Age / p.Lifetime;
+        float size = glm::mix(ps.StartSize, ps.EndSize, t);
+        glm::vec3 posWorld = systemPos + p.Position;
+
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, posWorld);
+        model *= glm::mat4(billboardRot);
+        model = glm::scale(model, glm::vec3(size));
+        memcpy(&mtx[i * 16], glm::value_ptr(model), sizeof(float) * 16);
+    }
+
+    
+    // Use a unit quad mesh (generated once)
+    if (!bgfx::isValid(m_ParticleQuadVbh))
+    {
+        // Create simple quad (-0.5..0.5)
+        struct QuadVert { float x, y, z; float u, v; uint32_t abgr; };
+        uint32_t whiteAbgr = 0xffffffff;
+        QuadVert verts[4] = {
+            { -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, whiteAbgr },
+            {  0.5f, -0.5f, 0.0f, 1.0f, 1.0f, whiteAbgr },
+            {  0.5f,  0.5f, 0.0f, 1.0f, 0.0f, whiteAbgr },
+            { -0.5f,  0.5f, 0.0f, 0.0f, 0.0f, whiteAbgr },
+        };
+        uint16_t indices[6] = { 0,1,2, 0,2,3 };
+        const bgfx::Memory* vmem = bgfx::copy(verts, sizeof(verts));
+        const bgfx::Memory* imem = bgfx::copy(indices, sizeof(indices));
+        bgfx::VertexLayout quadLayout;
+        quadLayout.begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true, true)
+            .end();
+        m_ParticleQuadVbh = bgfx::createVertexBuffer(vmem, quadLayout);
+        m_ParticleQuadIbh = bgfx::createIndexBuffer(imem);
+    }
+
+    bgfx::setVertexBuffer(0, m_ParticleQuadVbh);
+    bgfx::setInstanceDataBuffer(&idb);
+    bgfx::setIndexBuffer(m_ParticleQuadIbh);
+
+    // Bind texture (per system) or white
+    bgfx::TextureHandle tex = bgfx::isValid(ps.Texture) ? ps.Texture : m_WhiteTexture;
+    bgfx::setTexture(0, s_ParticleTexture, tex);
+
+#endif
 
 // ---------------- Light Management ----------------
 void Renderer::UploadLightsToShader(const std::vector<LightData>& lights) {

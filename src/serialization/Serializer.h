@@ -12,7 +12,7 @@ using json = nlohmann::json;
  
 class Serializer {
 public:
-    // Scene serialization
+    // Scene serialization 
     static json SerializeScene(Scene& scene);
     static bool DeserializeScene(const json& data, Scene& scene);
     static bool SaveSceneToFile(Scene& scene, const std::string& filepath);
