@@ -485,6 +485,21 @@ std::shared_ptr<Scene> Scene::RuntimeClone() {
 
 
 void Scene::OnStop() {
+    // Destroy bodies stored in component data (new system)
+    for (auto& [id, data] : m_Entities) {
+        // Dynamic / kinematic bodies
+        if (data.RigidBody && !data.RigidBody->BodyID.IsInvalid()) {
+            Physics::Get().DestroyBody(data.RigidBody->BodyID);
+            data.RigidBody->BodyID = JPH::BodyID();
+        }
+        // Static bodies
+        if (data.StaticBody && !data.StaticBody->BodyID.IsInvalid()) {
+            Physics::Get().DestroyBody(data.StaticBody->BodyID);
+            data.StaticBody->BodyID = JPH::BodyID();
+        }
+    }
+
+    // Destroy any bodies that are still tracked in the legacy map
     for (auto [id, bodyID] : m_BodyMap)
         Physics::Get().DestroyBody(bodyID);
     m_BodyMap.clear();

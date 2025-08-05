@@ -89,7 +89,7 @@ void Physics::Init() {
     );
 
     // Set gravity explicitly (Jolt defaults to (0, -9.81, 0) but let's be explicit)
-    s_PhysicsSystem->SetGravity(JPH::Vec3(0.0f, -0.81f, 0.0f));
+    s_PhysicsSystem->SetGravity(JPH::Vec3(0.0f, -9.81f, 0.0f));
 
     std::cout << "[Physics] Jolt Physics initialized with gravity (0, -9.81, 0).\n";
 }
@@ -208,14 +208,13 @@ glm::mat4 Physics::GetBodyTransform(JPH::BodyID bodyID) {
 
     JPH::Mat44 joltTransform = s_PhysicsSystem->GetBodyInterface().GetWorldTransform(bodyID);
     
-    // Convert Jolt matrix to GLM matrix
-    glm::mat4 glmTransform;
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            glmTransform[i][j] = joltTransform(i, j);
+    // Convert Jolt (row-major) matrix to GLM (column-major) matrix by transposing during copy
+    glm::mat4 glmTransform(1.0f);
+    for (int row = 0; row < 4; ++row) {
+        for (int col = 0; col < 4; ++col) {
+            glmTransform[col][row] = joltTransform(row, col);
         }
     }
-    
     return glmTransform;
 }
 

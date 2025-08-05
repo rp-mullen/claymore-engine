@@ -31,6 +31,7 @@
 *.suo
 *.sdf
 *.cache
+*.meta
 *.db
 *.VC.db
 *.log
