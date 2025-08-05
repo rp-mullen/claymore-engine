@@ -11,6 +11,7 @@
 #include <glm/glm.hpp>
 #include <filesystem>
 #include <algorithm>
+#include <particles/ParticleSystem.h>
 
 inline void RegisterComponentDrawers() {
     auto& registry = ComponentDrawerRegistry::Instance();
@@ -153,15 +154,26 @@ inline void RegisterComponentDrawers() {
         ImGui::Separator();
         ImGui::Text("Sprite");
         ImGui::SameLine();
-        ImTextureID imgID = 0; // No preview yet
         ImVec2 preview(48,48);
-        ImGui::Image(imgID, preview);
+
+        ImTextureID imgID = 0;
+        float uv[4];
+        if (ps::isValid(e.SpriteHandle) && ps::GetSpriteUV(e.SpriteHandle, uv))
+        {
+            imgID = (ImTextureID)(uintptr_t)(bgfx::isValid(ps::GetTexture()) ? ps::GetTexture().idx : 0);
+            ImGui::Image(imgID, preview, ImVec2(uv[0], uv[1]), ImVec2(uv[2], uv[3]));
+        }
+        else
+        {
+            ImGui::TextDisabled("(None)");
+        }
+
         if (ImGui::BeginDragDropTarget())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE"))
             {
                 const char* path = (const char*)payload->Data;
-                std::string ext = std::filesystem::path(path).extension().string();
+                std::string ext = (std::filesystem::path(path).extension().string());
                 std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
                 if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga")
                 {

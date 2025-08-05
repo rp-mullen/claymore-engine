@@ -3,7 +3,7 @@
 #include "Components.h"
 #include "Entity.h"
 
-namespace ecs
+namespace ecs 
 {
     ParticleEmitterSystem& ParticleEmitterSystem::Get()
     {

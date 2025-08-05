@@ -92,4 +92,8 @@ namespace ps // short namespace for particle system
     // _view must be a valid BGFX view id, _mtxView is current view matrix, _eye is eye position in world space.
     void render(uint8_t _view, const float* _mtxView, const bx::Vec3& _eye);
 
+
+    bool GetSpriteUV(EmitterSpriteHandle sprite, float uv[4]);
+    bgfx::TextureHandle GetTexture();
+
 } // namespace ps

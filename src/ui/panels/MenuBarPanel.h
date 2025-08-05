@@ -8,7 +8,7 @@
 #include "ProjectPanel.h"
 #include "EditorPanel.h"
 
-class UILayer; // Forward declaration
+class UILayer; // Forward declaration 
 
 class MenuBarPanel : public EditorPanel{
 public:

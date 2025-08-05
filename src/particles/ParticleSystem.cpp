@@ -617,4 +617,23 @@ namespace ps
     void update(float _dt)                                         { s_ctx.update(_dt);}    
     void render(uint8_t _view, const float* _mtxView, const bx::Vec3& _eye) { s_ctx.render(_view, _mtxView, _eye);}    
 
+    bool GetSpriteUV(EmitterSpriteHandle sprite, float uv[4])
+    {
+        if (!isValid(sprite))
+            return false;
+
+        const Pack2D& pack = s_ctx.m_sprite.get(sprite);
+        const float invTex = 1.0f / SPRITE_TEXTURE_SIZE;
+        uv[0] = pack.m_x * invTex;
+        uv[1] = pack.m_y * invTex;
+        uv[2] = (pack.m_x + pack.m_width) * invTex;
+        uv[3] = (pack.m_y + pack.m_height) * invTex;
+        return true;
+    }
+
+    bgfx::TextureHandle GetTexture()
+    {
+        return s_ctx.m_texture;
+    }
+
 } // namespace ps

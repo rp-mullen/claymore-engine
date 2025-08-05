@@ -58,7 +58,7 @@ extern SetEntityRotation_fn   SetEntityRotationPtr;
 extern GetEntityScale_fn      GetEntityScalePtr;
 extern SetEntityScale_fn      SetEntityScalePtr;
 extern SetLinearVelocity_fn   SetLinearVelocityPtr;
-extern SetAngularVelocity_fn  SetAngularVelocityPtr;
+extern SetAngularVelocity_fn  SetAngularVelocityPtr; 
 extern SetLightColor_fn       SetLightColorPtr;
 extern SetLightIntensity_fn   SetLightIntensityPtr;
 extern SetBlendShapeWeight_fn SetBlendShapeWeightPtr;
