@@ -1,7 +1,6 @@
 #pragma once
 #include "ScriptComponent.h"
 #include "DotNetHost.h"
-#include "DotNetHost.h"
 
 class ManagedScriptComponent : public ScriptComponent {
 public:
@@ -14,7 +13,7 @@ public:
       }
 
    void OnCreate(Entity e) override {
-      CallOnCreate(m_Handle, e.GetID());
+      CallOnCreate(m_Handle, e.GetID()); // Pass entity ID only (interop converts)
       }
 
    void OnUpdate(float dt) override {

@@ -1,5 +1,5 @@
 #include "DotnetBridge.h"
-#include "scripting/DotnetHost.h" // calls LoadHostFxr etc.
+#include "scripting/DotNetHost.h" // calls LoadHostFxr etc.
 
 static bool g_RuntimeInitialized = false;
 

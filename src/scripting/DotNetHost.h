@@ -7,22 +7,26 @@
 bool LoadHostFxr();
 bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typeName, const std::wstring& methodName);
 
+
 // Script interop function pointer types
 using Script_Create_fn = void* (*)(const char* className);
 using Script_OnCreate_fn = void (*)(void* handle, int entityID);
 using Script_OnUpdate_fn = void (*)(void* handle, float dt);
+using ReloadScripts_fn = int (*)(const wchar_t*);
 
 // These are resolved at runtime
 extern Script_Create_fn g_Script_Create;
 extern Script_OnCreate_fn g_Script_OnCreate;
 extern Script_OnUpdate_fn g_Script_OnUpdate;
-
-void* CreateScriptInstance(const std::string& className);
-void CallOnCreate(void* instance, Entity entity);
+extern ReloadScripts_fn g_ReloadScripts;
+// Creates and initializes the managed script instance for an entity
+void CallOnCreate(void* instance, int entityID);
 void CallOnUpdate(void* instance, float dt);
 void ReloadScripts();
 void SetupEntityInterop(std::filesystem::path fullPath);
 
+// Creates a managed script instance (returns GCHandle pointer held as void*)
+void* CreateScriptInstance(const std::string& className);
 
 // Function pointer types
 using GetEntityPosition_fn     = void(*)(int entityID, float* outX, float* outY, float* outZ);
@@ -46,6 +50,8 @@ using SetLightIntensity_fn     = void(*)(int entityID, float intensity);
 using SetBlendShapeWeight_fn   = void(*)(int entityID, const char* shapeName, float weight);
 // SyncContext flush
 using FlushSyncContext_fn      = void(*)();
+using RegisterScriptCallbackFn = void(*)(const char*);
+
 
 // Pointers to assign in Claymore main.cpp or initialization
 extern GetEntityPosition_fn   GetEntityPositionPtr;

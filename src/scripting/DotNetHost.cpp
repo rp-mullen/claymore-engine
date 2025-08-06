@@ -1,4 +1,4 @@
-﻿#include "DotnetHost.h"
+﻿#include "DotNetHost.h"
 extern "C" {
 #include "nethost.h"
    }
@@ -32,12 +32,14 @@ static hostfxr_get_runtime_delegate_fn get_delegate_fptr = nullptr;
 static hostfxr_close_fn close_fptr = nullptr;
 static load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer = nullptr;
 
+
 // ----------------------------------------
 // Script interop function pointers
 // ----------------------------------------
 Script_Create_fn g_Script_Create = nullptr;
 Script_OnCreate_fn g_Script_OnCreate = nullptr;
 Script_OnUpdate_fn g_Script_OnUpdate = nullptr;
+ReloadScripts_fn g_ReloadScripts = nullptr;
 
 // SyncContext flush pointer
 FlushSyncContext_fn FlushSyncContextPtr = nullptr;
@@ -48,30 +50,18 @@ FlushSyncContext_fn FlushSyncContextPtr = nullptr;
 // Vector defined in UILayer.cpp so the UI and interop use the same list
 extern std::vector<std::string> g_RegisteredScriptNames;
 
-using RegisterScriptCallbackFn = void(CORECLR_DELEGATE_CALLTYPE*)(const char* className);
 
 // Global function pointer set from managed side
-static RegisterScriptCallbackFn g_RegisterScriptCallback = nullptr;
-
 // Called by native to let C# perform registration
-extern "C" __declspec(dllexport) void CORECLR_DELEGATE_CALLTYPE RegisterScriptType(const char* className)
-   {
-   g_RegisteredScriptNames.emplace_back(className);
-   std::cout << "[Interop] Registered script type: " << className << std::endl;
+extern "C" __declspec(dllexport) void NativeRegisterScriptType(const char* className)
+{
+    g_RegisteredScriptNames.emplace_back(className);
+    std::cout << "[Interop] Registered script type: " << className << std::endl;
 
-   ScriptSystem::Instance().RegisterManaged(className);
-   }
+    ScriptSystem::Instance().RegisterManaged(className);
+}
 
 
-
-extern "C" void CORECLR_DELEGATE_CALLTYPE RegisterScriptCallback(const char* className)
-   {
-   RegisterScriptType(className);
-   }
-
-using RegisterScriptDelegateFn = void(CORECLR_DELEGATE_CALLTYPE*)(const char*);
-
-static RegisterScriptDelegateFn s_registerScriptDelegate = nullptr;
 
 // ----------------------------------------
 // Load HostFXR + CoreCLR
@@ -208,14 +198,21 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
       (void**)&g_Script_OnCreate
    );
 
-   rc |= load_assembly_and_get_function_pointer(
-      fullPath.c_str(),
-      L"ClaymoreEngine.InteropExports, ClaymoreEngine",
-      L"Script_OnUpdate",
-      L"ClaymoreEngine.Script_OnUpdateDelegate, ClaymoreEngine",
-      nullptr,
-      (void**)&g_Script_OnUpdate
-   );
+   {
+      int localRc = load_assembly_and_get_function_pointer(
+         fullPath.c_str(),
+         L"ClaymoreEngine.InteropExports, ClaymoreEngine",
+         L"Script_OnUpdate",
+         L"ClaymoreEngine.Script_OnUpdateDelegate, ClaymoreEngine",
+         nullptr,
+         (void**)&g_Script_OnUpdate);
+      if(localRc != 0 || (uintptr_t)g_Script_OnUpdate < 0x1000)
+      {
+         std::cerr << "[Interop] Failed to resolve Script_OnUpdate (HRESULT=" << std::hex << localRc << ")\n";
+         g_Script_OnUpdate = nullptr;
+      }
+      rc |= localRc;
+   }
 
    // Load FlushSyncContext from managed side
    rc |= load_assembly_and_get_function_pointer(
@@ -228,10 +225,12 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
    );
 
    if (!g_Script_Create || !g_Script_OnCreate || !g_Script_OnUpdate)
-      {
-      std::cerr << "[Interop] Failed to resolve one or more script interop functions.\n";
+   {
+      std::cerr << "[Interop] One or more script interop function pointers are null. "
+                << "Create=" << g_Script_Create << ", OnCreate=" << g_Script_OnCreate
+                << ", OnUpdate=" << g_Script_OnUpdate << "\n";
       return false;
-      }
+   }
 
    if (!FlushSyncContextPtr) {
 	   std::cerr << "[Interop] Failed to resolve FlushSyncContext function.\n";
@@ -256,7 +255,10 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
       }
 
    if (g_RegisterAllScripts)
-      g_RegisterAllScripts((void*)&RegisterScriptType);
+   {
+       // Pass pointer to native registration function so managed side can invoke it
+       g_RegisterAllScripts(reinterpret_cast<void*>(&NativeRegisterScriptType));
+   }
 
    SetupEntityInterop(fullPath);
 
@@ -268,18 +270,22 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
 // ----------------------------------------
    
 
+
 void ReloadScripts()
    {
-   std::wstring scriptsDllW = L"C:\\Projects\\claymore\\out\\build\\x64-Debug\\GameScripts.dll";
+   wchar_t exePath[MAX_PATH];
+   GetModuleFileNameW(NULL, exePath, MAX_PATH);
+   std::filesystem::path exeDir = std::filesystem::path(exePath).parent_path();
+   std::filesystem::path scriptsDLL = exeDir / L"GameScripts.dll";
+   std::wstring scriptsDllW = scriptsDLL.wstring();
 
-   using ReloadScriptsFn = int (CORECLR_DELEGATE_CALLTYPE*)(const wchar_t*);
-   static ReloadScriptsFn s_reloadScripts = nullptr;
+   std::filesystem::path engineDLL = exeDir / L"ClaymoreEngine.dll";
 
-   if (!s_reloadScripts)
+   if (!g_ReloadScripts)
       {
       void* fn = nullptr;
       int rc = load_assembly_and_get_function_pointer(
-         L"C:\\Projects\\claymore\\out\\build\\x64-Debug\\ClaymoreEngine.dll",
+         engineDLL.wstring().c_str(),
          L"ClaymoreEngine.InteropProcessor, ClaymoreEngine",
          L"ReloadScripts",
          L"ClaymoreEngine.ReloadScriptsDelegate, ClaymoreEngine",
@@ -293,15 +299,20 @@ void ReloadScripts()
          return;
          }
 
-      s_reloadScripts = reinterpret_cast<ReloadScriptsFn>(fn);
+      g_ReloadScripts = reinterpret_cast<ReloadScripts_fn>(fn);
       }
 
-   int rc = s_reloadScripts(scriptsDllW.c_str());
-   if (rc != 0)
-      {
-      std::cerr << "[Interop] ReloadScripts returned error.\n";
-      return;
-      }
+   if (!g_ReloadScripts) {
+        std::cerr << "[Interop] ReloadScripts function pointer not set.\n";
+        return;
+    }
+
+    int rc = g_ReloadScripts(scriptsDllW.c_str());
+    if (rc != 0)
+    {
+        std::cerr << "[Interop] ReloadScripts returned error.\n";
+        return;
+    }
 
    std::cout << "[Interop] Scripts reloaded.\n";
 
@@ -309,7 +320,7 @@ void ReloadScripts()
       {
       void* fn = nullptr;
       int rc = load_assembly_and_get_function_pointer(
-         L"C:\\Projects\\claymore\\out\\build\\x64-Debug\\ClaymoreEngine.dll",
+         engineDLL.wstring().c_str(),
          L"ClaymoreEngine.InteropExports, ClaymoreEngine",
          L"RegisterAllScripts",
          L"ClaymoreEngine.RegisterAllScriptsDelegate, ClaymoreEngine",
@@ -326,10 +337,9 @@ void ReloadScripts()
       g_RegisterAllScripts = reinterpret_cast<RegisterAllScriptsFn>(fn);
       }
 
-   // Pass native-to-managed callback pointer
-   g_RegisterAllScripts((void*)&RegisterScriptType);
+// Pass native-to-managed callback pointer
+   g_RegisterAllScripts(reinterpret_cast<void*>(&NativeRegisterScriptType));
    }
-
 // ----------------------------------------
 // C++ Wrapper Utilities
 // ----------------------------------------
@@ -338,23 +348,30 @@ void* CreateScriptInstance(const std::string& className)
    return g_Script_Create ? g_Script_Create(className.c_str()) : nullptr;
    }
 
-void CallOnCreate(void* instance, Entity entity)
-   {
-   if (g_Script_OnCreate)
-      g_Script_OnCreate(instance, entity.GetID());
-   }
+void CallOnCreate(void* instance, int entityID)
+{
+    if(!instance)
+        return;
+    if (g_Script_OnCreate)
+        g_Script_OnCreate(instance, entityID);
+}
 
 void CallOnUpdate(void* instance, float dt)
-   {
-   if (g_Script_OnUpdate)
-      g_Script_OnUpdate(instance, dt);
-   }
+{
+    if(!instance)
+        return; // Skip if script handle invalid
+
+    if (g_Script_OnUpdate)
+        g_Script_OnUpdate(instance, dt);
+}
 
 void SetupEntityInterop(std::filesystem::path fullPath)
 {
-    if (!g_RegisterScriptCallback)
-    {
-        void* initArgs[] =
+    static bool s_EntityInteropInitialized = false;
+    if (s_EntityInteropInitialized)
+        return;
+
+    void* initArgs[] =
         {
            (void*)GetEntityPositionPtr,
            (void*)SetEntityPositionPtr,
@@ -392,6 +409,8 @@ void SetupEntityInterop(std::filesystem::path fullPath)
         }
 
         if (rc == 0 && initInteropFn)
+        {
             initInteropFn(initArgs, 14);
+            s_EntityInteropInitialized = true;
+        }
     }
-}

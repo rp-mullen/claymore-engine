@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Runtime.InteropServices;
+using System.Numerics;
 
 namespace ClaymoreEngine
    {
@@ -14,6 +16,85 @@ namespace ClaymoreEngine
 
       public static readonly List<Type> _allScriptTypes = new();
       public static IEnumerable<Type> AllScriptTypes => _allScriptTypes;
+
+      // -------------------------------------------------------------
+      // Reflection property registration (managed -> native)
+      // -------------------------------------------------------------
+      private enum PropertyType
+      {
+         Int = 0,
+         Float = 1,
+         Bool = 2,
+         String = 3,
+         Vector3 = 4
+      }
+
+      [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+      private delegate void RegisterScriptPropertyDelegate(
+         [MarshalAs(UnmanagedType.LPStr)] string scriptClass,
+         [MarshalAs(UnmanagedType.LPStr)] string propName,
+         int propertyType,
+         [MarshalAs(UnmanagedType.LPStr)] string defaultValue);
+
+      private static RegisterScriptPropertyDelegate? _registerScriptProperty;
+
+      private static void EnsureRegisterScriptProperty()
+      {
+         if (_registerScriptProperty != null)
+            return;
+
+         if (!NativeLibrary.TryLoad("ClaymoreEngine", out var libHandle))
+         {
+            Console.WriteLine("[C#] Failed to load ClaymoreEngine.dll for property registration.");
+            return;
+         }
+
+         if (!NativeLibrary.TryGetExport(libHandle, "RegisterScriptProperty", out var fnPtr))
+         {
+            Console.WriteLine("[C#] RegisterScriptProperty export not found in native library.");
+            return;
+         }
+
+         _registerScriptProperty = Marshal.GetDelegateForFunctionPointer<RegisterScriptPropertyDelegate>(fnPtr);
+      }
+
+      private static void RegisterSerializedFields(Type scriptType)
+      {
+         EnsureRegisterScriptProperty();
+         if (_registerScriptProperty == null)
+            return;
+
+         const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+         foreach (var field in scriptType.GetFields(flags))
+         {
+            if (field.GetCustomAttribute<SerializeField>() == null)
+               continue;
+
+            PropertyType pType;
+            string defaultVal = "";
+
+            if (field.FieldType == typeof(int))
+               pType = PropertyType.Int;
+            else if (field.FieldType == typeof(float))
+               pType = PropertyType.Float;
+            else if (field.FieldType == typeof(bool))
+            {
+               pType = PropertyType.Bool;
+               defaultVal = "false";
+            }
+            else if (field.FieldType == typeof(string))
+               pType = PropertyType.String;
+            else if (field.FieldType == typeof(Vector3))
+               {
+                  pType = PropertyType.Vector3;
+                  defaultVal = "0,0,0";
+               }
+            else
+               continue; // Unsupported type
+
+            _registerScriptProperty(scriptType.FullName!, field.Name, (int)pType, defaultVal);
+         }
+      }
 
       /// <summary>
       /// Loads the specified GameScripts DLL into a collectible context and registers all valid ScriptComponent types.
@@ -55,21 +136,29 @@ namespace ClaymoreEngine
 
             Console.WriteLine($"[C#] Loaded scripts: {_scriptsAsm.FullName}");
 
-            _allScriptTypes.Clear();
+         _allScriptTypes.Clear();
 
-            foreach (Type type in _scriptsAsm.GetTypes())
-               {
-               if (type.IsAbstract || !typeof(ScriptComponent).IsAssignableFrom(type))
-                  continue;
+         foreach (Type type in _scriptsAsm.GetTypes())
+            {
+            if (type.IsAbstract || !typeof(ScriptComponent).IsAssignableFrom(type))
+               continue;
 
-               Console.WriteLine($"[C#] Registering: {type.FullName}");
-               _allScriptTypes.Add(type);
+            Console.WriteLine($"[C#] Registering: {type.FullName}");
+            _allScriptTypes.Add(type);
 
-               if (registerCallback != null)
-                  registerCallback(type.FullName!);
-               }
+            // -------------------------------------------------------------
+            // 1. Notify native about the new script type
+            // -------------------------------------------------------------
+            registerCallback?.Invoke(type.FullName!);
 
-            Console.WriteLine($"[C#] Total script types loaded: {_allScriptTypes.Count}");
+            // -------------------------------------------------------------
+            // 2. Scan for [SerializeField] fields and register them so that
+            //    the native Inspector can expose them.
+            // -------------------------------------------------------------
+            RegisterSerializedFields(type);
+            }
+
+         Console.WriteLine($"[C#] Total script types loaded: {_allScriptTypes.Count}");
             }
          catch (ReflectionTypeLoadException rtle)
             {
@@ -139,8 +228,8 @@ namespace ClaymoreEngine
          if (type != null)
             return type;
 
-         // Fallback: try to find by short name
-         return _allScriptTypes.FirstOrDefault(t => t.Name == name);
+         // Fallback: try to find by short name (case-insensitive)
+         return _allScriptTypes.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
          }
       }
       }

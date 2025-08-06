@@ -28,7 +28,13 @@ extern "C"
 {
     __declspec(dllexport) void GetEntityPosition(int entityID, float* outX, float* outY, float* outZ)
     {
-        auto pos = Scene::Get().GetEntityData(entityID)->Transform.Position;
+        auto* data = Scene::Get().GetEntityData(entityID);
+        if(!data)
+        {
+            *outX = *outY = *outZ = 0.0f;
+            return;
+        }
+        auto pos = data->Transform.Position;
         *outX = pos.x;
         *outY = pos.y;
         *outZ = pos.z;
@@ -36,7 +42,8 @@ extern "C"
 
     __declspec(dllexport) void SetEntityPosition(int entityID, float x, float y, float z)
     {
-        auto data = Scene::Get().GetEntityData(entityID);
+        auto* data = Scene::Get().GetEntityData(entityID);
+        if(!data) return;
         data->Transform.Position = glm::vec3(x, y, z);
         Scene::Get().MarkTransformDirty(entityID);
     }
@@ -67,7 +74,9 @@ extern "C"
     // Rotation (Euler degrees)
     __declspec(dllexport) void GetEntityRotation(int entityID, float* outX, float* outY, float* outZ)
     {
-        auto rot = Scene::Get().GetEntityData(entityID)->Transform.Rotation;
+        auto* data = Scene::Get().GetEntityData(entityID);
+        if(!data){ *outX = *outY = *outZ = 0.0f; return; }
+        auto rot = data->Transform.Rotation;
         *outX = rot.x; *outY = rot.y; *outZ = rot.z;
     }
 
@@ -82,7 +91,9 @@ extern "C"
     // Scale
     __declspec(dllexport) void GetEntityScale(int entityID, float* outX, float* outY, float* outZ)
     {
-        auto scale = Scene::Get().GetEntityData(entityID)->Transform.Scale;
+        auto* data = Scene::Get().GetEntityData(entityID);
+        if(!data){ *outX = *outY = *outZ = 0.0f; return; }
+        auto scale = data->Transform.Scale;
         *outX = scale.x; *outY = scale.y; *outZ = scale.z;
     }
 
