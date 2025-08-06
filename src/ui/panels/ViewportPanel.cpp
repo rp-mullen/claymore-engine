@@ -13,6 +13,7 @@
 #include <glm/gtx/euler_angles.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <rendering/ModelLoader.h>
+#include <imgui_internal.h>
 
 // =============================
 // Main Viewport Render
@@ -31,11 +32,21 @@ void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
     if (bgfx::isValid(sceneTexture)) {
         ImTextureID texId = (ImTextureID)(uintptr_t)sceneTexture.idx;
         ImGui::Image(texId, m_ViewportSize, ImVec2(0, 0), ImVec2(1, 1));
+        // Allow gizmo to receive clicks even though the Image is an item
+        ImGui::SetItemAllowOverlap();
+
+        ImGuizmo::BeginFrame();
 
         ImVec2 min = ImGui::GetItemRectMin();
         ImVec2 max = ImGui::GetItemRectMax();
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect(min.x, min.y, max.x - min.x, max.y - min.y);
+
+        // If the viewport image item is active while hovering the gizmo, release it so the gizmo can capture drag
+        if (ImGuizmo::IsOver() && ImGui::IsItemActive() && !ImGuizmo::IsUsing())
+        {
+            ImGui::ClearActiveID();
+        }
     }
     else {
         ImGui::Text("Invalid scene texture!");
@@ -87,6 +98,7 @@ void ViewportPanel::HandleCameraControls() {
        // Disable mouse/keyboard capture when using gizmo
        io.WantCaptureMouse = true;
        io.WantCaptureKeyboard = true;
+       ImGuizmo::Enable(true);
        }
 
     // Handle Picking
