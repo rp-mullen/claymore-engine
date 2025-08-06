@@ -20,6 +20,7 @@ namespace fs = std::filesystem;
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/euler_angles.hpp>
+#include <windows.h>
 
 Scene* Scene::CurrentScene = nullptr;
 
@@ -640,10 +641,16 @@ void Scene::CreatePhysicsBody(EntityID id, const TransformComponent& transform, 
    }
 
 void Scene::Update(float dt) {
+   static bool once = (std::cout << "[C++] Scene::Update thread: " << GetCurrentThreadId() << "\n", true);
    UpdateTransforms();
 
    // Update particle emitters so they preview both in edit and play mode
    ecs::ParticleEmitterSystem::Get().Update(*this, dt);
+
+   extern void(__stdcall * EnsureInstalledPtr)();    // forward if needed, or capture in a singleton
+   extern void(__stdcall * FlushSyncContextPtr)();
+
+   if (EnsureInstalledPtr) EnsureInstalledPtr();
 
    if (m_IsPlaying) {
       // Step physics simulation

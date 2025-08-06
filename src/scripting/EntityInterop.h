@@ -11,6 +11,7 @@ extern "C" {
     // Entity management
     __declspec(dllexport) int  CreateEntity(const char* name);
     __declspec(dllexport) void DestroyEntity(int entityID);
+    __declspec(dllexport) int GetEntityByID(int entityID);
 
     // Rotation & Scale
     __declspec(dllexport) void GetEntityRotation(int entityID, float* outX, float* outY, float* outZ);
@@ -21,13 +22,6 @@ extern "C" {
     // Physics
     __declspec(dllexport) void SetLinearVelocity(int entityID, float x, float y, float z);
     __declspec(dllexport) void SetAngularVelocity(int entityID, float x, float y, float z);
-
-    // Lighting
-    __declspec(dllexport) void SetLightColor(int entityID, float r, float g, float b);
-    __declspec(dllexport) void SetLightIntensity(int entityID, float intensity);
-
-    // BlendShapes
-    __declspec(dllexport) void SetBlendShapeWeight(int entityID, const char* shapeName, float weight);
 
 #ifdef __cplusplus
 }

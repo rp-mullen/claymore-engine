@@ -9,20 +9,20 @@
 #include "rendering/PBRMaterial.h"
 #include "ecs/Components.h"
 
+#include "ComponentInterop.h"
+
 GetEntityPosition_fn GetEntityPositionPtr = &GetEntityPosition;
 SetEntityPosition_fn SetEntityPositionPtr = &SetEntityPosition;
 FindEntityByName_fn  FindEntityByNamePtr = &FindEntityByName;
 CreateEntity_fn  CreateEntityPtr = &CreateEntity;
 DestroyEntity_fn DestroyEntityPtr = &DestroyEntity;
+GetEntityByID_fn GetEntityByIDPtr = &GetEntityByID;
 GetEntityRotation_fn GetEntityRotationPtr = &GetEntityRotation;
 SetEntityRotation_fn SetEntityRotationPtr = &SetEntityRotation;
 GetEntityScale_fn    GetEntityScalePtr    = &GetEntityScale;
 SetEntityScale_fn    SetEntityScalePtr    = &SetEntityScale;
 SetLinearVelocity_fn SetLinearVelocityPtr = &SetLinearVelocity;
 SetAngularVelocity_fn SetAngularVelocityPtr = &SetAngularVelocity;
-SetLightColor_fn     SetLightColorPtr      = &SetLightColor;
-SetLightIntensity_fn SetLightIntensityPtr  = &SetLightIntensity;
-SetBlendShapeWeight_fn SetBlendShapeWeightPtr = &SetBlendShapeWeight;
 
 extern "C"
 {
@@ -69,6 +69,12 @@ extern "C"
     __declspec(dllexport) void DestroyEntity(int entityID)
     {
         Scene::Get().RemoveEntity(entityID);
+    }
+
+    __declspec(dllexport) int GetEntityByID(int entityID)
+    {
+        Entity entity = Scene::Get().FindEntityByID(entityID);
+        return entity.GetID();
     }
 
     // Rotation (Euler degrees)
@@ -124,35 +130,5 @@ extern "C"
         Physics::SetBodyAngularVelocity(bodyID, glm::vec3(x, y, z));
     }
 
-    // Lighting
-    __declspec(dllexport) void SetLightColor(int entityID, float r, float g, float b)
-    {
-        auto* data = Scene::Get().GetEntityData(entityID);
-        if(data && data->Light)
-            data->Light->Color = glm::vec3(r, g, b);
-    }
-
-    __declspec(dllexport) void SetLightIntensity(int entityID, float intensity)
-    {
-        auto* data = Scene::Get().GetEntityData(entityID);
-        if(data && data->Light)
-            data->Light->Intensity = intensity;
-    }
-
-    // Blendshape weight
-    __declspec(dllexport) void SetBlendShapeWeight(int entityID, const char* shapeName, float weight)
-    {
-        auto* data = Scene::Get().GetEntityData(entityID);
-        if(!data || !data->BlendShapes || !shapeName) return;
-        for(auto& shape : data->BlendShapes->Shapes)
-        {
-            if(shape.Name == shapeName)
-            {
-                shape.Weight = weight;
-                data->BlendShapes->Dirty = true;
-                break;
-            }
-        }
-    }
 }
 

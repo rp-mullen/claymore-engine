@@ -4,53 +4,82 @@ using System.Threading;
 using System.Runtime.InteropServices;
 
 namespace ClaymoreEngine
-{
-    /// <summary>
-    /// Simple main-thread SynchronizationContext. Continuations posted via
-    /// await (e.g. await Task.Delay) will be queued here and executed once
-    /// per frame from native side.
-    /// </summary>
-    public sealed class EngineSyncContext : SynchronizationContext
-    {
-        private readonly ConcurrentQueue<Action> _queue = new();
+   {
+   static class ThreadIds
+      {
+      [DllImport("kernel32.dll")]
+      private static extern uint GetCurrentThreadId();
+      public static uint OsTid() => GetCurrentThreadId();
+      }
 
-        // Singleton instance – created once in EngineEntry.ManagedStart
-        public static EngineSyncContext Instance { get; } = new();
+   /// <summary>
+   /// Main-thread SynchronizationContext for running async continuations
+   /// on the engine’s game loop thread.
+   /// </summary>
+   public sealed class EngineSyncContext : SynchronizationContext
+      {
+      private readonly ConcurrentQueue<Action> _queue = new();
+      private int _mainThreadId = -1;
 
-        private EngineSyncContext() { }
+      // Singleton instance
+      public static EngineSyncContext Instance { get; } = new();
 
-        public override void Post(SendOrPostCallback d, object? state)
-        {
-            _queue.Enqueue(() => d(state));
-        }
+      private EngineSyncContext() { }
 
-        public override void Send(SendOrPostCallback d, object? state)
-        {
-            // We are already on the main thread – execute immediately.
+      public void MarkInstalledHere()
+         {
+         _mainThreadId = Environment.CurrentManagedThreadId;
+         }
+
+      public override void Post(SendOrPostCallback d, object? state)
+         {
+         _queue.Enqueue(() => d(state));
+         }
+
+      public override void Send(SendOrPostCallback d, object? state)
+         {
+         if (Environment.CurrentManagedThreadId == _mainThreadId)
             d(state);
-        }
+         else
+            Post(d, state);
+         }
 
-        /// <summary>
-        /// Execute all queued actions. Must be called from the engine main thread
-        /// after scripts have had their OnUpdate invoked.
-        /// </summary>
-        public void ExecutePending()
-        {
-            while (_queue.TryDequeue(out var action))
+      public void ExecutePending()
+         {
+         while (_queue.TryDequeue(out var action))
             {
-                try { action(); }
-                catch (Exception ex) { Console.WriteLine($"[EngineSyncContext] Exception: {ex}"); }
+            try { action(); }
+            catch (Exception ex) { Console.WriteLine($"[EngineSyncContext] Exception: {ex}"); }
             }
-        }
+         }
 
-        // ---------------- Native hook ----------------
-        // Expose a static method for native side to call once per frame.
-        public static void Flush()
-        {
-            Instance.ExecutePending();
-        }
-    }
+      // ---------------- Native hooks ----------------
+      public static void Flush()
+         {
+         Instance.ExecutePending();
+         }
 
-    // Delegate signature used by native side when loading function pointer
-    public delegate void FlushDelegate();
-}
+      public static void InstallFromNative()
+         {
+         SynchronizationContext.SetSynchronizationContext(Instance);
+         Instance.MarkInstalledHere();
+         Console.WriteLine($"[C#] InstallFromNative: managed={Environment.CurrentManagedThreadId}, os={ThreadIds.OsTid()}");
+         }
+
+      public static void EnsureInstalledHereFromNative()
+         {
+         if (SynchronizationContext.Current != Instance)
+            {
+            SynchronizationContext.SetSynchronizationContext(Instance);
+            Instance.MarkInstalledHere();
+            Console.WriteLine($"[C#] EnsureInstalledHereFromNative: managed={Environment.CurrentManagedThreadId}, os={ThreadIds.OsTid()}");
+            }
+         }
+
+      // Delegate signature for all native-callable void() methods
+
+      }
+
+   [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+   public delegate void VoidDelegate();
+   }

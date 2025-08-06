@@ -13,11 +13,22 @@ namespace ClaymoreEngine
 
         public static int Find(string name)
         {
-            int id = EntityInterop.FindByName(name);
-            return id >= 0 ? id : -1;
+            return EntityInterop.FindByName(name);
         }
 
-        public override bool Equals(object obj) => obj is Entity e && e.EntityID == EntityID;
+        public static Entity Create(string name)
+        {
+            int id = EntityInterop.CreateEntity(name);
+            return new Entity(id);
+        }
+        
+        public static Entity GetEntity(int id)
+        {
+            int entityId = EntityInterop.GetEntityByID(id);
+            return new Entity(entityId);
+        }
+
+        public override bool Equals(object? obj) => obj is Entity e && e.EntityID == EntityID;
         public override int GetHashCode() => EntityID;
     }
    }

@@ -54,7 +54,8 @@ namespace ClaymoreEngine
             var script = (ScriptComponent)gch.Target!;
             script.Bind(new Entity(entityId));
             script.OnCreate();
-        }
+         Console.WriteLine($"[C#] OnCreate thread: managed={Environment.CurrentManagedThreadId}, os={ThreadIds.OsTid()}");
+      }
 
         // Called once per frame
         public static void Script_OnUpdate(IntPtr handle, float dt)

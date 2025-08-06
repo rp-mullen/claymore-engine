@@ -5,6 +5,9 @@
 #include "serialization/Serializer.h"
 #include "ecs/EntityData.h"
 #include "ui/UILayer.h"
+#include "pipeline/AssetPipeline.h"
+#include "pipeline/AssetRegistry.h"
+#include "pipeline/AssetLibrary.h"
 
 #include <filesystem>
 #include <fstream>
@@ -206,6 +209,77 @@ void MenuBarPanel::OnImGuiRender() {
 
         if (ImGui::MenuItem("Exit")) {
             // Hook into application quit logic
+        }
+        ImGui::EndMenu();
+    }
+
+    // TOOLS MENU
+    if (ImGui::BeginMenu("Tools")) {
+        if (ImGui::MenuItem("Reimport Assets")) {
+            namespace fs = std::filesystem;
+            std::string projectDir = Project::GetProjectDirectory().string();
+
+            // 1. Delete all .meta files in project directory
+            for (auto& entry : fs::recursive_directory_iterator(projectDir)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".meta") {
+                    try {
+                        fs::remove(entry.path());
+                    } catch (const std::exception& e) {
+                        std::cerr << "[ReimportAssets] Failed to delete meta file: " << entry.path() << "\n";
+                    }
+                }
+            }
+
+            // 2. Optionally clear cached processed assets folder
+            if (fs::exists("cache")) {
+                try { fs::remove_all("cache"); }
+                catch(...) {}
+            }
+
+            // 3. Clear registries so they repopulate on import
+            AssetRegistry::Instance().Clear();
+            AssetLibrary::Instance().Clear();
+
+            // 4. Scan and import all assets anew (this will compile scripts as well)
+            AssetPipeline::Instance().ScanProject(projectDir);
+            std::cout << "[MenuBarPanel] Reimport Assets triggered." << std::endl;
+        }
+
+        if (ImGui::MenuItem("Reimport Scripts")) {
+            namespace fs = std::filesystem;
+            std::string projectDir = Project::GetProjectDirectory().string();
+
+            // 1. Delete .meta files for scripts and collect first script path
+            std::string firstScriptPath;
+            for (auto& entry : fs::recursive_directory_iterator(projectDir)) {
+                if (entry.is_regular_file() && entry.path().extension() == ".cs") {
+                    fs::path meta = entry.path();
+                    meta += ".meta";
+                    if (fs::exists(meta)) {
+                        try { fs::remove(meta); } catch(...) {}
+                    }
+
+                    AssetRegistry::Instance().RemoveMetadata(entry.path().string());
+
+                    if (firstScriptPath.empty())
+                        firstScriptPath = entry.path().string();
+                }
+            }
+
+            // 2. Remove existing compiled DLL to force rebuild (if present)
+            try {
+                fs::path exeDir = std::filesystem::current_path();
+                fs::path dllPath = exeDir / "GameScripts.dll";
+                if (fs::exists(dllPath)) fs::remove(dllPath);
+            } catch(...) {}
+
+            // 3. Recompile scripts if any found
+            if (!firstScriptPath.empty()) {
+                AssetPipeline::Instance().ImportScript(firstScriptPath);
+                std::cout << "[MenuBarPanel] Reimport Scripts triggered." << std::endl;
+            } else {
+                std::cerr << "[MenuBarPanel] No .cs scripts found in project." << std::endl;
+            }
         }
         ImGui::EndMenu();
     }

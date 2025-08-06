@@ -161,6 +161,11 @@ void Application::Run() {
     std::cout << "[Application] Running main loop..." << std::endl;
     Time::Init();
 
+    // In your app/game-loop bootstrap, ON THE THREAD that will call Scene::Update:
+    if (InstallSyncContextPtr) {
+       InstallSyncContextPtr();
+       }
+
     while (!glfwWindowShouldClose(m_window)) {
         glfwPollEvents();
         Time::Tick();
@@ -201,6 +206,7 @@ void Application::Run() {
 
 			if (Scene::CurrentScene != scene.m_RuntimeScene.get()) {
 				Scene::CurrentScene = scene.m_RuntimeScene.get();
+            if (InstallSyncContextPtr) InstallSyncContextPtr();
 			}
 
            scene.m_RuntimeScene->Update(dt);

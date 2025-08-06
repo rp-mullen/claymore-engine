@@ -1,6 +1,8 @@
 #include "ToolbarPanel.h"
 #include "imgui.h"
 #include "ui/UILayer.h"
+#include "pipeline/AssetPipeline.h"
+#include "ui/Logger.h"
 
 // Renders the main toolbar panel
 void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
@@ -31,6 +33,13 @@ void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
 }
 
 void ToolbarPanel::TogglePlayMode() {
+   // Before toggling, ensure scripts compiled
+   if(!AssetPipeline::Instance().AreScriptsCompiled()) {
+       Logger::LogError("[PlayMode] Cannot enter Play Mode until scripts compile successfully.");
+       if(m_UILayer) m_UILayer->FocusConsoleNextFrame();
+       return;
+   }
+
    m_PlayMode = !m_PlayMode;
 
    auto& scene = m_UILayer->GetScene();

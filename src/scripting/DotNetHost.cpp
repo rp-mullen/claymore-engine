@@ -8,6 +8,7 @@ extern "C" {
 #include <windows.h>
 #include <psapi.h>
 #include <iostream>
+#include "ui/Logger.h"
 #include <fstream>
 #include "scripting/ScriptSystem.h"
 #include "pipeline/AssetPipeline.h"
@@ -41,8 +42,14 @@ Script_OnCreate_fn g_Script_OnCreate = nullptr;
 Script_OnUpdate_fn g_Script_OnUpdate = nullptr;
 ReloadScripts_fn g_ReloadScripts = nullptr;
 
+InstallSyncContext_fn InstallSyncContextPtr = nullptr;
+EnsureInstalled_fn    EnsureInstalledPtr = nullptr;
+
+
 // SyncContext flush pointer
 FlushSyncContext_fn FlushSyncContextPtr = nullptr;
+
+
 
 // ----------------------------------------
 // Managed script registration
@@ -166,17 +173,40 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
       return false;
       }
 
-   wprintf(L"[Interop] Managed entry point resolved. Invoking...\n");
-   entryPoint(nullptr, 0);
-   wprintf(L"[Interop] Entry point completed.\n");
-
+   // Ensure GameScripts.dll is present and compiled BEFORE we invoke the managed entry point
    wchar_t exePath[MAX_PATH];
    GetModuleFileNameW(NULL, exePath, MAX_PATH);
    std::filesystem::path exeDir = std::filesystem::path(exePath).parent_path();
    std::filesystem::path gameScriptsDllPath = exeDir / "GameScripts.dll";
-   if (!std::filesystem::exists(gameScriptsDllPath)) {
-       std::wcerr << L"[Interop] Missing GameScripts.dll. Attempting to import scripts...\n";
+
+   if (!std::filesystem::exists(gameScriptsDllPath) || !AssetPipeline::Instance().AreScriptsCompiled()) {
+       std::wcerr << L"[Interop] GameScripts.dll missing or out-of-date. Attempting compilation...\n";
        AssetPipeline::Instance().CheckAndCompileScriptsAtStartup();
+   }
+
+   if (!AssetPipeline::Instance().AreScriptsCompiled()) {
+       Logger::LogError("[Interop] C# scripts failed to compile. Continuing without user scripts – Play Mode disabled.");
+   }
+
+   std::cout << "[C++] Calling ManagedStart on thread: " << GetCurrentThreadId() << "\n";
+   wprintf(L"[Interop] Managed entry point resolved. Invoking...\n");
+
+   auto CallEntryPointSafe = [](component_entry_point_fn fn)->bool {
+       __try {
+           fn(nullptr, 0);
+           return true;
+       } __except(EXCEPTION_EXECUTE_HANDLER) {
+           return false;
+       }
+   };
+
+   bool entryOk = CallEntryPointSafe(entryPoint);
+   if(!entryOk) {
+       Logger::LogError("[Interop] Managed entry point threw an exception – GameScripts.dll may be corrupted.");
+       AssetPipeline::Instance().SetScriptsCompiled(false);
+       wprintf(L"[Interop] Entry point failed – runtime loaded without user scripts.\n");
+   } else {
+       wprintf(L"[Interop] Entry point completed.\n");
    }
 
    // Load C# interop exports
@@ -219,10 +249,42 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
       fullPath.c_str(),
       L"ClaymoreEngine.EngineSyncContext, ClaymoreEngine",
       L"Flush",
-      L"ClaymoreEngine.FlushDelegate, ClaymoreEngine",
+      L"ClaymoreEngine.VoidDelegate, ClaymoreEngine",
       nullptr,
       (void**)&FlushSyncContextPtr
    );
+
+   {
+   void* fn = nullptr;
+   int rc = load_assembly_and_get_function_pointer(
+      fullPath.c_str(),
+      L"ClaymoreEngine.EngineSyncContext, ClaymoreEngine",
+      L"InstallFromNative",
+      L"ClaymoreEngine.VoidDelegate, ClaymoreEngine", // same void() shape
+      nullptr,
+      &fn
+   );
+   if (rc == 0 && fn)
+      InstallSyncContextPtr = reinterpret_cast<InstallSyncContext_fn>(fn);
+   else
+      std::cerr << "[Interop] Failed to resolve EngineSyncContextInstaller.Install\n";
+   }
+
+   {
+   void* fn = nullptr;
+   int rc = load_assembly_and_get_function_pointer(
+      fullPath.c_str(),
+      L"ClaymoreEngine.EngineSyncContext, ClaymoreEngine",
+      L"EnsureInstalledHereFromNative",
+      L"ClaymoreEngine.VoidDelegate, ClaymoreEngine",
+      nullptr,
+      &fn
+   );
+   if (rc == 0 && fn)
+      EnsureInstalledPtr = reinterpret_cast<EnsureInstalled_fn>(fn);
+   else
+      std::cerr << "[Interop] Failed to resolve EngineSyncContextInstaller.EnsureInstalledHere\n";
+   }
 
    if (!g_Script_Create || !g_Script_OnCreate || !g_Script_OnUpdate)
    {
@@ -378,15 +440,36 @@ void SetupEntityInterop(std::filesystem::path fullPath)
            (void*)FindEntityByNamePtr,
            (void*)CreateEntityPtr,
            (void*)DestroyEntityPtr,
+           (void*)GetEntityByIDPtr,
            (void*)GetEntityRotationPtr,
            (void*)SetEntityRotationPtr,
            (void*)GetEntityScalePtr,
            (void*)SetEntityScalePtr,
            (void*)SetLinearVelocityPtr,
            (void*)SetAngularVelocityPtr,
+
+           // Component Interop
+           (void*)HasComponentPtr,
+           (void*)AddComponentPtr,
+           (void*)RemoveComponentPtr,
+           (void*)GetLightTypePtr,
+           (void*)SetLightTypePtr,
+           (void*)GetLightColorPtr,
            (void*)SetLightColorPtr,
+           (void*)GetLightIntensityPtr,
            (void*)SetLightIntensityPtr,
-           (void*)SetBlendShapeWeightPtr
+           (void*)GetRigidBodyMassPtr,
+           (void*)SetRigidBodyMassPtr,
+           (void*)GetRigidBodyIsKinematicPtr,
+           (void*)SetRigidBodyIsKinematicPtr,
+           (void*)GetRigidBodyLinearVelocityPtr,
+           (void*)SetRigidBodyLinearVelocityPtr,
+           (void*)GetRigidBodyAngularVelocityPtr,
+           (void*)SetRigidBodyAngularVelocityPtr,
+           (void*)SetBlendShapeWeightPtr,
+           (void*)GetBlendShapeWeightPtr,
+           (void*)GetBlendShapeCountPtr,
+           (void*)GetBlendShapeNamePtr
         };
 
         using EntityInteropInitFn = void(*)(void**, int);
@@ -410,7 +493,7 @@ void SetupEntityInterop(std::filesystem::path fullPath)
 
         if (rc == 0 && initInteropFn)
         {
-            initInteropFn(initArgs, 14);
+            initInteropFn(initArgs, sizeof(initArgs) / sizeof(void*));
             s_EntityInteropInitialized = true;
         }
     }

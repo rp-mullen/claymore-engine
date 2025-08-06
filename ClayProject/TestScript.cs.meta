@@ -1,7 +1,13 @@
 {
+    "guid": "01c28d1296a6d1f2626aa2b9b22d7c5b",
     "hash": "26db5ea989c0da54e6e3592a4edaddd1",
-    "lastImported": "2025-08-04 08:30:37",
+    "lastImported": "2025-08-06 14:01:39",
     "processedPath": "cache/TestScript.cs",
+    "reference": {
+        "fileID": 0,
+        "guid": "01c28d1296a6d1f2626aa2b9b22d7c5b",
+        "type": 3
+    },
     "settings": {},
     "sourcePath": "C:\\Projects\\claymore\\ClayProject\\TestScript.cs",
     "type": "script"

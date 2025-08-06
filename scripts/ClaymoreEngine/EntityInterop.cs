@@ -22,6 +22,7 @@ namespace ClaymoreEngine
         // Entity management
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  CreateEntityFn([MarshalAs(UnmanagedType.LPStr)] string name);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void DestroyEntityFn(int entityID);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  GetEntityByIDFn(int entityID);
 
         // Rotation / Scale
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void GetRotationFn(int entityID, out float x, out float y, out float z);
@@ -33,13 +34,6 @@ namespace ClaymoreEngine
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetLinearVelocityFn(int entityID, float x, float y, float z);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetAngularVelocityFn(int entityID, float x, float y, float z);
 
-        // Lighting
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetLightColorFn(int entityID, float r, float g, float b);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetLightIntensityFn(int entityID, float intensity);
-
-        // BlendShapes
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetBlendShapeWeightFn(int entityID, [MarshalAs(UnmanagedType.LPStr)] string shape, float weight);
-
         // ---------------------- Delegate instances ----------------------
         public static GetEntityPositionFn  GetEntityPosition;
         public static SetEntityPositionFn  SetEntityPosition;
@@ -47,6 +41,7 @@ namespace ClaymoreEngine
 
         public static CreateEntityFn       CreateEntity;
         public static DestroyEntityFn      DestroyEntity;
+        public static GetEntityByIDFn      GetEntityByID;
 
         public static GetRotationFn        GetEntityRotation;
         public static SetRotationFn        SetEntityRotation;
@@ -56,11 +51,6 @@ namespace ClaymoreEngine
         public static SetLinearVelocityFn  SetLinearVelocity;
         public static SetAngularVelocityFn SetAngularVelocity;
 
-        public static SetLightColorFn      SetLightColor;
-        public static SetLightIntensityFn  SetLightIntensity;
-
-        public static SetBlendShapeWeightFn SetBlendShapeWeight;
-
         // -----------------------------------------------------------------
         // Initialization from native side.  The native code passes an array
         // of function pointers in the exact order defined above.
@@ -69,9 +59,9 @@ namespace ClaymoreEngine
 
         public static unsafe void InitializeInterop(IntPtr* ptrs, int count)
         {
-            if (count < 14)
+            if (count < 12) // Expect 12 core functions now
             {
-                Console.WriteLine($"[EntityInterop] Expected >=14 function pointers, received {count}.");
+                Console.WriteLine($"[EntityInterop] Expected >=12 function pointers, received {count}.");
                 return;
             }
 
@@ -82,6 +72,7 @@ namespace ClaymoreEngine
 
             CreateEntity       = Marshal.GetDelegateForFunctionPointer<CreateEntityFn>      (ptrs[i++]);
             DestroyEntity      = Marshal.GetDelegateForFunctionPointer<DestroyEntityFn>     (ptrs[i++]);
+            GetEntityByID      = Marshal.GetDelegateForFunctionPointer<GetEntityByIDFn>     (ptrs[i++]);
 
             GetEntityRotation  = Marshal.GetDelegateForFunctionPointer<GetRotationFn>       (ptrs[i++]);
             SetEntityRotation  = Marshal.GetDelegateForFunctionPointer<SetRotationFn>       (ptrs[i++]);
@@ -91,12 +82,12 @@ namespace ClaymoreEngine
             SetLinearVelocity  = Marshal.GetDelegateForFunctionPointer<SetLinearVelocityFn> (ptrs[i++]);
             SetAngularVelocity = Marshal.GetDelegateForFunctionPointer<SetAngularVelocityFn>(ptrs[i++]);
 
-            SetLightColor      = Marshal.GetDelegateForFunctionPointer<SetLightColorFn>     (ptrs[i++]);
-            SetLightIntensity  = Marshal.GetDelegateForFunctionPointer<SetLightIntensityFn> (ptrs[i++]);
+            // Initialize ComponentInterop with the remaining pointers
+            var componentInteropPtrs = (void**)(ptrs + i);
+            var remainingCount = count - i;
+            ComponentInterop.Initialize(componentInteropPtrs, remainingCount);
 
-            SetBlendShapeWeight= Marshal.GetDelegateForFunctionPointer<SetBlendShapeWeightFn>(ptrs[i++]);
-
-            Console.WriteLine("[Managed] EntityInterop delegates initialized (extended set).");
+            Console.WriteLine("[Managed] EntityInterop delegates initialized.");
         }
 
         // ---------------------- Convenience Wrappers ----------------------

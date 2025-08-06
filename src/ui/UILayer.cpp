@@ -35,6 +35,7 @@ UILayer::UILayer()
 
     Logger::SetCallback([this](const std::string& msg, LogLevel level) {
         m_ConsolePanel.AddLog(msg, level);
+        if(level == LogLevel::Error) m_FocusConsoleNextFrame = true;
         });
 
 
@@ -126,6 +127,10 @@ void UILayer::OnUIRender() {
    m_InspectorPanel.OnImGuiRender();
    m_ProjectPanel.OnImGuiRender();
    m_ConsolePanel.OnImGuiRender();
+   if(m_FocusConsoleNextFrame) {
+       ImGui::SetWindowFocus("Console");
+       m_FocusConsoleNextFrame = false;
+   }
 
    m_ScriptPanel.OnImGuiRender();
 

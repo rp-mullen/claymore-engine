@@ -16,6 +16,7 @@
 #include <openssl/md5.h>
 #include <nlohmann/json.hpp>
 #include <iostream>
+#include "ui/Logger.h"
 #include <stb_image.h>
 #include "scripting/DotNetHost.h"
 #include <editor/Project.h>
@@ -227,15 +228,21 @@ void AssetPipeline::ImportScript(const std::string& path)
 
       if (exitCode == 0) {
          std::cout << "[Roslyn] Successfully compiled C# scripts.\n";
+         SetScriptsCompiled(true);
          ReloadScripts(); // Reload scripts after successful compile
          }
-      else
+      else {
          std::cerr << "[Roslyn] Compilation failed.\n";
+         Logger::LogError("[Roslyn] Script compilation failed. Check errors above.");
+         SetScriptsCompiled(false);
+         }
       }
-   else
-      {
+   else {
       std::cerr << "[Roslyn] Failed to launch ScriptCompiler.exe\n";
+      Logger::LogError("[Roslyn] Failed to launch ScriptCompiler.exe");
+      SetScriptsCompiled(false);
       }
+
    }
 
 

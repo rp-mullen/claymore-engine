@@ -79,7 +79,12 @@ public:
         return AssetRegistry::Instance().GetMetadata(path);
     }
 
+public:
+    bool AreScriptsCompiled() const { return m_ScriptsCompiled; }
+    void SetScriptsCompiled(bool success) { m_ScriptsCompiled = success; }
+
 private:
+    bool m_ScriptsCompiled = true;
     // Queues
     std::queue<std::string> m_ImportQueue;
     std::mutex m_QueueMutex;

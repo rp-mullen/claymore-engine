@@ -43,6 +43,9 @@ public:
     void DeferSceneLoad(const std::string& filepath);
     void ProcessDeferredSceneLoad();
     
+public:
+    void FocusConsoleNextFrame() { m_FocusConsoleNextFrame = true; }
+
 private:
     void BeginDockspace();
     void CreateDebugCubeEntity();
@@ -63,6 +66,7 @@ private:
     ScriptRegistryPanel m_ScriptPanel;
 
     bool m_PlayMode = false; // Simulation state
+    bool m_FocusConsoleNextFrame = false;
 
     uint32_t m_LastViewportWidth = 0;
     uint32_t m_LastViewportHeight = 0;

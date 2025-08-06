@@ -8,6 +8,9 @@ bool LoadHostFxr();
 bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typeName, const std::wstring& methodName);
 
 
+#include "scripting/ComponentInterop.h"
+#include "scripting/EntityInterop.h"
+
 // Script interop function pointer types
 using Script_Create_fn = void* (*)(const char* className);
 using Script_OnCreate_fn = void (*)(void* handle, int entityID);
@@ -43,15 +46,37 @@ using SetEntityScale_fn        = void(*)(int entityID, float x, float y, float z
 // Physics
 using SetLinearVelocity_fn     = void(*)(int entityID, float x, float y, float z);
 using SetAngularVelocity_fn    = void(*)(int entityID, float x, float y, float z);
-// Lighting
-using SetLightColor_fn         = void(*)(int entityID, float r, float g, float b);
-using SetLightIntensity_fn     = void(*)(int entityID, float intensity);
-// BlendShapes
-using SetBlendShapeWeight_fn   = void(*)(int entityID, const char* shapeName, float weight);
+
+// --- Component Interop Function Pointer Types ---
+using HasComponent_fn = bool (*)(int, const char*);
+using AddComponent_fn = void (*)(int, const char*);
+using RemoveComponent_fn = void (*)(int, const char*);
+using GetLightType_fn = int (*)(int);
+using SetLightType_fn = void (*)(int, int);
+using GetLightColor_fn = void (*)(int, float*, float*, float*);
+using SetLightColor_fn = void (*)(int, float, float, float);
+using GetLightIntensity_fn = float (*)(int);
+using SetLightIntensity_fn = void (*)(int, float);
+using GetRigidBodyMass_fn = float (*)(int);
+using SetRigidBodyMass_fn = void (*)(int, float);
+using GetRigidBodyIsKinematic_fn = bool (*)(int);
+using SetRigidBodyIsKinematic_fn = void (*)(int, bool);
+using GetRigidBodyLinearVelocity_fn = void (*)(int, float*, float*, float*);
+using SetRigidBodyLinearVelocity_fn = void (*)(int, float, float, float);
+using GetRigidBodyAngularVelocity_fn = void (*)(int, float*, float*, float*);
+using SetRigidBodyAngularVelocity_fn = void (*)(int, float, float, float);
+using SetBlendShapeWeight_fn = void(*)(int, const char*, float);
+using GetBlendShapeWeight_fn = float(*)(int, const char*);
+using GetBlendShapeCount_fn = int(*)(int);
+using GetBlendShapeName_fn = const char*(*)(int, int);
+using GetEntityByID_fn = int (*)(int);
+
 // SyncContext flush
-using FlushSyncContext_fn      = void(*)();
+using FlushSyncContext_fn      = void(__stdcall*)();
 using RegisterScriptCallbackFn = void(*)(const char*);
 
+using InstallSyncContext_fn = void(__stdcall*)();
+using EnsureInstalled_fn = void(__stdcall*)();
 
 // Pointers to assign in Claymore main.cpp or initialization
 extern GetEntityPosition_fn   GetEntityPositionPtr;
@@ -59,13 +84,38 @@ extern SetEntityPosition_fn   SetEntityPositionPtr;
 extern FindEntityByName_fn    FindEntityByNamePtr;
 extern CreateEntity_fn        CreateEntityPtr;
 extern DestroyEntity_fn       DestroyEntityPtr;
+extern GetEntityByID_fn       GetEntityByIDPtr;
 extern GetEntityRotation_fn   GetEntityRotationPtr;
 extern SetEntityRotation_fn   SetEntityRotationPtr;
 extern GetEntityScale_fn      GetEntityScalePtr;
 extern SetEntityScale_fn      SetEntityScalePtr;
 extern SetLinearVelocity_fn   SetLinearVelocityPtr;
-extern SetAngularVelocity_fn  SetAngularVelocityPtr; 
-extern SetLightColor_fn       SetLightColorPtr;
-extern SetLightIntensity_fn   SetLightIntensityPtr;
+extern SetAngularVelocity_fn  SetAngularVelocityPtr;
+
+// --- Component Interop Function Pointers ---
+extern HasComponent_fn HasComponentPtr;
+extern AddComponent_fn AddComponentPtr;
+extern RemoveComponent_fn RemoveComponentPtr;
+extern GetLightType_fn GetLightTypePtr;
+extern SetLightType_fn SetLightTypePtr;
+extern GetLightColor_fn GetLightColorPtr;
+extern SetLightColor_fn SetLightColorPtr;
+extern GetLightIntensity_fn GetLightIntensityPtr;
+extern SetLightIntensity_fn SetLightIntensityPtr;
+extern GetRigidBodyMass_fn GetRigidBodyMassPtr;
+extern SetRigidBodyMass_fn SetRigidBodyMassPtr;
+extern GetRigidBodyIsKinematic_fn GetRigidBodyIsKinematicPtr;
+extern SetRigidBodyIsKinematic_fn SetRigidBodyIsKinematicPtr;
+extern GetRigidBodyLinearVelocity_fn GetRigidBodyLinearVelocityPtr;
+extern SetRigidBodyLinearVelocity_fn SetRigidBodyLinearVelocityPtr;
+extern GetRigidBodyAngularVelocity_fn GetRigidBodyAngularVelocityPtr;
+extern SetRigidBodyAngularVelocity_fn SetRigidBodyAngularVelocityPtr;
 extern SetBlendShapeWeight_fn SetBlendShapeWeightPtr;
+extern GetBlendShapeWeight_fn GetBlendShapeWeightPtr;
+extern GetBlendShapeCount_fn GetBlendShapeCountPtr;
+extern GetBlendShapeName_fn GetBlendShapeNamePtr;
+
 extern FlushSyncContext_fn   FlushSyncContextPtr;
+
+extern InstallSyncContext_fn InstallSyncContextPtr;
+extern EnsureInstalled_fn    EnsureInstalledPtr;
