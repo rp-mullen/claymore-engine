@@ -6,10 +6,12 @@
 #include "panels/ToolbarPanel.h"
 #include "panels/MenuBarPanel.h"
 #include "panels/ConsolePanel.h"
+#include "panels/PrefabEditorPanel.h"
 #include "ecs/Scene.h"
 #include "panels/ScriptRegistryPanel.h"
 
 #include <vector>
+#include <memory>
 
 extern std::vector<std::string> g_RegisteredScriptNames;
 
@@ -38,6 +40,9 @@ public:
     void SetSelectedEntity(EntityID id) { m_SelectedEntity = id; }
 
     void TogglePlayMode();
+
+    // Prefab editor management
+    void OpenPrefabEditor(const std::string& prefabPath);
     
     // Deferred scene loading
     void DeferSceneLoad(const std::string& filepath);
@@ -51,6 +56,9 @@ private:
     void CreateDebugCubeEntity();
 
     void CreateDefaultLight();
+
+public:
+    ImGuiID GetMainDockspaceID() const { return m_MainDockspaceID; }
 
 private:
     Scene m_Scene;
@@ -69,6 +77,10 @@ private:
     bool m_FocusConsoleNextFrame = false;
 
     uint32_t m_LastViewportWidth = 0;
+    ImGuiID m_MainDockspaceID = 0;
+
+    // Active prefab editors
+    std::vector<std::unique_ptr<PrefabEditorPanel>> m_PrefabEditors;
     uint32_t m_LastViewportHeight = 0;
     
     // Deferred scene loading

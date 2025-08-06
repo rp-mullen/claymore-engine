@@ -15,9 +15,11 @@ struct FileNode {
    std::vector<FileNode> children;
    };
 
+class UILayer; // Forward declaration
+
 class ProjectPanel : public EditorPanel {
 public:
-   ProjectPanel(Scene* scene);
+   ProjectPanel(Scene* scene, UILayer* uiLayer);
    ~ProjectPanel() = default;
 
    void OnImGuiRender();
@@ -44,4 +46,6 @@ private:
 
    ImTextureID m_FolderIcon;
    ImTextureID m_FileIcon;
+
+   UILayer* m_UILayer = nullptr; // Non-owning pointer back to UI layer
    };

@@ -41,7 +41,7 @@ bgfx::TextureHandle TextureLoader::Load2D(const std::string& path, bool generate
 }
 
 
-bgfx::TextureHandle TextureLoader::LoadIcon(const std::string& path)
+bgfx::TextureHandle TextureLoader::LoadIconTexture(const std::string& path)
 {
     int width, height, channels;
     stbi_uc* data = stbi_load(path.c_str(), &width, &height, &channels, 4);

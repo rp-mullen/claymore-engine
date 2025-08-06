@@ -62,6 +62,8 @@ public:
     int GetWidth() const { return m_Width; }
     int GetHeight() const { return m_Height; }
     bgfx::TextureHandle GetSceneTexture() const { return m_SceneTexture; }
+    // Render any scene into a temporary texture (simple fallback to main scene texture for now)
+    bgfx::TextureHandle RenderSceneToTexture(Scene* scene, uint32_t width, uint32_t height);
 
     // Debug utilities
 	void InitGrid(float size, float step);

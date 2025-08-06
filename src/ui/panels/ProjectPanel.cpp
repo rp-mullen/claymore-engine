@@ -6,14 +6,16 @@
 #include <filesystem>
 #include <algorithm>
 #include "ecs/EntityData.h"
+#include "../UILayer.h"
 
 namespace fs = std::filesystem;
 
-ProjectPanel::ProjectPanel(Scene* scene)
+ProjectPanel::ProjectPanel(Scene* scene, UILayer* uiLayer)
+   : m_UILayer(uiLayer)
    {
    SetContext(scene);
-   m_FolderIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIcon("assets/icons/folder.png"));
-   m_FileIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIcon("assets/icons/file.png"));
+   m_FolderIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/folder.png"));
+   m_FileIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/file.png"));
    }
 
 void ProjectPanel::LoadProject(const std::string& projectPath) {
@@ -25,7 +27,7 @@ void ProjectPanel::LoadProject(const std::string& projectPath) {
 void ProjectPanel::OnImGuiRender() {
     ImGui::Begin("Project");
 
-    // --- Navigation Bar ---
+    // Handle drag-drop anywhere on the Project panel window\n    if (ImGui::BeginDragDropTarget()) {\n        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {\n            EntityID draggedID = *(EntityID*)payload->Data;\n            // Generate unique prefab path in current folder\n            std::string prefabName = "NewPrefab.prefab";\n            std::string prefabPath = m_CurrentFolder + "/" + prefabName;\n            int counter = 1;\n            while (fs::exists(prefabPath)) {\n                prefabName = "NewPrefab" + std::to_string(counter++) + ".prefab";\n                prefabPath = m_CurrentFolder + "/" + prefabName;\n            }\n            CreatePrefabFromEntity(draggedID, prefabPath);\n        }\n        ImGui::EndDragDropTarget();\n    }\n\n    // --- Navigation Bar ---
     if (ImGui::Button("< Back") && m_CurrentFolder != m_ProjectPath) {
         m_CurrentFolder = fs::path(m_CurrentFolder).parent_path().string();
     }
@@ -69,27 +71,29 @@ void ProjectPanel::OnImGuiRender() {
        // RIGHT PANEL
    ImGui::BeginChild("FileGrid", ImVec2(fullWidth - leftWidth - splitterSize, fullHeight), true);
    
-   // Handle drag-drop for creating prefabs
+   // Full-panel drop target (covers grid background and between items)
+   ImVec2 dropStart = ImGui::GetCursorScreenPos();
+   ImVec2 dropSize  = ImGui::GetContentRegionAvail();
+   ImGui::InvisibleButton("##FileGridDropTarget", dropSize, ImGuiButtonFlags_None);
+   // Allow icons rendered after this to receive clicks even though they overlap the invisible button
+   ImGui::SetItemAllowOverlap();
    if (ImGui::BeginDragDropTarget()) {
-      if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
-         EntityID draggedID = *(EntityID*)payload->Data;
-         
-         // Generate a unique prefab name
-         std::string prefabName = "NewPrefab.prefab";
-         std::string prefabPath = m_CurrentFolder + "/" + prefabName;
-         
-         // Ensure unique filename
-         int counter = 1;
-         while (fs::exists(prefabPath)) {
-            prefabName = "NewPrefab" + std::to_string(counter) + ".prefab";
-            prefabPath = m_CurrentFolder + "/" + prefabName;
-            counter++;
-         }
-         
-         CreatePrefabFromEntity(draggedID, prefabPath);
-      }
-      ImGui::EndDragDropTarget();
+       if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
+           EntityID draggedID = *(EntityID*)payload->Data;
+           std::string prefabName = "NewPrefab.prefab";
+           std::string prefabPath = m_CurrentFolder + "/" + prefabName;
+           int counter = 1;
+           while (fs::exists(prefabPath)) {
+               prefabName = "NewPrefab" + std::to_string(counter++) + ".prefab";
+               prefabPath = m_CurrentFolder + "/" + prefabName;
+           }
+           CreatePrefabFromEntity(draggedID, prefabPath);
+       }
+       ImGui::EndDragDropTarget();
    }
+   // Reset cursor to top-left of grid so items render correctly
+   ImGui::SetCursorScreenPos(dropStart);
+
    
    DrawFileList(m_CurrentFolder);
    ImGui::EndChild();
@@ -178,11 +182,15 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
          }
       }
 
-      // Double-click for scene files
+      // Double-click handling for scene and prefab files
       if (!isDir && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
          std::string fullPath = entry.path().string();
          if (IsSceneFile(fullPath)) {
             LoadSceneFile(fullPath);
+         } else if (IsPrefabFile(fullPath)) {
+            if (m_UILayer) {
+               m_UILayer->OpenPrefabEditor(fullPath);
+            }
          }
       }
 

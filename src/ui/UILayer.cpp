@@ -17,52 +17,57 @@
 #include "utility/ComponentDrawerSetup.h"
 #include "utils/TerrainPainter.h"
 #include <ecs/debug/TestScript.h>
+#include <glm/glm.hpp>
 #include <core/application.h>
 #include "ecs/EntityData.h"
+#include "ecs/Components.h"
+#include <memory>
 
 namespace fs = std::filesystem;
 std::vector<std::string> g_RegisteredScriptNames;
 
+// =============================
+// Constructor / Initialization
+// =============================
 UILayer::UILayer()
-   : m_InspectorPanel(&m_Scene, &m_SelectedEntity),
-   m_ProjectPanel(&m_Scene),
-   m_ViewportPanel(m_Scene, &m_SelectedEntity),
-   m_SceneHierarchyPanel(&m_Scene, &m_SelectedEntity),
-   m_MenuBarPanel(&m_Scene, &m_SelectedEntity, &m_ProjectPanel, this) // Pass UILayer reference
-   {
-
-   m_ToolbarPanel = ToolbarPanel(this);
+    : m_InspectorPanel(&m_Scene, &m_SelectedEntity),
+      m_ProjectPanel(&m_Scene, this),
+      m_ViewportPanel(m_Scene, &m_SelectedEntity),
+      m_SceneHierarchyPanel(&m_Scene, &m_SelectedEntity),
+      m_MenuBarPanel(&m_Scene, &m_SelectedEntity, &m_ProjectPanel, this)
+{
+    m_ToolbarPanel = ToolbarPanel(this);
 
     Logger::SetCallback([this](const std::string& msg, LogLevel level) {
         m_ConsolePanel.AddLog(msg, level);
-        if(level == LogLevel::Error) m_FocusConsoleNextFrame = true;
-        });
+        if (level == LogLevel::Error)
+            m_FocusConsoleNextFrame = true;
+    });
 
+    ApplyStyle();
+    RegisterComponentDrawers();
+    RegisterSampleScriptProperties();
 
-   ApplyStyle();
-   
-   RegisterComponentDrawers();
-   RegisterSampleScriptProperties();
-   
-   // Register primitive meshes with AssetLibrary
-   StandardMeshManager::Instance().RegisterPrimitiveMeshes();
-   
-   CreateDebugCubeEntity();
-   CreateDefaultLight();
-   }
+    // Register primitive meshes with AssetLibrary
+    StandardMeshManager::Instance().RegisterPrimitiveMeshes();
 
+    CreateDebugCubeEntity();
+    CreateDefaultLight();
+}
 
 void UILayer::LoadProject(std::string path) {
     m_ProjectPanel.LoadProject(path);
     OnAttach();
 }
 
-void UILayer::OnAttach()
-   {
-   m_ScriptPanel.SetScriptSource(&g_RegisteredScriptNames);
-   m_ScriptPanel.SetContext(&m_Scene);
-   }
+void UILayer::OnAttach() {
+    m_ScriptPanel.SetScriptSource(&g_RegisteredScriptNames);
+    m_ScriptPanel.SetContext(&m_Scene);
+}
 
+// =============================
+// UI Style
+// =============================
 void UILayer::ApplyStyle() {
    ImGuiStyle& style = ImGui::GetStyle();
    ImVec4* colors = style.Colors;
@@ -112,39 +117,55 @@ void UILayer::ApplyStyle() {
 
    // Text
    colors[ImGuiCol_Text] = ImVec4(0.86f, 0.86f, 0.86f, 1.00f);
-    
+
    // Styling tweaks
    style.FrameRounding = 6.0f;
    style.WindowRounding = 8.0f;
-   style.ScrollbarRounding = 9.0f; 
+   style.ScrollbarRounding = 9.0f;
    style.GrabRounding = 4.0f;
    }
-
+// =============================
+// Main UI Render Loop
+// =============================
 void UILayer::OnUIRender() {
+    BeginDockspace();
 
-   BeginDockspace();
-   m_SceneHierarchyPanel.OnImGuiRender();
-   m_InspectorPanel.OnImGuiRender();
-   m_ProjectPanel.OnImGuiRender();
-   m_ConsolePanel.OnImGuiRender();
-   if(m_FocusConsoleNextFrame) {
-       ImGui::SetWindowFocus("Console");
-       m_FocusConsoleNextFrame = false;
-   }
+    // Core panels
+    m_SceneHierarchyPanel.OnImGuiRender();
+    m_InspectorPanel.OnImGuiRender();
+    m_ProjectPanel.OnImGuiRender();
+    m_ConsolePanel.OnImGuiRender();
+    if (m_FocusConsoleNextFrame) {
+        ImGui::SetWindowFocus("Console");
+        m_FocusConsoleNextFrame = false;
+    }
 
-   m_ScriptPanel.OnImGuiRender();
+    m_ScriptPanel.OnImGuiRender();
 
-   // Pass Renderer’s output texture to viewport
-   m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());
+    // Main viewport
+    m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());
 
-   // Terrain painting update (editor only)
-   TerrainPainter::Update(m_Scene, m_SelectedEntity);
-   
-   // Process deferred scene loading at the end of the frame
-   ProcessDeferredSceneLoad();
-   }
+    // Any open prefab editors
+    for (auto it = m_PrefabEditors.begin(); it != m_PrefabEditors.end(); ) {
+        PrefabEditorPanel* panel = it->get();
+        panel->OnImGuiRender();
+        if (!panel->IsOpen()) {
+            it = m_PrefabEditors.erase(it);
+        } else {
+            ++it;
+        }
+    }
 
+    // Editor-only terrain painting
+    TerrainPainter::Update(m_Scene, m_SelectedEntity);
 
+    // Deferred scene loading
+    ProcessDeferredSceneLoad();
+}
+
+// =============================
+// Dockspace + Toolbar Layout
+// =============================
 void UILayer::BeginDockspace() {
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
     ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -153,7 +174,7 @@ void UILayer::BeginDockspace() {
     ImGui::SetNextWindowViewport(viewport->ID);
 
     window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+                    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
     window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -163,34 +184,31 @@ void UILayer::BeginDockspace() {
     ImGui::PopStyleVar(2);
 
     // DockSpace main area
-    ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+    m_MainDockspaceID = ImGui::GetID("MyDockSpace");
+    ImGuiID dockspace_id = m_MainDockspaceID;
 
-    // ✅ Menu Bar
+    // Menu Bar
     if (ImGui::BeginMenuBar()) {
-        m_MenuBarPanel.OnImGuiRender(); // File, Entity menus
+        m_MenuBarPanel.OnImGuiRender();
         ImGui::EndMenuBar();
     }
 
-    // ✅ Static Toolbar: Full width below menu bar
+    // Toolbar row
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 6));
-    // ✅ Static Toolbar: Full width below menu bar
     ImGui::Separator();
     ImGui::BeginChild("ToolbarRow", ImVec2(0, 40), false, ImGuiWindowFlags_NoScrollbar);
 
-    // Calculate total width of buttons + spacing
+    // Center toolbar buttons (Play/Translate/Rotate/Scale)
     float buttonWidth = 80.0f;
     float buttonHeight = 30.0f;
     float spacing = ImGui::GetStyle().ItemSpacing.x;
-    int buttonCount = 4; // Play, Translate, Rotate, Scale
+    int buttonCount = 4;
     float totalWidth = (buttonWidth * buttonCount) + (spacing * (buttonCount - 1));
-
-    // Center alignment
     float availableWidth = ImGui::GetContentRegionAvail().x;
     float startX = (availableWidth - totalWidth) * 0.5f;
     if (startX > 0)
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + startX);
 
-    // Buttons
     if (ImGui::Button(m_ToolbarPanel.IsPlayMode() ? "Stop" : "Play", ImVec2(buttonWidth, buttonHeight)))
         m_ToolbarPanel.TogglePlayMode();
     ImGui::SameLine();
@@ -204,85 +222,72 @@ void UILayer::BeginDockspace() {
         m_ToolbarPanel.SetOperation(GizmoOperation::Scale);
 
     ImGui::EndChild();
-
     ImGui::PopStyleVar();
 
-    // Main DockSpace (below toolbar)
+    // DockSpace (below toolbar)
     ImGui::Separator();
     ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
 
     ImGui::End();
 }
 
+// =============================
+// Scene helpers
+// =============================
+void UILayer::CreateDebugCubeEntity() {
+    auto cubeEntity = m_Scene.CreateEntity("Debug Cube");
+    EntityData* data = m_Scene.GetEntityData(cubeEntity.GetID());
+    data->Mesh = new MeshComponent(
+        StandardMeshManager::Instance().GetCubeMesh(),
+        std::string("DebugCube"),
+        nullptr);
+    data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+}
 
-
-
- void UILayer::CreateDebugCubeEntity() {
-
-   auto cubeEntity = m_Scene.CreateEntity("Debug Cube");
-   EntityData* data = m_Scene.GetEntityData(cubeEntity.GetID());
-   data->Mesh = new MeshComponent(
-       StandardMeshManager::Instance().GetCubeMesh(),
-       std::string("DebugCube"),
-       nullptr
-   );
-
-   data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
-
-   ScriptInstance instance;
-   instance.ClassName = "MyTestScript";
-   instance.Instance = ScriptSystem::Instance().Create(instance.ClassName);
-
-   if (instance.Instance) {
-      instance.Instance->OnCreate(cubeEntity);
-      data->Scripts.push_back(instance);
-      }
-   }
-
- void UILayer::CreateDefaultLight() {
+void UILayer::CreateDefaultLight() {
     auto lightEntity = m_Scene.CreateEntity("Default Light");
     EntityData* data = m_Scene.GetEntityData(lightEntity.GetID());
-    data->Light = new LightComponent(LightType::Directional, glm::vec3(1.0f, 1.0f, 1.0f), 1.0f);
-    }
+    data->Light = new LightComponent(LightType::Directional, glm::vec3(1.0f), 1.0f);
+}
 
-
- void UILayer::TogglePlayMode() {
+// =============================
+// Play Mode Toggle
+// =============================
+void UILayer::TogglePlayMode() {
     m_PlayMode = !m_PlayMode;
+    Scene* activeScene = m_PlayMode ? m_Scene.m_RuntimeScene.get() : &m_Scene;
 
-    Scene* activeScene = nullptr;
-
-    if (m_PlayMode) {
-       activeScene = m_Scene.m_RuntimeScene.get();
-       }
-    else {
-       activeScene = &m_Scene;
-       }
-
-    // Update all panels to use the current active context
+    // Update panel contexts
     m_SceneHierarchyPanel.SetContext(activeScene);
     m_InspectorPanel.SetContext(activeScene);
     m_ViewportPanel.SetContext(activeScene);
-    }
+}
 
+// =============================
+// Prefab Editor Management
+// =============================
+void UILayer::OpenPrefabEditor(const std::string& prefabPath) {
+    m_PrefabEditors.emplace_back(std::make_unique<PrefabEditorPanel>(prefabPath, this));
+}
+
+// =============================
+// Deferred Scene Loading
+// =============================
 void UILayer::DeferSceneLoad(const std::string& filepath) {
     m_DeferredScenePath = filepath;
     m_HasDeferredSceneLoad = true;
 }
 
 void UILayer::ProcessDeferredSceneLoad() {
-    if (m_HasDeferredSceneLoad) {
-        std::cout << "[UILayer] Processing deferred scene load: " << m_DeferredScenePath << std::endl;
-        
-        if (Serializer::LoadSceneFromFile(m_DeferredScenePath, m_Scene)) {
-            std::cout << "[UILayer] Successfully loaded scene: " << m_DeferredScenePath << std::endl;
-            m_SelectedEntity = -1; // Clear selection
-        } else {
-            std::cerr << "[UILayer] Failed to load scene: " << m_DeferredScenePath << std::endl;
-        }
-        
-        m_HasDeferredSceneLoad = false;
-        m_DeferredScenePath.clear();
+    if (!m_HasDeferredSceneLoad) return;
+
+    std::cout << "[UILayer] Processing deferred scene load: " << m_DeferredScenePath << std::endl;
+    if (Serializer::LoadSceneFromFile(m_DeferredScenePath, m_Scene)) {
+        std::cout << "[UILayer] Successfully loaded scene: " << m_DeferredScenePath << std::endl;
+        m_SelectedEntity = -1;
+    } else {
+        std::cerr << "[UILayer] Failed to load scene: " << m_DeferredScenePath << std::endl;
     }
+    m_HasDeferredSceneLoad = false;
+    m_DeferredScenePath.clear();
 }
-
-
