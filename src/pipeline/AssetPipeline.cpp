@@ -17,7 +17,7 @@
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <stb_image.h>
-#include <scripting/DotNetHost.h>
+#include "scripting/DotNetHost.h"
 #include <editor/Project.h>
 
 

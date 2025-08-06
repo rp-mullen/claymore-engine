@@ -3,7 +3,7 @@ using System;
 
 public static class ScriptHost
 {
-    [UnmanagedCallersOnly(EntryPoint = "CreateScriptInstance")]
+    // Method is invoked via delegate from native side; no UnmanagedCallersOnly attribute required
     public static IntPtr CreateScriptInstance(IntPtr classNamePtr)
     {
         string className = Marshal.PtrToStringUTF8(classNamePtr)!;
