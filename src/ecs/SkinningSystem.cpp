@@ -33,7 +33,17 @@ void SkinningSystem::Update(Scene& scene)
                     EntityID bid = boneEntities[i];
                     auto it = worldCache.find(bid);
                     glm::mat4 boneWorld = it != worldCache.end() ? *it->second : glm::mat4(1.0f);
-                    skin->Palette[i] = boneWorld * invBind[i];
+
+                    // Convert bone world into model-space to prevent double-transform when applying u_model in shader.
+                    // We assume the mesh entity's parent is the model root. Use that world as model matrix.
+                    glm::mat4 modelWorld = glm::mat4(1.0f);
+                    if (auto* meshData = data) {
+                        modelWorld = meshData->Transform.WorldMatrix;
+                    }
+                    glm::mat4 modelWorldInv = glm::inverse(modelWorld);
+
+                    // Final skin matrix maps from bind pose to current pose in model space
+                    skin->Palette[i] = modelWorldInv * boneWorld * invBind[i];
                 }
 
                 if (auto skMat = std::dynamic_pointer_cast<SkinnedPBRMaterial>(data->Mesh->material)) {

@@ -20,7 +20,7 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filepath,
        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_CalcTangentSpace | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
-        aiProcess_FixInfacingNormals | aiProcess_FlipWindingOrder);
+        aiProcess_FixInfacingNormals | aiProcess_ConvertToLeftHanded | aiProcess_GlobalScale);
 
    float importScale = 1.f;
 
@@ -39,6 +39,16 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
       }
 
    std::string directory = std::filesystem::path(filepath).parent_path().string();
+
+   // Helper: Assimp (row-major) -> GLM (column-major)
+   auto AiToGlm = [](const aiMatrix4x4& m) {
+       glm::mat4 mat(
+           m.a1, m.b1, m.c1, m.d1,
+           m.a2, m.b2, m.c2, m.d2,
+           m.a3, m.b3, m.c3, m.d3,
+           m.a4, m.b4, m.c4, m.d4);
+       return glm::transpose(mat);
+   };
 
    for (unsigned int m = 0; m < scene->mNumMeshes; m++) {
       aiMesh* aMesh = scene->mMeshes[m];
@@ -95,28 +105,43 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
             for (unsigned int b = 0; b < aMesh->mNumBones; ++b) {
                 aiBone* bone = aMesh->mBones[b];
                 int boneIndex = getBoneIndex(bone->mName.C_Str());
-                // store inverse bind pose
-                glm::mat4 offset = glm::make_mat4(&bone->mOffsetMatrix.a1);
+                // store inverse bind pose (offset) in the same convention as scene transforms
+                glm::mat4 offset = AiToGlm(bone->mOffsetMatrix);
                 result.InverseBindPoses[boneIndex] = offset;
                 for (unsigned int w = 0; w < bone->mNumWeights; ++w) {
                     const aiVertexWeight& vw = bone->mWeights[w];
                     unsigned int vId = vw.mVertexId;
                     float weight = vw.mWeight;
+                    if (weight <= 0.0f) continue;
 
-                    // Pack top-4 influences – naive implementation
-                    for (int slot = 0; slot < 4; ++slot) {
-                        if (vertWeights[vId][slot] == 0.0f) {
-                            vertWeights[vId][slot] = weight;
-                            vertIndices[vId][slot] = boneIndex;
-                            break;
+                    // Maintain top-4 influences by replacing the smallest slot if this weight is larger
+                    int smallestSlot = 0;
+                    float smallestWeight = vertWeights[vId][0];
+                    for (int slot = 1; slot < 4; ++slot) {
+                        if (vertWeights[vId][slot] < smallestWeight) {
+                            smallestWeight = vertWeights[vId][slot];
+                            smallestSlot = slot;
                         }
+                    }
+                    if (weight > smallestWeight) {
+                        vertWeights[vId][smallestSlot] = weight;
+                        vertIndices[vId][smallestSlot] = boneIndex;
                     }
                 }
             }
 
-            // --- Normalise weights so they sum to 1 ---
+            // --- Clamp indices to shader palette size and normalise weights ---
+            constexpr int kMaxBones = 64;
             for(size_t v = 0; v < vertWeights.size(); ++v)
             {
+                // Zero out any weight that references an out-of-range bone index
+                for (int slot = 0; slot < 4; ++slot) {
+                    if (vertIndices[v][slot] < 0 || vertIndices[v][slot] >= kMaxBones) {
+                        vertWeights[v][slot] = 0.0f;
+                        vertIndices[v][slot] = 0;
+                    }
+                }
+
                 float sum = vertWeights[v].x + vertWeights[v].y + vertWeights[v].z + vertWeights[v].w;
                 if(sum > 0.0001f)
                 {
@@ -124,7 +149,9 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
                 }
                 else
                 {
-                    vertWeights[v].x = 1.0f; // fallback to first bone full weight
+                    // fallback to first slot full weight
+                    vertWeights[v].x = 1.0f;
+                    vertIndices[v].x = 0;
                 }
             }
             }

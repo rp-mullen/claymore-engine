@@ -73,16 +73,6 @@ void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
 
     DrawGizmo();
 
-    if (ImGui::IsWindowHovered()) {
-       ImGui::BeginTooltip();
-       ImGuiIO& io = ImGui::GetIO();
-       ImGui::Text("MousePos: (%.1f, %.1f)", io.MousePos.x, io.MousePos.y);
-       ImGui::Text("MouseDown[0]: %d", io.MouseDown[0]);
-       ImGui::Text("ImGuizmo::IsOver(): %d", ImGuizmo::IsOver());
-       ImGui::Text("ImGuizmo::IsUsing(): %d", ImGuizmo::IsUsing());
-       ImGui::EndTooltip();
-       }
-
 
     ImGui::End();
     // Draw transform gizmo

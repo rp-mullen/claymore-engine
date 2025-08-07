@@ -256,6 +256,39 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     // ---------------- Skeleton creation ----------------
     EntityID skeletonRootID = -1;
     if (!model.BoneNames.empty()) {
+        // Build name->index map for bones we know about
+        std::unordered_map<std::string, int> boneNameToIndex;
+        boneNameToIndex.reserve(model.BoneNames.size());
+        for (int i = 0; i < (int)model.BoneNames.size(); ++i)
+            boneNameToIndex[model.BoneNames[i]] = i;
+
+        // Build name->aiNode* map for the whole scene to query parents
+        std::unordered_map<std::string, aiNode*> nodeByName;
+        std::function<void(aiNode*)> gatherNodes = [&](aiNode* n){
+            nodeByName[n->mName.C_Str()] = n;
+            for (unsigned int c = 0; c < n->mNumChildren; ++c)
+                gatherNodes(n->mChildren[c]);
+        };
+        gatherNodes(aScene->mRootNode);
+
+        // Compute global bind matrices and parent indices
+        std::vector<glm::mat4> globalBind(model.BoneNames.size(), glm::mat4(1.0f));
+        std::vector<int> parentIndex(model.BoneNames.size(), -1);
+        for (size_t i = 0; i < model.BoneNames.size(); ++i) {
+            globalBind[i] = glm::inverse(model.InverseBindPoses[i]);
+
+            auto itNode = nodeByName.find(model.BoneNames[i]);
+            if (itNode != nodeByName.end()) {
+                aiNode* p = itNode->second->mParent;
+                while (p) {
+                    auto itBI = boneNameToIndex.find(p->mName.C_Str());
+                    if (itBI != boneNameToIndex.end()) { parentIndex[i] = itBI->second; break; }
+                    p = p->mParent;
+                }
+            }
+        }
+
+        // Create skeleton root and bone entities
         Entity skeletonRootEnt = CreateEntity("SkeletonRoot");
         skeletonRootID = skeletonRootEnt.GetID();
         SetParent(skeletonRootID, rootID);
@@ -263,31 +296,40 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         auto* skelData = GetEntityData(skeletonRootID);
         skelData->Skeleton = new SkeletonComponent();
         skelData->Skeleton->InverseBindPoses = model.InverseBindPoses;
+        skelData->Skeleton->BoneParents = parentIndex;
+        for (int i = 0; i < (int)model.BoneNames.size(); ++i)
+            skelData->Skeleton->BoneNameToIndex[model.BoneNames[i]] = i;
 
-        // Create bone entities flat under skeleton root for now
+        // Pre-create all bone entities
+        std::vector<EntityID> boneEntities(model.BoneNames.size(), INVALID_ENTITY_ID);
         for (size_t b = 0; b < model.BoneNames.size(); ++b) {
             Entity boneEnt = CreateEntity(model.BoneNames[b]);
-            EntityID boneID = boneEnt.GetID();
-            SetParent(boneID, skeletonRootID);
-            skelData->Skeleton->BoneEntities.push_back(boneID);
+            boneEntities[b] = boneEnt.GetID();
+        }
 
-            // Initialize bone transform from bind pose
-            if (b < model.InverseBindPoses.size()) {
-                glm::mat4 bind = glm::inverse(model.InverseBindPoses[b]);
-                glm::vec3 t, skew;
-                glm::vec4 persp;
-                glm::quat rq;
-                glm::decompose(bind, skelData->Transform.Scale, rq, t, skew, persp);
-                glm::vec3 euler = glm::degrees(glm::eulerAngles(rq));
-                auto* boneData = GetEntityData(boneID);
-                if (boneData) {
-                    boneData->Transform.Position = t;
-                    boneData->Transform.Rotation = euler;
-                    boneData->Transform.Scale    = skelData->Transform.Scale;
-                    boneData->Transform.TransformDirty = true;
-                }
+        // Parent bones according to hierarchy and set local transforms from bind pose
+        for (size_t b = 0; b < model.BoneNames.size(); ++b) {
+            EntityID boneID = boneEntities[b];
+            int pIdx = parentIndex[b];
+            EntityID parentEntity = (pIdx >= 0) ? boneEntities[pIdx] : skeletonRootID;
+            SetParent(boneID, parentEntity);
+
+            glm::mat4 parentGlobal = (pIdx >= 0) ? globalBind[pIdx] : glm::mat4(1.0f);
+            glm::mat4 localBind = glm::inverse(parentGlobal) * globalBind[b];
+
+            glm::vec3 t, scale, skew; glm::vec4 persp; glm::quat rq;
+            glm::decompose(localBind, scale, rq, t, skew, persp);
+            glm::vec3 euler = glm::degrees(glm::eulerAngles(rq));
+            auto* boneData = GetEntityData(boneID);
+            if (boneData) {
+                boneData->Transform.Position = t;
+                boneData->Transform.Rotation = euler;
+                boneData->Transform.Scale    = scale;
+                boneData->Transform.TransformDirty = true;
             }
         }
+
+        skelData->Skeleton->BoneEntities = boneEntities;
     }
 
 

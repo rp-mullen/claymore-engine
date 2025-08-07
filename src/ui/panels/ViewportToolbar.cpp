@@ -8,7 +8,7 @@ void ViewportToolbar::OnImGuiRender() {
     if (!m_Viewport) return;
 
     // Establish a small floating window. First frame uses default pos; user can drag elsewhere.
-    ImGui::SetNextWindowBgAlpha(0.4f);
+    ImGui::SetNextWindowBgAlpha(0.55f);
     ImGui::SetNextWindowSize(ImVec2(40.0f, 120.0f), ImGuiCond_Once);
     ImGui::SetNextWindowPos(ImVec2(40.0f, 40.0f), ImGuiCond_Once);
 
@@ -38,7 +38,7 @@ void ViewportToolbar::OnImGuiRender() {
         }
     }
 
-    constexpr float kButtonSize = 24.0f;
+    constexpr float kButtonSize = 26.0f;
 
     struct GizmoButton {
         ImGuizmo::OPERATION op;
@@ -53,7 +53,8 @@ void ViewportToolbar::OnImGuiRender() {
         bool active = (m_Viewport->GetCurrentOperation() == buttons[i].op);
 
         if (active) {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.28f, 0.55f, 0.92f, 1.0f)); // highlight active button
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.28f, 0.55f, 0.92f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.58f, 0.96f, 1.0f));
         }
 
         if (ImGui::Button(buttons[i].label, ImVec2(kButtonSize, kButtonSize))) {
@@ -61,7 +62,7 @@ void ViewportToolbar::OnImGuiRender() {
         }
 
         if (active) {
-            ImGui::PopStyleColor();
+            ImGui::PopStyleColor(2);
         }
     }
 

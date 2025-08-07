@@ -25,6 +25,7 @@ public:
 
     void LoadProject(std::string path);
     void ApplyStyle();
+    void RequestLayoutReset();
 
     Scene& GetScene() { return m_Scene; }
 
@@ -79,6 +80,8 @@ private:
 
     uint32_t m_LastViewportWidth = 0;
     ImGuiID m_MainDockspaceID = 0;
+    bool m_LayoutInitialized = false;
+    bool m_ResetLayoutRequested = false;
 
     // Active prefab editors
     std::vector<std::unique_ptr<PrefabEditorPanel>> m_PrefabEditors;

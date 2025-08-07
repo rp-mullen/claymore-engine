@@ -281,6 +281,19 @@ void MenuBarPanel::OnImGuiRender() {
                 std::cerr << "[MenuBarPanel] No .cs scripts found in project." << std::endl;
             }
         }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Reset Layout")) {
+            if (m_UILayer) m_UILayer->RequestLayoutReset();
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("UI Scale +")) {
+            ImGuiIO& io = ImGui::GetIO();
+            io.FontGlobalScale = std::min(2.0f, io.FontGlobalScale + 0.1f);
+        }
+        if (ImGui::MenuItem("UI Scale -")) {
+            ImGuiIO& io = ImGui::GetIO();
+            io.FontGlobalScale = std::max(0.5f, io.FontGlobalScale - 0.1f);
+        }
         ImGui::EndMenu();
     }
 

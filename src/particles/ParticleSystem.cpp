@@ -463,6 +463,8 @@ namespace ps
         // Load particle shaders via global ShaderManager (requires include)
         extern bgfx::ProgramHandle LoadParticleProgram();
         m_program = LoadParticleProgram();
+
+        // Ensure default blending-friendly render state is used in shader; we set at draw time.
     }
 
     void ParticleSystem::shutdown()

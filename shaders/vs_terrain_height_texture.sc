@@ -9,7 +9,7 @@ void main()
 {
     v_texcoord0 = a_texcoord0;
     vec3 pos = a_position;
-    float height = texture2DLod(s_heightTexture, a_texcoord0, 0.0).x * 255.0;
+    float height = texture2DLod(s_heightTexture, a_texcoord0.xy, 0.0).x * 255.0;
     pos.y = height;
     v_position = pos;
 

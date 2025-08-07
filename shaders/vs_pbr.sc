@@ -1,5 +1,5 @@
 ﻿$input a_position, a_normal, a_texcoord0
-$output v_worldPos, v_normal, v_uv0, v_viewDir
+$output v_worldPos, v_normal, v_texcoord0, v_viewDir
 
 #include <bgfx_shader.sh>
 
@@ -12,7 +12,7 @@ void main()
     v_worldPos = worldPos.xyz;
     v_normal = normalize(mul((mat3)u_model[0], a_normal));
 
-    v_uv0      = a_texcoord0;
+    v_texcoord0.xy = a_texcoord0.xy;
     v_viewDir  = normalize(u_cameraPos.xyz - worldPos.xyz);
     gl_Position = mul(u_viewProj, worldPos);  
 

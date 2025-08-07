@@ -45,6 +45,7 @@ UILayer::UILayer()
     });
 
     ApplyStyle();
+    m_LayoutInitialized = false;
     RegisterComponentDrawers();
     RegisterSampleScriptProperties();
 
@@ -54,6 +55,10 @@ UILayer::UILayer()
     CreateDebugCubeEntity();
     CreateDefaultLight();
 }
+void UILayer::RequestLayoutReset() {
+    m_ResetLayoutRequested = true;
+}
+
 
 void UILayer::LoadProject(std::string path) {
     m_ProjectPanel.LoadProject(path);
@@ -72,58 +77,67 @@ void UILayer::ApplyStyle() {
    ImGuiStyle& style = ImGui::GetStyle();
    ImVec4* colors = style.Colors;
 
-   // Background
-   colors[ImGuiCol_WindowBg] = ImVec4(0.219f, 0.219f, 0.219f, 1.00f); // #383838
-   colors[ImGuiCol_ChildBg] = ImVec4(0.239f, 0.239f, 0.239f, 1.00f);
-   colors[ImGuiCol_PopupBg] = ImVec4(0.239f, 0.239f, 0.239f, 1.00f);
-   colors[ImGuiCol_Border] = ImVec4(0.117f, 0.117f, 0.117f, 1.00f);
-   colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+   // Base colors (dark slate + accent blue)
+   colors[ImGuiCol_WindowBg]        = ImVec4(0.13f, 0.13f, 0.14f, 1.00f);
+   colors[ImGuiCol_ChildBg]         = ImVec4(0.10f, 0.10f, 0.11f, 1.00f);
+   colors[ImGuiCol_PopupBg]         = ImVec4(0.10f, 0.10f, 0.11f, 1.00f);
+   colors[ImGuiCol_Border]          = ImVec4(0.08f, 0.08f, 0.09f, 1.00f);
+   colors[ImGuiCol_BorderShadow]    = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+   colors[ImGuiCol_Text]            = ImVec4(0.90f, 0.90f, 0.92f, 1.00f);
 
    // Headers (Collapsing, Menus)
-   colors[ImGuiCol_Header] = ImVec4(0.255f, 0.255f, 0.255f, 0.31f);
-   colors[ImGuiCol_HeaderHovered] = ImVec4(0.365f, 0.365f, 0.365f, 0.80f);
-   colors[ImGuiCol_HeaderActive] = ImVec4(0.365f, 0.365f, 0.365f, 1.00f);
+   colors[ImGuiCol_Header]          = ImVec4(0.20f, 0.22f, 0.25f, 0.80f);
+   colors[ImGuiCol_HeaderHovered]   = ImVec4(0.26f, 0.29f, 0.33f, 0.90f);
+   colors[ImGuiCol_HeaderActive]    = ImVec4(0.28f, 0.31f, 0.36f, 1.00f);
 
    // Buttons
-   colors[ImGuiCol_Button] = ImVec4(0.255f, 0.255f, 0.255f, 0.31f);
-   colors[ImGuiCol_ButtonHovered] = ImVec4(0.365f, 0.365f, 0.365f, 0.80f);
-   colors[ImGuiCol_ButtonActive] = ImVec4(0.365f, 0.365f, 0.365f, 1.00f);
+   colors[ImGuiCol_Button]          = ImVec4(0.22f, 0.24f, 0.28f, 0.85f);
+   colors[ImGuiCol_ButtonHovered]   = ImVec4(0.28f, 0.55f, 0.92f, 0.90f);
+   colors[ImGuiCol_ButtonActive]    = ImVec4(0.20f, 0.48f, 0.86f, 1.00f);
 
    // Frame BG
-   colors[ImGuiCol_FrameBg] = ImVec4(0.172f, 0.172f, 0.172f, 1.00f);
-   colors[ImGuiCol_FrameBgHovered] = ImVec4(0.255f, 0.255f, 0.255f, 0.31f);
-   colors[ImGuiCol_FrameBgActive] = ImVec4(0.365f, 0.365f, 0.365f, 1.00f);
+   colors[ImGuiCol_FrameBg]         = ImVec4(0.16f, 0.17f, 0.19f, 1.00f);
+   colors[ImGuiCol_FrameBgHovered]  = ImVec4(0.28f, 0.55f, 0.92f, 0.40f);
+   colors[ImGuiCol_FrameBgActive]   = ImVec4(0.28f, 0.55f, 0.92f, 0.67f);
 
    // Tabs
-   colors[ImGuiCol_Tab] = ImVec4(0.219f, 0.219f, 0.219f, 1.00f);
-   colors[ImGuiCol_TabHovered] = ImVec4(0.365f, 0.365f, 0.365f, 1.00f);
-   colors[ImGuiCol_TabActive] = ImVec4(0.255f, 0.255f, 0.255f, 1.00f);
+   colors[ImGuiCol_Tab]             = ImVec4(0.11f, 0.12f, 0.13f, 1.00f);
+   colors[ImGuiCol_TabHovered]      = ImVec4(0.28f, 0.55f, 0.92f, 0.80f);
+   colors[ImGuiCol_TabActive]       = ImVec4(0.18f, 0.19f, 0.20f, 1.00f);
+   colors[ImGuiCol_TabUnfocused]    = ImVec4(0.11f, 0.12f, 0.13f, 1.00f);
+   colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.18f, 0.19f, 0.20f, 1.00f);
 
-   // Title
-   colors[ImGuiCol_TitleBg] = ImVec4(0.172f, 0.172f, 0.172f, 1.00f);
-   colors[ImGuiCol_TitleBgActive] = ImVec4(0.219f, 0.219f, 0.219f, 1.00f);
-   colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.172f, 0.172f, 0.172f, 0.75f);
+   // Title bar
+   colors[ImGuiCol_TitleBg]         = ImVec4(0.09f, 0.10f, 0.11f, 1.00f);
+   colors[ImGuiCol_TitleBgActive]   = ImVec4(0.12f, 0.13f, 0.14f, 1.00f);
+   colors[ImGuiCol_TitleBgCollapsed]= ImVec4(0.09f, 0.10f, 0.11f, 0.75f);
 
    // Scrollbars
-   colors[ImGuiCol_ScrollbarBg] = ImVec4(0.172f, 0.172f, 0.172f, 1.00f);
-   colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.365f, 0.365f, 0.365f, 0.80f);
-   colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.365f, 0.365f, 0.365f, 1.00f);
-   colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.465f, 0.465f, 0.465f, 1.00f);
+   colors[ImGuiCol_ScrollbarBg]     = ImVec4(0.10f, 0.10f, 0.11f, 1.00f);
+   colors[ImGuiCol_ScrollbarGrab]   = ImVec4(0.24f, 0.25f, 0.27f, 1.00f);
+   colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.28f, 0.29f, 0.31f, 1.00f);
+   colors[ImGuiCol_ScrollbarGrabActive]  = ImVec4(0.34f, 0.35f, 0.38f, 1.00f);
 
    // Resize grip
-   colors[ImGuiCol_ResizeGrip] = ImVec4(0.255f, 0.255f, 0.255f, 0.31f);
-   colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.365f, 0.365f, 0.365f, 0.80f);
-   colors[ImGuiCol_ResizeGripActive] = ImVec4(0.465f, 0.465f, 0.465f, 1.00f);
+   colors[ImGuiCol_ResizeGrip]      = ImVec4(0.28f, 0.55f, 0.92f, 0.25f);
+   colors[ImGuiCol_ResizeGripHovered]= ImVec4(0.28f, 0.55f, 0.92f, 0.67f);
+   colors[ImGuiCol_ResizeGripActive]= ImVec4(0.28f, 0.55f, 0.92f, 1.00f);
 
-   // Text
-   colors[ImGuiCol_Text] = ImVec4(0.86f, 0.86f, 0.86f, 1.00f);
+   // Check/Slider
+   colors[ImGuiCol_CheckMark]       = ImVec4(0.90f, 0.90f, 0.92f, 1.00f);
+   colors[ImGuiCol_SliderGrab]      = ImVec4(0.28f, 0.55f, 0.92f, 0.80f);
+   colors[ImGuiCol_SliderGrabActive]= ImVec4(0.28f, 0.55f, 0.92f, 1.00f);
 
    // Styling tweaks
-   style.FrameRounding = 6.0f;
-   style.WindowRounding = 8.0f;
-   style.ScrollbarRounding = 9.0f;
-   style.GrabRounding = 4.0f;
-   }
+   style.WindowRounding   = 6.0f;
+   style.FrameRounding    = 4.0f;
+   style.ScrollbarRounding= 6.0f;
+   style.GrabRounding     = 4.0f;
+   style.TabRounding      = 4.0f;
+   style.WindowPadding    = ImVec2(8, 8);
+   style.FramePadding     = ImVec2(8, 6);
+   style.ItemSpacing      = ImVec2(8, 6);
+}
 // =============================
 // Main UI Render Loop
 // =============================
@@ -204,6 +218,7 @@ void UILayer::BeginDockspace() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
+    // Optional: pass-through central node look
     ImGui::Begin("DockSpace", nullptr, window_flags);
     ImGui::PopStyleVar(2);
 
@@ -211,8 +226,37 @@ void UILayer::BeginDockspace() {
     m_MainDockspaceID = ImGui::GetID("MyDockSpace");
     ImGuiID dockspace_id = m_MainDockspaceID;
 
+    // Default professional layout on first run or when reset requested
+    if (!m_LayoutInitialized || m_ResetLayoutRequested) {
+        m_ResetLayoutRequested = false;
+        m_LayoutInitialized = true;
+        ImGui::DockBuilderRemoveNode(dockspace_id);
+        ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
+
+        ImGuiID dock_left, dock_right, dock_down;
+        dock_left = ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.22f, nullptr, &dockspace_id);
+        dock_right = ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Right, 0.28f, nullptr, &dockspace_id);
+        dock_down = ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Down, 0.26f, nullptr, &dockspace_id);
+
+        ImGui::DockBuilderDockWindow("Scene Hierarchy", dock_left);
+        ImGui::DockBuilderDockWindow("Inspector", dock_right);
+        ImGui::DockBuilderDockWindow("Project", dock_down);
+        ImGui::DockBuilderDockWindow("Console", dock_down);
+        ImGui::DockBuilderDockWindow("Script Registry", dock_right);
+        ImGui::DockBuilderDockWindow("Viewport", dockspace_id);
+        ImGui::DockBuilderFinish(m_MainDockspaceID);
+    }
+
     // Menu Bar
     if (ImGui::BeginMenuBar()) {
+        // Branding (left)
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.28f, 0.55f, 0.92f, 1.0f));
+        ImGui::Text("Claymore");
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine();
         m_MenuBarPanel.OnImGuiRender();
         ImGui::EndMenuBar();
     }
@@ -230,15 +274,46 @@ void UILayer::BeginDockspace() {
     if (startX > 0)
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + startX);
 
-    if (ImGui::Button(m_ToolbarPanel.IsPlayMode() ? "Stop" : "Play", ImVec2(buttonWidth, buttonHeight)))
+    // Colorful Play/Stop button
+    bool playMode = m_ToolbarPanel.IsPlayMode();
+    if (playMode) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.20f, 0.24f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.25f, 0.28f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.90f, 0.30f, 0.34f, 1.0f));
+    } else {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.65f, 0.35f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.72f, 0.40f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.28f, 0.78f, 0.45f, 1.0f));
+    }
+    if (ImGui::Button(playMode ? "Stop" : "Play", ImVec2(buttonWidth, buttonHeight)))
         m_ToolbarPanel.TogglePlayMode();
+    ImGui::PopStyleColor(3);
 
     ImGui::EndChild();
     ImGui::PopStyleVar();
 
-    // DockSpace (below toolbar)
+    // DockSpace (below toolbar), reserve space for status bar using negative height
     ImGui::Separator();
-    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+    const float statusBarHeight = 22.0f;
+    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, -statusBarHeight), ImGuiDockNodeFlags_None);
+
+    // Status bar
+    ImGui::Separator();
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.08f, 0.08f, 0.09f, 1.0f));
+    ImGui::BeginChild("StatusBar", ImVec2(0, statusBarHeight), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::TextDisabled("FPS: %.1f", ImGui::GetIO().Framerate);
+    ImGui::SameLine();
+    ImGui::TextDisabled("Entities: %zu", m_Scene.GetEntities().size());
+    ImGui::SameLine();
+    ImGui::TextDisabled("| Mode: %s", m_PlayMode ? "Play" : "Edit");
+    ImGui::SameLine();
+    const char* selName = "None";
+    if (m_SelectedEntity != (EntityID)-1) {
+        if (auto* data = m_Scene.GetEntityData(m_SelectedEntity)) selName = data->Name.c_str();
+    }
+    ImGui::TextDisabled("| Selected: %s", selName);
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
 
     ImGui::End();
 }

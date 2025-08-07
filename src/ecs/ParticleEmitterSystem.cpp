@@ -48,6 +48,9 @@ namespace ecs
             {
                 emitterComp.Handle = ps::createEmitter(ps::EmitterShape::Sphere, ps::EmitterDirection::Up, emitterComp.MaxParticles);
                 emitterComp.Uniforms.m_handle = emitterComp.SpriteHandle;
+                // Give a sane default so particles actually spawn if user hasn't set it yet.
+                if (emitterComp.Uniforms.m_particlesPerSecond == 0)
+                    emitterComp.Uniforms.m_particlesPerSecond = 100;
             }
 
             auto& data = *dataPtr;

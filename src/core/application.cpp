@@ -7,6 +7,7 @@
 #include <bgfx/platform.h>
 #include <bx/math.h>
 #include <iostream>
+#include <algorithm>
 
 #include "Application.h"
 #include "rendering/Renderer.h"
@@ -136,15 +137,25 @@ void Application::InitImGui() {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable; // Disabled for now
+    io.ConfigWindowsMoveFromTitleBarOnly = true;
+    io.ConfigWindowsResizeFromEdges = true;
 
     // Style
     ImGui::StyleColorsDark();
 
-    // Font
-    float baseFontSize = 16.0f; // Scales well for DPI 
+    // Font (DPI aware)
+    float xscale = 1.0f, yscale = 1.0f;
+    glfwGetWindowContentScale(m_window, &xscale, &yscale);
+    float contentScale = std::max(xscale, yscale);
+    float baseFontSize = 16.0f * contentScale;
     io.Fonts->Clear();
-    io.Fonts->AddFontFromFileTTF("assets/fonts/Roboto-Regular.ttf", baseFontSize);
+    ImFontConfig cfg;
+    cfg.OversampleH = 3;
+    cfg.OversampleV = 2;
+    cfg.PixelSnapH = false;
+    io.Fonts->AddFontFromFileTTF("assets/fonts/Roboto-Regular.ttf", baseFontSize, &cfg);
     io.Fonts->Build();
+    io.FontGlobalScale = 1.0f; // fonts already scaled above
 
     // Backend Init
     ImGui_ImplGlfw_InitForOther(m_window, true);

@@ -83,11 +83,14 @@ void TerrainPainter::Update(Scene& scene, EntityID selectedEntity)
     glm::vec3 dirLocal = glm::vec3(invTerrainMtx * glm::vec4(rayDir, 0.0f));
     glm::vec3 origLocal = glm::vec3(invTerrainMtx * glm::vec4(rayOrigin, 1.0f));
 
-    const int maxSteps = 1000;
+    // Normalize and use fixed step to ensure progress
+    glm::vec3 dirNorm = glm::normalize(dirLocal);
+    const float step = 0.5f;
+    const int maxSteps = 4096;
     glm::vec3 pos = origLocal;
     for (int i = 0; i < maxSteps; ++i)
     {
-        pos += dirLocal;
+        pos += dirNorm * step;
         if (pos.x < 0 || pos.x >= terrain.Size || pos.z < 0 || pos.z >= terrain.Size)
             continue;
         uint32_t idx = (uint32_t)pos.z * terrain.Size + (uint32_t)pos.x;

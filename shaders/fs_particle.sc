@@ -1,4 +1,4 @@
-$input v_color0, v_texcoord1
+$input v_color0, v_texcoord0
 
 /*
  * Copyright 2011-2025 Branimir Karadzic. All rights reserved.
@@ -11,9 +11,9 @@ SAMPLER2D(s_texColor, 0);
 
 void main()
 {
-	vec4 rgba = texture2D(s_texColor, v_texcoord1.xy).xxxx;
+    vec4 rgba = texture2D(s_texColor, v_texcoord0.xy).xxxx;
 
-	rgba.xyz = rgba.xyz * v_color0.xyz * rgba.w * v_color0.w;
-	rgba.w   = rgba.w * v_color0.w * (1.0f - v_texcoord1.z);
+    rgba.xyz = rgba.xyz * v_color0.xyz * rgba.w * v_color0.w;
+    rgba.w   = rgba.w * v_color0.w * (1.0f - v_texcoord0.z);
 	gl_FragColor = rgba;
 }

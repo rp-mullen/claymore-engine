@@ -58,12 +58,13 @@ static void BuildTerrainMesh(TerrainComponent& terrain)
         uint16_t y_offset = y * size;
         for (uint16_t x = 0; x < size - 1; ++x)
         {
-            terrain.Indices[index + 0] = y_offset + x + 1;
+            // Use CCW winding when looking from +Y (up) so top faces render
+            terrain.Indices[index + 0] = y_offset + x;
             terrain.Indices[index + 1] = y_offset + x + size;
-            terrain.Indices[index + 2] = y_offset + x;
-            terrain.Indices[index + 3] = y_offset + x + size + 1;
+            terrain.Indices[index + 2] = y_offset + x + 1;
+            terrain.Indices[index + 3] = y_offset + x + 1;
             terrain.Indices[index + 4] = y_offset + x + size;
-            terrain.Indices[index + 5] = y_offset + x + 1;
+            terrain.Indices[index + 5] = y_offset + x + size + 1;
             index += 6;
         }
     }

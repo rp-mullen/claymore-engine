@@ -6,7 +6,7 @@
 
 // Renders the main toolbar panel
 void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
-    ImGui::Begin("Toolbar");
+    ImGui::Begin("Toolbar", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize);
 
     // Play/Pause button
     if (ImGui::Button(m_PlayMode ? "Stop" : "Play")) {

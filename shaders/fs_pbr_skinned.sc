@@ -1,4 +1,4 @@
-$input v_worldPos, v_normal, v_uv0, v_viewDir
+$input v_worldPos, v_normal, v_texcoord0, v_viewDir
 
 #include <bgfx_shader.sh>
 
@@ -54,9 +54,9 @@ void main()
     vec3 V = normalize(v_viewDir);
     
     // Sample material properties
-    vec3 baseColor = texture2D(s_albedo, v_uv0).rgb;
-    float metallic = texture2D(s_metallicRoughness, v_uv0).r;
-    float roughness = texture2D(s_metallicRoughness, v_uv0).g;
+    vec3 baseColor = texture2D(s_albedo, v_texcoord0.xy).rgb;
+    float metallic = texture2D(s_metallicRoughness, v_texcoord0.xy).r;
+    float roughness = texture2D(s_metallicRoughness, v_texcoord0.xy).g;
 
     vec3 finalColor = vec3(0.0, 0.0, 0.0);
     
