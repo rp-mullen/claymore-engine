@@ -129,7 +129,11 @@ void Scene::RemoveEntity(EntityID id) {
 
 EntityData* Scene::GetEntityData(EntityID id) {
     auto it = m_Entities.find(id);
-    return (it != m_Entities.end()) ? &it->second : nullptr;
+    EntityData* data = nullptr;
+    if (&it != nullptr) {
+       data = (it != m_Entities.end()) ? &it->second : nullptr;
+    }
+    return data;
 }
 
 Entity Scene::FindEntityByID(EntityID id) {

@@ -130,16 +130,28 @@ void UILayer::ApplyStyle() {
 void UILayer::OnUIRender() {
     BeginDockspace();
 
+    // Determine which scene should be considered "active" for editor panels
+    Scene* activeScene = m_PlayMode && m_Scene.m_RuntimeScene ? m_Scene.m_RuntimeScene.get() : &m_Scene;
+
     // Update panel contexts based on whether any prefab editors are open
     if (!m_PrefabEditors.empty()) {
         // Detach core panels from the active scene while editing a prefab
+        // Save current selection so it can be restored when returning
+        m_PreviousSelectedEntity = m_SelectedEntity;
+
         m_SceneHierarchyPanel.SetContext(nullptr);
         m_InspectorPanel.SetContext(nullptr);
+        m_ViewportPanel.SetContext(nullptr);
         m_SelectedEntity = -1;
     } else {
-        // Re-attach when no prefab editors are open
-        m_SceneHierarchyPanel.SetContext(&m_Scene);
-        m_InspectorPanel.SetContext(&m_Scene);
+        // Re-attach when no prefab editors are open (honour play/edit mode)
+        m_SceneHierarchyPanel.SetContext(activeScene);
+        m_InspectorPanel.SetContext(activeScene);
+        m_ViewportPanel.SetContext(activeScene);
+
+        // Restore previous entity selection if any
+        if (m_PreviousSelectedEntity != -1)
+            m_SelectedEntity = m_PreviousSelectedEntity;
     }
 
     // Core panels
@@ -242,6 +254,7 @@ void UILayer::CreateDebugCubeEntity() {
         std::string("DebugCube"),
         nullptr);
     data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+
 }
 
 void UILayer::CreateDefaultLight() {

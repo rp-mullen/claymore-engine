@@ -1,0 +1,58 @@
+#include "InputInterop.h"
+#include "editor/Input.h"
+#include "ui/Logger.h"
+
+// --------------------------------------------------------------------------------------
+// Function pointer typedefs matching managed delegate signatures.
+// --------------------------------------------------------------------------------------
+using IsKeyHeld_fn      = int(*)(int key);
+using IsKeyDown_fn      = int(*)(int key);
+using IsMouseDown_fn    = int(*)(int button);
+using GetMouseDelta_fn  = void(*)(float* dx, float* dy);
+using DebugLog_fn       = void(*)(const char* msg);
+
+// --------------------------------------------------------------------------------------
+// Pointer instances passed to managed side (set up in DotNetHost.cpp)
+// --------------------------------------------------------------------------------------
+IsKeyHeld_fn     IsKeyHeldPtr     = &IsKeyHeld;
+IsKeyDown_fn     IsKeyDownPtr     = &IsKeyDown;
+IsMouseDown_fn   IsMouseDownPtr   = &IsMouseDown;
+GetMouseDelta_fn GetMouseDeltaPtr = &GetMouseDelta;
+DebugLog_fn      DebugLogPtr      = &DebugLog;
+
+// --------------------------------------------------------------------------------------
+// Exported implementation
+// --------------------------------------------------------------------------------------
+extern "C" {
+
+__declspec(dllexport) int IsKeyHeld(int key)
+{
+    return Input::IsKeyPressed(key) ? 1 : 0;
+}
+
+__declspec(dllexport) int IsKeyDown(int key)
+{
+    return Input::WasKeyPressedThisFrame(key) ? 1 : 0;
+}
+
+__declspec(dllexport) int IsMouseDown(int button)
+{
+    return Input::IsMouseButtonPressed(button) ? 1 : 0;
+}
+
+__declspec(dllexport) void GetMouseDelta(float* deltaX, float* deltaY)
+{
+    if (!deltaX || !deltaY)
+        return;
+    auto d = Input::GetMouseDelta();
+    *deltaX = d.first;
+    *deltaY = d.second;
+}
+
+__declspec(dllexport) void DebugLog(const char* msg)
+{
+    if(msg)
+        Logger::Log(msg);
+}
+ 
+}

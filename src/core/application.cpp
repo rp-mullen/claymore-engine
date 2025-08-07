@@ -65,6 +65,9 @@ Application::Application(int width, int height, const std::string& title)
     // 4. Initialize Physics System
     Physics::Get().Init();
 
+    // 5. Input Init
+    Input::Init(m_window);
+
     // Init Dotnet
     std::filesystem::path fullPath = std::filesystem::current_path() / "ClaymoreEngine.dll";
     LoadDotnetRuntime(
@@ -184,7 +187,7 @@ void Application::Run() {
         // --------------------------------------
         // INPUT UPDATE
         // --------------------------------------
-        /*Input::Update();*/
+        Input::Update();
 
         // --------------------------------------
         // START NEW IMGUI FRAME

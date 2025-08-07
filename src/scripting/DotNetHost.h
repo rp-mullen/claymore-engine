@@ -27,6 +27,7 @@ void CallOnCreate(void* instance, int entityID);
 void CallOnUpdate(void* instance, float dt);
 void ReloadScripts();
 void SetupEntityInterop(std::filesystem::path fullPath);
+void SetupInputInterop(std::filesystem::path fullPath);
 
 // Creates a managed script instance (returns GCHandle pointer held as void*)
 void* CreateScriptInstance(const std::string& className);

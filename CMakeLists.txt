@@ -199,7 +199,7 @@ add_custom_command(TARGET Claymore POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/external/dotnet_hosting/nethost.dll $<TARGET_FILE_DIR:Claymore>
 )
 
-set(CLAYMORE_ENGINE_DLL_DIR ${CMAKE_SOURCE_DIR}/scripts/ClaymoreEngine/bin/Release/net8.0)
+set(CLAYMORE_ENGINE_DLL_DIR ${CMAKE_SOURCE_DIR}/scripts/ClaymoreEngine/bin/Debug/net8.0)
 
 add_custom_command(TARGET Claymore POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory

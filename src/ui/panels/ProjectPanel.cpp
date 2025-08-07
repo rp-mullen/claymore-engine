@@ -153,6 +153,10 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
          continue;
 
       bool isDir = entry.is_directory();
+      // Hide .meta files
+      if (!isDir && entry.path().extension() == ".meta") {
+         continue;
+      }
       ImTextureRef icon = isDir ? m_FolderIcon : m_FileIcon;
 
       ImGui::PushID(fileName.c_str());

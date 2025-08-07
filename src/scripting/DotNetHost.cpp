@@ -12,6 +12,8 @@ extern "C" {
 #include <fstream>
 #include "scripting/ScriptSystem.h"
 #include "pipeline/AssetPipeline.h"
+#include "scripting/InputInterop.h"
+#include <filesystem>
 
 // --------------------------------------------------------------------------------------
 extern "C" void GetEntityPosition(int entityID, float* outX, float* outY, float* outZ);
@@ -323,6 +325,7 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
    }
 
    SetupEntityInterop(fullPath);
+   SetupInputInterop(fullPath);
 
    return true;
    }
@@ -497,3 +500,44 @@ void SetupEntityInterop(std::filesystem::path fullPath)
             s_EntityInteropInitialized = true;
         }
     }
+
+void SetupInputInterop(std::filesystem::path fullPath)
+{
+    static bool s_InputInteropInitialized = false;
+    if (s_InputInteropInitialized)
+        return;
+
+    void* initArgs[] =
+    {
+        (void*)IsKeyHeldPtr,
+        (void*)IsKeyDownPtr,
+        (void*)IsMouseDownPtr,
+        (void*)GetMouseDeltaPtr,
+        (void*)DebugLogPtr
+    };
+
+    using InputInteropInitFn = void(*)(void**, int);
+    InputInteropInitFn initInteropFn = nullptr;
+
+    int rc = load_assembly_and_get_function_pointer(
+        fullPath.c_str(),
+        L"ClaymoreEngine.InputInterop, ClaymoreEngine",
+        L"InitializeInteropExport",
+        L"ClaymoreEngine.InputInteropInitDelegate, ClaymoreEngine",
+        nullptr,
+        (void**)&initInteropFn
+    );
+
+    if (rc != 0)
+    {
+        std::wcerr << L"[Interop] Failed to get InputInterop delegate. HRESULT: 0x" << std::hex << rc << std::endl;
+        return;
+    }
+
+    if (initInteropFn)
+    {
+        initInteropFn(initArgs, static_cast<int>(sizeof(initArgs) / sizeof(void*)));
+        s_InputInteropInitialized = true;
+    }
+}
+

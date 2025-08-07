@@ -195,6 +195,7 @@ void ViewportPanel::Draw2DGrid() {
 // Drag-Drop Handling
 // =============================
 void ViewportPanel::HandleAssetDragDrop(const ImVec2& viewportPos) {
+    if (!m_Context) return;
     if (ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
             m_IsDraggingAsset = true;

@@ -9,6 +9,7 @@ public:
    static void Update();
 
    static bool IsKeyPressed(int key);
+   static bool WasKeyPressedThisFrame(int key);
    static bool IsMouseButtonPressed(int button);
    static std::pair<float, float> GetMouseDelta();
 
@@ -36,7 +37,14 @@ public:
 private:
    static GLFWwindow* s_Window;
 
+   // Previous GLFW callbacks so we can forward events (to ImGui, etc.)
+   static GLFWkeyfun          s_PrevKeyCallback;
+   static GLFWmousebuttonfun  s_PrevMouseButtonCallback;
+   static GLFWcursorposfun    s_PrevCursorPosCallback;
+   static GLFWscrollfun       s_PrevScrollCallback;
+
    static std::unordered_map<int, bool> s_Keys;
+   static std::unordered_map<int, bool> s_KeyDownEdge;
    static std::unordered_map<int, bool> s_MouseButtons;
 
    static double s_LastMouseX;

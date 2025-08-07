@@ -63,6 +63,7 @@ public:
 private:
     Scene m_Scene;
     EntityID m_SelectedEntity = -1;
+    EntityID m_PreviousSelectedEntity = -1;
 
     ProjectPanel m_ProjectPanel;
     InspectorPanel m_InspectorPanel;

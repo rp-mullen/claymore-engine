@@ -1,14 +1,14 @@
 {
-    "guid": "d97616810c0c760acf6239a723433302",
+    "guid": "8bec83a7f9f3b090f51ccbabf3831353",
     "hash": "7dea5740328e97e66fcd9b9c186a0d44",
-    "lastImported": "2025-08-06 22:51:30",
+    "lastImported": "2025-08-07 09:30:00",
     "processedPath": "cache/TestScriptManaged.cs",
     "reference": {
         "fileID": 0,
-        "guid": "d97616810c0c760acf6239a723433302",
+        "guid": "8bec83a7f9f3b090f51ccbabf3831353",
         "type": 3
     },
     "settings": {},
-    "sourcePath": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\TestScriptManaged.cs",
+    "sourcePath": "C:\\Projects\\claymore\\ClayProject\\TestScriptManaged.cs",
     "type": "script"
 }
