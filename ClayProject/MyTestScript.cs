@@ -5,6 +5,10 @@ using System;
 
 public class MyTestScript : ScriptComponent
    {
+
+   [SerializeField]
+   public float Speed = 1.0f;
+
    public override void OnCreate()
       {
       Console.WriteLine("Made it to the start of OnCreate");
@@ -53,6 +57,6 @@ public class MyTestScript : ScriptComponent
 
    public void MovePlayer(float dt, Vector3 dir)
       {
-      transform.position = transform.position + dir * dt;
+      transform.position = transform.position + dir * dt * Speed;
       }
    }

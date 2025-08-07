@@ -28,6 +28,10 @@ void CallOnUpdate(void* instance, float dt);
 void ReloadScripts();
 void SetupEntityInterop(std::filesystem::path fullPath);
 void SetupInputInterop(std::filesystem::path fullPath);
+void SetupReflectionInterop(std::filesystem::path fullPath);
+
+// SetField pointer
+#include "scripting/ScriptReflectionInterop.h"
 
 // Creates a managed script instance (returns GCHandle pointer held as void*)
 void* CreateScriptInstance(const std::string& className);

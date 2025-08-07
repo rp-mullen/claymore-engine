@@ -5,6 +5,8 @@
 #include "rendering/ModelLoader.h"
 #include "rendering/TextureLoader.h"
 #include "rendering/ShaderManager.h"
+#include "animation/AnimationImporter.h"
+#include "animation/AnimationSerializer.h"
 
 #include <Windows.h>
 #include <filesystem>
@@ -252,8 +254,22 @@ void AssetPipeline::ImportScript(const std::string& path)
 // ---------------------------------------
 void AssetPipeline::ImportModel(const std::string& path) {
     EnqueueMainThreadTask([path]() {
-        auto mesh = ModelLoader::LoadModel(path);
+        auto model = ModelLoader::LoadModel(path);
         std::cout << "[AssetPipeline] Model uploaded to GPU: " << path << std::endl;
+
+        // --------- Extract animations ---------
+        using namespace cm::animation;
+        auto clips = AnimationImporter::ImportFromModel(path);
+        if (!clips.empty()) {
+            std::filesystem::path p(path);
+            std::string dir = p.parent_path().string();
+            for (const auto& clip : clips) {
+                std::string outPath = dir + "/" + p.stem().string() + "_" + clip.Name + ".anim";
+                if (SaveAnimationClip(clip, outPath)) {
+                    std::cout << "[AssetPipeline] Saved animation clip: " << outPath << std::endl;
+                }
+            }
+        }
         });
 }
 

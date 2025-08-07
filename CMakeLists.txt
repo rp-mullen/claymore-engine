@@ -54,10 +54,12 @@ find_package(OpenSSL REQUIRED)
 add_library(DotnetBridge STATIC
     src/interop/DotnetBridge.cpp
     src/scripting/DotNetHost.cpp
+    src/scripting/ScriptReflectionInterop.cpp
 )
 target_include_directories(DotnetBridge PUBLIC
     external/dotnet_hosting
     external/json/include
+    external/glm
     src
 )
 
@@ -134,6 +136,7 @@ target_include_directories(Claymore PRIVATE
 )
 set_target_properties(Claymore PROPERTIES
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+    ENABLE_EXPORTS ON
 )
 
 target_link_libraries(Claymore PRIVATE

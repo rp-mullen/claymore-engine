@@ -27,6 +27,8 @@ public:
 
    ScriptBackend GetBackend() const override { return ScriptBackend::Managed; }
 
+public:
+   void* GetHandle() const { return m_Handle; }
 private:
    void* m_Handle = nullptr;
    };

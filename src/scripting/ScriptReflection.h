@@ -14,7 +14,8 @@ enum class PropertyType {
     Float,
     Bool,
     String,
-    Vector3
+    Vector3,
+    Entity
 };
 
 struct PropertyInfo {
@@ -32,12 +33,16 @@ class ScriptReflection {
 public:
     // Static registry for script properties
     static void RegisterScriptProperty(const std::string& scriptClass, const PropertyInfo& property);
-    static std::vector<PropertyInfo> GetScriptProperties(const std::string& scriptClass);
+    static std::vector<PropertyInfo>& GetScriptProperties(const std::string& scriptClass);
     static bool HasProperties(const std::string& scriptClass);
     
     // Property type utilities
     static std::string PropertyTypeToString(PropertyType type);
     static PropertyType StringToPropertyType(const std::string& typeStr);
+
+    // Boxing helpers for interop
+    static PropertyValue BoxToValue(void* boxed, PropertyType type);
+    static void*         ValueToBox(const PropertyValue& v);
     
     // Property value utilities
     static std::string PropertyValueToString(const PropertyValue& value);

@@ -4,6 +4,8 @@
 #include <imgui.h>
 #include <string>
 #include "scripting/ScriptSystem.h"
+#include "scripting/ManagedScriptComponent.h"
+#include "scripting/ScriptReflectionInterop.h"
 #include "scripting/ScriptReflection.h"
 #include "ecs/EntityData.h"
 #include "ecs/ComponentUtils.h"
@@ -362,9 +364,14 @@ void InspectorPanel::DrawScriptComponent(const ScriptInstance& script, int index
         
         // Draw script properties using reflection
         if (ScriptReflection::HasProperties(script.ClassName)) {
-            auto properties = ScriptReflection::GetScriptProperties(script.ClassName);
+            auto& properties = ScriptReflection::GetScriptProperties(script.ClassName);
+            void* scriptHandle = nullptr;
+            if(script.Instance && script.Instance->GetBackend() == ScriptBackend::Managed) {
+                if(auto managed = std::dynamic_pointer_cast<ManagedScriptComponent>(script.Instance))
+                    scriptHandle = managed->GetHandle();
+            }
             for (auto& property : properties) {
-                DrawScriptProperty(property);
+                DrawScriptProperty(property, scriptHandle);
             }
         } else {
             ImGui::Text("No exposed properties");
@@ -376,8 +383,9 @@ void InspectorPanel::DrawScriptComponent(const ScriptInstance& script, int index
      }
 }
 
-void InspectorPanel::DrawScriptProperty(PropertyInfo& property) {
+void InspectorPanel::DrawScriptProperty(PropertyInfo& property, void* scriptHandle) {
     ImGui::PushID(property.name.c_str());
+    bool updated = false;
     
     switch (property.type) {
         case PropertyType::Int: {
@@ -387,6 +395,7 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property) {
                 if (property.setter) {
                     property.setter(value);
                 }
+                updated = true;
             }
             break;
         }
@@ -398,6 +407,7 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property) {
                 if (property.setter) {
                     property.setter(value);
                 }
+                updated = true;
             }
             break;
         }
@@ -409,6 +419,7 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property) {
                 if (property.setter) {
                     property.setter(value);
                 }
+                updated = true;
             }
             break;
         }
@@ -424,6 +435,7 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property) {
                 if (property.setter) {
                     property.setter(std::string(buffer));
                 }
+                updated = true;
             }
             break;
         }
@@ -435,10 +447,35 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property) {
                 if (property.setter) {
                     property.setter(value);
                 }
+                updated = true;
+            }
+            break;
+        }
+
+        case PropertyType::Entity: {
+            int entityId = std::get<int>(property.currentValue);
+            const char* btnLabel = "None";
+            if(entityId != -1) {
+                if(auto* entData = m_Context->GetEntityData(entityId))
+                    btnLabel = entData->Name.c_str();
+            }
+            ImGui::Button(btnLabel, ImVec2(-1,0));
+            if(ImGui::BeginDragDropTarget()) {
+                if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
+                    EntityID dropped = *(EntityID*)payload->Data;
+                    property.currentValue = static_cast<int>(dropped);
+                    if(property.setter) property.setter(PropertyValue{ static_cast<int>(dropped) });
+                    updated = true;
+                }
+                ImGui::EndDragDropTarget();
             }
             break;
         }
     }
-    
+    if(updated && scriptHandle && SetManagedFieldPtr)
+    {
+        void* boxed = ScriptReflection::ValueToBox(property.currentValue);
+        SetManagedFieldPtr(scriptHandle, property.name.c_str(), boxed);
+    }
     ImGui::PopID();
 }

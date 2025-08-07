@@ -22,7 +22,7 @@ private:
    void DrawComponents(EntityID entity);
    void DrawAddComponentButton(EntityID entity);
    void DrawScriptComponent(const ScriptInstance& script, int index, EntityID entity);
-   void DrawScriptProperty(PropertyInfo& property);
+   void DrawScriptProperty(PropertyInfo& property, void* scriptHandle);
 
 private:
    EntityID* m_SelectedEntity = nullptr;

@@ -9,6 +9,7 @@ namespace fs = std::filesystem;
 #include <rendering/StandardMeshManager.h>
 #include "ecs/AnimationComponents.h"
 #include "ecs/ParticleEmitterSystem.h"
+#include "ecs/SkinningSystem.h"
 #include <rendering/TextureLoader.h>
 #include <rendering/MaterialManager.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
@@ -269,6 +270,23 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
             EntityID boneID = boneEnt.GetID();
             SetParent(boneID, skeletonRootID);
             skelData->Skeleton->BoneEntities.push_back(boneID);
+
+            // Initialize bone transform from bind pose
+            if (b < model.InverseBindPoses.size()) {
+                glm::mat4 bind = glm::inverse(model.InverseBindPoses[b]);
+                glm::vec3 t, skew;
+                glm::vec4 persp;
+                glm::quat rq;
+                glm::decompose(bind, skelData->Transform.Scale, rq, t, skew, persp);
+                glm::vec3 euler = glm::degrees(glm::eulerAngles(rq));
+                auto* boneData = GetEntityData(boneID);
+                if (boneData) {
+                    boneData->Transform.Position = t;
+                    boneData->Transform.Rotation = euler;
+                    boneData->Transform.Scale    = skelData->Transform.Scale;
+                    boneData->Transform.TransformDirty = true;
+                }
+            }
         }
     }
 
@@ -647,6 +665,11 @@ void Scene::CreatePhysicsBody(EntityID id, const TransformComponent& transform, 
 void Scene::Update(float dt) {
    static bool once = (std::cout << "[C++] Scene::Update thread: " << GetCurrentThreadId() << "\n", true);
    UpdateTransforms();
+
+   // Update GPU skinning palette after transforms
+   if (m_IsPlaying) {
+      SkinningSystem::Update(*this);
+   }
 
    // Update particle emitters so they preview both in edit and play mode
    ecs::ParticleEmitterSystem::Get().Update(*this, dt);

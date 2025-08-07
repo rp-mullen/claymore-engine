@@ -19,7 +19,7 @@
 Model ModelLoader::LoadModel(const std::string& filepath) {
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filepath,
-       aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
+       aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_CalcTangentSpace | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
         aiProcess_FixInfacingNormals | aiProcess_FlipWindingOrder);
 
    float importScale = 1.f;
@@ -76,11 +76,7 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
               normal = glm::normalize(normal);
           }
           
-          if (hasSkin) {
-            skVertices.push_back({ pos.x,pos.y,pos.z, normal.x,normal.y,normal.z, u,v,
-                (uint8_t)vertIndices[i].x,(uint8_t)vertIndices[i].y,(uint8_t)vertIndices[i].z,(uint8_t)vertIndices[i].w,
-                vertWeights[i].x,vertWeights[i].y,vertWeights[i].z,vertWeights[i].w});
-        } else {
+          if (!hasSkin) {
             vertices.push_back({ pos.x, pos.y, pos.z, normal.x, normal.y, normal.z, u, v });
         }
          }
@@ -100,7 +96,8 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
                 aiBone* bone = aMesh->mBones[b];
                 int boneIndex = getBoneIndex(bone->mName.C_Str());
                 // store inverse bind pose
-                result.InverseBindPoses[boneIndex] = glm::transpose(glm::make_mat4(&bone->mOffsetMatrix.a1));
+                glm::mat4 offset = glm::make_mat4(&bone->mOffsetMatrix.a1);
+                result.InverseBindPoses[boneIndex] = offset;
                 for (unsigned int w = 0; w < bone->mNumWeights; ++w) {
                     const aiVertexWeight& vw = bone->mWeights[w];
                     unsigned int vId = vw.mVertexId;
@@ -116,7 +113,21 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
                     }
                 }
             }
-        }
+
+            // --- Normalise weights so they sum to 1 ---
+            for(size_t v = 0; v < vertWeights.size(); ++v)
+            {
+                float sum = vertWeights[v].x + vertWeights[v].y + vertWeights[v].z + vertWeights[v].w;
+                if(sum > 0.0001f)
+                {
+                    vertWeights[v] /= sum;
+                }
+                else
+                {
+                    vertWeights[v].x = 1.0f; // fallback to first bone full weight
+                }
+            }
+            }
 
         // ---------------- Build final vertex arrays ----------------
         if (hasSkin) {
@@ -228,23 +239,24 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
 		  << aMesh->mNumVertices << " vertices and " << indices.size() << " indices and" << aMesh->mNumFaces << " faces." << std::endl;
       
       // Debug: Print first few vertex positions
-      if (vertices.size() > 0) {
-          std::cout << "[ModelLoader] First 3 vertices: ";
-          for (int i = 0; i < std::min(3u, (unsigned int)vertices.size()); i++) {
-              std::cout << "(" << vertices[i].x << ", " << vertices[i].y << ", " << vertices[i].z << ") ";
-          }
-          std::cout << std::endl;
-          
-          // Debug: Check if vertices are all zero (which would make them invisible)
-          bool allZero = true;
-          for (const auto& v : vertices) {
-              if (v.x != 0.0f || v.y != 0.0f || v.z != 0.0f) {
-                  allZero = false;
-                  break;
+      // Debug: Print first few vertex positions
+      if (hasSkin) {
+          if (!skVertices.empty()) {
+              std::cout << "[ModelLoader] First 3 vertices: ";
+              size_t count = std::min<size_t>(3, skVertices.size());
+              for (size_t i = 0; i < count; ++i) {
+                  std::cout << "(" << skVertices[i].x << ", " << skVertices[i].y << ", " << skVertices[i].z << ") ";
               }
+              std::cout << std::endl;
           }
-          if (allZero) {
-              std::cerr << "[ModelLoader] WARNING: All vertices are zero! This will make the mesh invisible!" << std::endl;
+      } else {
+          if (!vertices.empty()) {
+              std::cout << "[ModelLoader] First 3 vertices: ";
+              size_t count = std::min<size_t>(3, vertices.size());
+              for (size_t i = 0; i < count; ++i) {
+                  std::cout << "(" << vertices[i].x << ", " << vertices[i].y << ", " << vertices[i].z << ") ";
+              }
+              std::cout << std::endl;
           }
       }
 
@@ -255,10 +267,11 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
       for (uint16_t i : indices)
           maxIndex = std::max(maxIndex, i);
 
-      if (maxIndex >= vertices.size()) {
+      size_t vertCountForCheck = hasSkin ? skVertices.size() : vertices.size();
+      if (maxIndex >= vertCountForCheck) {
           std::cerr << "[ModelLoader] ERROR: Mesh '" << aMesh->mName.C_Str()
               << "' has out-of-bounds index " << maxIndex
-              << " (vertex count = " << vertices.size() << ")\n";
+              << " (vertex count = " << vertCountForCheck << ")\n";
       }
 
 

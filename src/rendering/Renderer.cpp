@@ -291,7 +291,7 @@ void Renderer::RenderScene(Scene& scene) {
     // Draw all meshes
     for (auto& entity : scene.GetEntities()) {
         auto* data = scene.GetEntityData(entity.GetID());
-        if (!data || !data->Mesh) continue;
+        if (!data || !data->Mesh || !data->Mesh->mesh) continue;
 
 		bool meshValid = data->Mesh->mesh->Dynamic ? bgfx::isValid(data->Mesh->mesh->dvbh) : bgfx::isValid(data->Mesh->mesh->vbh);
 		if (!meshValid || !bgfx::isValid(data->Mesh->mesh->ibh)) {
@@ -702,3 +702,4 @@ void Renderer::InitGrid(float size, float step) {
     const bgfx::Memory* mem = bgfx::copy(vertices.data(), sizeof(GridVertex) * vertices.size());
     m_GridVB = bgfx::createVertexBuffer(mem, GridVertex::layout);
 }
+

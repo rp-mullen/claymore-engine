@@ -73,6 +73,9 @@ public:
 
     void UploadLightsToShader(const std::vector<LightData>& lights);
 
+    std::vector<glm::mat4> ComputeFinalBoneMatrices(Entity entity, Scene& scene);
+
+
 private:
     Renderer() = default;
     ~Renderer() = default;
@@ -104,5 +107,6 @@ private:
 
     bgfx::VertexBufferHandle m_GridVB = BGFX_INVALID_HANDLE;
     uint32_t m_GridVertexCount = 0;
+
 
 };

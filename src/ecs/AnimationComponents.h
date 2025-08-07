@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <glm/glm.hpp>
+#include <unordered_map>
 #include "ecs/Entity.h" // assumes EntityID typedef lives there; adjust path if different
 
 // ------------ Blend Shapes ------------
@@ -20,7 +21,16 @@ struct BlendShapeComponent {
 // ------------ Skeleton & Skinning ------------
 struct SkeletonComponent {
     std::vector<glm::mat4> InverseBindPoses;  // inverse bind matrices per bone
-    std::vector<EntityID>  BoneEntities;      // entity for each bone
+    std::vector<EntityID>  BoneEntities;      // entity for each bone (index matches InverseBindPoses)
+
+    // Name → index lookup to enable fast sampling & editor display.
+    std::unordered_map<std::string, int> BoneNameToIndex;
+    std::vector<int> BoneParents; // index of parent bone (-1 for root)
+
+    int GetBoneIndex(const std::string& name) const {
+        auto it = BoneNameToIndex.find(name);
+        return it != BoneNameToIndex.end() ? it->second : -1;
+    }
 };
 
 struct SkinningComponent {

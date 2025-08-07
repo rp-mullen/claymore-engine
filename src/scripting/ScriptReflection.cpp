@@ -6,15 +6,15 @@
 std::unordered_map<std::string, std::vector<PropertyInfo>> ScriptReflection::s_ScriptProperties;
 
 void ScriptReflection::RegisterScriptProperty(const std::string& scriptClass, const PropertyInfo& property) {
-    s_ScriptProperties[scriptClass].push_back(property);
+    auto& vec = s_ScriptProperties[scriptClass];
+    // Avoid duplicate entries by property name
+    auto it = std::find_if(vec.begin(), vec.end(), [&](const PropertyInfo& p){ return p.name == property.name; });
+    if(it == vec.end())
+        vec.push_back(property);
 }
 
-std::vector<PropertyInfo> ScriptReflection::GetScriptProperties(const std::string& scriptClass) {
-    auto it = s_ScriptProperties.find(scriptClass);
-    if (it != s_ScriptProperties.end()) {
-        return it->second;
-    }
-    return {};
+std::vector<PropertyInfo>& ScriptReflection::GetScriptProperties(const std::string& scriptClass) {
+    return s_ScriptProperties[scriptClass]; // creates if not present
 }
 
 bool ScriptReflection::HasProperties(const std::string& scriptClass) {
@@ -29,6 +29,7 @@ std::string ScriptReflection::PropertyTypeToString(PropertyType type) {
         case PropertyType::Bool: return "bool";
         case PropertyType::String: return "string";
         case PropertyType::Vector3: return "Vector3";
+        case PropertyType::Entity: return "Entity";
         default: return "unknown";
     }
 }
@@ -39,7 +40,39 @@ PropertyType ScriptReflection::StringToPropertyType(const std::string& typeStr) 
     if (typeStr == "bool") return PropertyType::Bool;
     if (typeStr == "string") return PropertyType::String;
     if (typeStr == "Vector3") return PropertyType::Vector3;
+    if (typeStr == "Entity") return PropertyType::Entity;
     return PropertyType::Int; // Default fallback
+}
+
+// ---------------- Boxing helpers ----------------
+PropertyValue ScriptReflection::BoxToValue(void* boxed, PropertyType type)
+{
+    if(!boxed) return 0;
+    switch(type)
+    {
+        case PropertyType::Int:
+        case PropertyType::Entity:
+            return *(int*)boxed;
+        case PropertyType::Float:
+            return *(float*)boxed;
+        case PropertyType::Bool:
+            return *(bool*)boxed;
+        case PropertyType::String:
+            return std::string((const char*)boxed);
+        case PropertyType::Vector3:
+            return *(glm::vec3*)boxed;
+    }
+    return 0;
+}
+
+void* ScriptReflection::ValueToBox(const PropertyValue& v)
+{
+    return std::visit([](auto&& val)->void*
+    {
+        using T = std::decay_t<decltype(val)>;
+        T* p = new T(val);
+        return (void*)p;
+    }, v);
 }
 
 std::string ScriptReflection::PropertyValueToString(const PropertyValue& value) {

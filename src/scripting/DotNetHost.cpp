@@ -13,6 +13,7 @@ extern "C" {
 #include "scripting/ScriptSystem.h"
 #include "pipeline/AssetPipeline.h"
 #include "scripting/InputInterop.h"
+#include "scripting/ScriptReflectionInterop.h"
 #include <filesystem>
 
 // --------------------------------------------------------------------------------------
@@ -51,6 +52,13 @@ EnsureInstalled_fn    EnsureInstalledPtr = nullptr;
 // SyncContext flush pointer
 FlushSyncContext_fn FlushSyncContextPtr = nullptr;
 
+// Struct passed to managed side for script registration callbacks
+struct ScriptRegistrationInterop {
+    void (*RegisterScriptType)(const char*);
+    void (*RegisterScriptProperty)(const char*, const char*, int, void*);
+};
+static ScriptRegistrationInterop g_ScriptRegInterop = { &NativeRegisterScriptType, &RegisterScriptPropertyNative };
+
 
 
 // ----------------------------------------
@@ -58,13 +66,14 @@ FlushSyncContext_fn FlushSyncContextPtr = nullptr;
 // ----------------------------------------
 // Vector defined in UILayer.cpp so the UI and interop use the same list
 extern std::vector<std::string> g_RegisteredScriptNames;
-
+ 
 
 // Global function pointer set from managed side
 // Called by native to let C# perform registration
 extern "C" __declspec(dllexport) void NativeRegisterScriptType(const char* className)
 {
-    g_RegisteredScriptNames.emplace_back(className);
+    if(std::find(g_RegisteredScriptNames.begin(), g_RegisteredScriptNames.end(), className) == g_RegisteredScriptNames.end())
+        g_RegisteredScriptNames.emplace_back(className);
     std::cout << "[Interop] Registered script type: " << className << std::endl;
 
     ScriptSystem::Instance().RegisterManaged(className);
@@ -320,12 +329,13 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
 
    if (g_RegisterAllScripts)
    {
-       // Pass pointer to native registration function so managed side can invoke it
-       g_RegisterAllScripts(reinterpret_cast<void*>(&NativeRegisterScriptType));
+       // Pass struct of native callbacks so managed side can invoke them
+       g_RegisterAllScripts(reinterpret_cast<void*>(&g_ScriptRegInterop));
    }
 
    SetupEntityInterop(fullPath);
    SetupInputInterop(fullPath);
+   SetupReflectionInterop(fullPath);
 
    return true;
    }
@@ -334,7 +344,7 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
 // Reload C# Scripts
 // ----------------------------------------
    
-
+    
 
 void ReloadScripts()
    {
@@ -402,8 +412,8 @@ void ReloadScripts()
       g_RegisterAllScripts = reinterpret_cast<RegisterAllScriptsFn>(fn);
       }
 
-// Pass native-to-managed callback pointer
-   g_RegisterAllScripts(reinterpret_cast<void*>(&NativeRegisterScriptType));
+// Pass struct of callbacks
+   g_RegisterAllScripts(reinterpret_cast<void*>(&g_ScriptRegInterop));
    }
 // ----------------------------------------
 // C++ Wrapper Utilities
@@ -504,16 +514,19 @@ void SetupEntityInterop(std::filesystem::path fullPath)
 void SetupInputInterop(std::filesystem::path fullPath)
 {
     static bool s_InputInteropInitialized = false;
-    if (s_InputInteropInitialized)
+    if(s_InputInteropInitialized)
         return;
 
-    void* initArgs[] =
-    {
+    // Ensure reflection setter is ready
+    SetupReflectionInterop(fullPath);
+
+    void* initArgs[] = {
         (void*)IsKeyHeldPtr,
         (void*)IsKeyDownPtr,
         (void*)IsMouseDownPtr,
         (void*)GetMouseDeltaPtr,
-        (void*)DebugLogPtr
+        (void*)DebugLogPtr,
+        (void*)SetManagedFieldPtr
     };
 
     using InputInteropInitFn = void(*)(void**, int);
@@ -525,19 +538,34 @@ void SetupInputInterop(std::filesystem::path fullPath)
         L"InitializeInteropExport",
         L"ClaymoreEngine.InputInteropInitDelegate, ClaymoreEngine",
         nullptr,
-        (void**)&initInteropFn
-    );
+        (void**)&initInteropFn);
 
-    if (rc != 0)
+    if(rc != 0)
     {
         std::wcerr << L"[Interop] Failed to get InputInterop delegate. HRESULT: 0x" << std::hex << rc << std::endl;
         return;
     }
-
-    if (initInteropFn)
+    if(initInteropFn)
     {
-        initInteropFn(initArgs, static_cast<int>(sizeof(initArgs) / sizeof(void*)));
+        initInteropFn(initArgs, static_cast<int>(sizeof(initArgs)/sizeof(void*)));
         s_InputInteropInitialized = true;
     }
 }
+
+void SetupReflectionInterop(std::filesystem::path fullPath)
+{
+    if(SetManagedFieldPtr) return;
+
+    void* fn = nullptr;
+    int rc = load_assembly_and_get_function_pointer(
+        fullPath.c_str(),
+        L"ClaymoreEngine.InteropExports, ClaymoreEngine",
+        L"SetManagedField",
+        L"ClaymoreEngine.InteropExports+SetFieldDelegate, ClaymoreEngine",
+        nullptr,
+        &fn); 
+    if(rc==0 && fn)
+        SetManagedFieldPtr = reinterpret_cast<SetManagedField_fn>(fn);
+}
+
 

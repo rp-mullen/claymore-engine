@@ -6,6 +6,7 @@
 #include "rendering/Mesh.h"
 #include "rendering/Material.h"
 #include "rendering/TextureLoader.h"
+#include "animation/AnimationTypes.h"
 
 // Asset types enum
 enum class AssetType {
@@ -13,7 +14,8 @@ enum class AssetType {
     Texture = 2,
     Material = 21,
     Shader = 48,
-    Script = 115
+    Script = 115,
+    Animation = 196
 };
 
 // Asset entry in the library
@@ -27,6 +29,7 @@ struct AssetEntry {
     std::shared_ptr<Mesh> mesh;
     std::shared_ptr<Material> material;
     std::shared_ptr<bgfx::TextureHandle> texture;
+    std::shared_ptr<cm::animation::AnimationClip> animation;
     
     AssetEntry() = default;
     AssetEntry(const AssetReference& ref, AssetType t, const std::string& p, const std::string& n)

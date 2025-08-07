@@ -4,6 +4,7 @@
 #include "Entity.h"
 #include "Components.h"
 #include "scripting/ScriptSystem.h"
+#include "animation/AnimationPlayerComponent.h"
 #include <scripting/ScriptComponent.h>
 
 // Forward declaration
@@ -26,6 +27,8 @@ struct EntityData {
    StaticBodyComponent* StaticBody = nullptr; // Optional StaticBody
    TerrainComponent* Terrain = nullptr; // Optional Terrain
    ParticleEmitterComponent* Emitter = nullptr; // Optional particle emitter
+
+   cm::animation::AnimationPlayerComponent* AnimationPlayer = nullptr; // Optional animation player
 
    std::vector<ScriptInstance> Scripts;
 
