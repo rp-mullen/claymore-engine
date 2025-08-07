@@ -12,7 +12,7 @@
 #include "rendering/Mesh.h"
 #include "rendering/Camera.h"
 #include "pipeline/AssetReference.h"
-
+#include "rendering/MaterialPropertyBlock.h"
 #include <memory>
 
 #define GLM_ENABLE_EXPERIMENTAL
@@ -62,7 +62,9 @@ struct MeshComponent {
 	std::shared_ptr<Mesh> mesh;
 	std::string MeshName;  // Keep for backward compatibility
 	AssetReference meshReference;  // New asset reference system
-	std::shared_ptr<Material> material;
+	    std::shared_ptr<Material> material;
+    bool UniqueMaterial = false; // If true, this entity uses its own material instance
+    MaterialPropertyBlock PropertyBlock;
 
 	BlendShapeComponent* BlendShapes = nullptr;
 
@@ -74,6 +76,7 @@ struct MeshComponent {
 };
 
 #include "AnimationComponents.h"
+#include <rendering/MaterialPropertyBlock.h>
 
 
 

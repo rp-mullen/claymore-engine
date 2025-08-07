@@ -15,6 +15,9 @@ public:
     void SetUniform(const std::string& name, const glm::vec4& value);
     virtual void BindUniforms() const;
 
+    // Apply per-instance overrides before draw
+    void ApplyPropertyBlock(const struct MaterialPropertyBlock& block) const;
+
     bgfx::ProgramHandle GetProgram() const { return m_Program; }
     uint64_t GetStateFlags() const { return m_StateFlags; }
 	std::string GetName() const { return m_Name; }

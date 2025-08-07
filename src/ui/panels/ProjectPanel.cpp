@@ -71,30 +71,27 @@ void ProjectPanel::OnImGuiRender() {
        // RIGHT PANEL
    ImGui::BeginChild("FileGrid", ImVec2(fullWidth - leftWidth - splitterSize, fullHeight), true);
    
-   // Full-panel drop target (covers grid background and between items)
-   ImVec2 dropStart = ImGui::GetCursorScreenPos();
-   ImVec2 dropSize  = ImGui::GetContentRegionAvail();
-   ImGui::InvisibleButton("##FileGridDropTarget", dropSize, ImGuiButtonFlags_None);
-   // Allow icons rendered after this to receive clicks even though they overlap the invisible button
-   ImGui::SetItemAllowOverlap();
-   if (ImGui::BeginDragDropTarget()) {
-       if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
-           EntityID draggedID = *(EntityID*)payload->Data;
-           std::string prefabName = "NewPrefab.prefab";
-           std::string prefabPath = m_CurrentFolder + "/" + prefabName;
-           int counter = 1;
-           while (fs::exists(prefabPath)) {
-               prefabName = "NewPrefab" + std::to_string(counter++) + ".prefab";
-               prefabPath = m_CurrentFolder + "/" + prefabName;
-           }
-           CreatePrefabFromEntity(draggedID, prefabPath);
-       }
-       ImGui::EndDragDropTarget();
-   }
-   // Reset cursor to top-left of grid so items render correctly
-   ImGui::SetCursorScreenPos(dropStart);
+    // Grid-level prefab drop target (background only)
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
+            EntityID draggedID = *(EntityID*)payload->Data;
+            std::string prefabName = "NewPrefab.prefab";
+            std::string prefabPath = m_CurrentFolder + "/" + prefabName;
+            int counter = 1;
+            while (fs::exists(prefabPath)) {
+                prefabName = "NewPrefab" + std::to_string(counter++) + ".prefab";
+                prefabPath = m_CurrentFolder + "/" + prefabName;
+            }
+            CreatePrefabFromEntity(draggedID, prefabPath);
+        }
+        ImGui::EndDragDropTarget();
+    }
 
-   
+    // Ensure items render from top-left of grid
+    ImVec2 gridStart = ImGui::GetCursorScreenPos();
+    ImGui::SetCursorScreenPos(gridStart);
+
+    
    DrawFileList(m_CurrentFolder);
    ImGui::EndChild();
 

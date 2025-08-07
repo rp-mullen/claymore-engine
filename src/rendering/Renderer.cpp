@@ -321,7 +321,7 @@ void Renderer::RenderScene(Scene& scene) {
             }
         }
  
-        DrawMesh(*data->Mesh->mesh.get(), transform, *data->Mesh->material);
+        DrawMesh(*data->Mesh->mesh.get(), transform, *data->Mesh->material, &data->Mesh->PropertyBlock);
     }
 
     // --------------------------------------
@@ -402,7 +402,8 @@ void Renderer::RenderScene(Scene& scene) {
 
 
 // ---------------- Mesh Submission ----------------
-void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material& material) {
+#include "rendering/MaterialPropertyBlock.h"
+void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material& material, const MaterialPropertyBlock* propertyBlock) {
     bgfx::setTransform(transform);
     if (mesh.Dynamic)
         if (bgfx::isValid(mesh.dvbh))
@@ -414,6 +415,9 @@ void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material
     else
         bgfx::setVertexBuffer(0, mesh.vbh);
     bgfx::setIndexBuffer(mesh.ibh);
+    if (propertyBlock && !propertyBlock->Empty()) {
+        material.ApplyPropertyBlock(*propertyBlock);
+    }
     material.BindUniforms();
     // Use the material’s depth state as-is
     bgfx::setState(material.GetStateFlags());

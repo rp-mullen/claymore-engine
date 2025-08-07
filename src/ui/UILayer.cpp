@@ -130,6 +130,18 @@ void UILayer::ApplyStyle() {
 void UILayer::OnUIRender() {
     BeginDockspace();
 
+    // Update panel contexts based on whether any prefab editors are open
+    if (!m_PrefabEditors.empty()) {
+        // Detach core panels from the active scene while editing a prefab
+        m_SceneHierarchyPanel.SetContext(nullptr);
+        m_InspectorPanel.SetContext(nullptr);
+        m_SelectedEntity = -1;
+    } else {
+        // Re-attach when no prefab editors are open
+        m_SceneHierarchyPanel.SetContext(&m_Scene);
+        m_InspectorPanel.SetContext(&m_Scene);
+    }
+
     // Core panels
     m_SceneHierarchyPanel.OnImGuiRender();
     m_InspectorPanel.OnImGuiRender();
@@ -198,28 +210,16 @@ void UILayer::BeginDockspace() {
     ImGui::Separator();
     ImGui::BeginChild("ToolbarRow", ImVec2(0, 40), false, ImGuiWindowFlags_NoScrollbar);
 
-    // Center toolbar buttons (Play/Translate/Rotate/Scale)
+    // Play / Stop centered button
     float buttonWidth = 80.0f;
     float buttonHeight = 30.0f;
-    float spacing = ImGui::GetStyle().ItemSpacing.x;
-    int buttonCount = 4;
-    float totalWidth = (buttonWidth * buttonCount) + (spacing * (buttonCount - 1));
     float availableWidth = ImGui::GetContentRegionAvail().x;
-    float startX = (availableWidth - totalWidth) * 0.5f;
+    float startX = (availableWidth - buttonWidth) * 0.5f;
     if (startX > 0)
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + startX);
 
     if (ImGui::Button(m_ToolbarPanel.IsPlayMode() ? "Stop" : "Play", ImVec2(buttonWidth, buttonHeight)))
         m_ToolbarPanel.TogglePlayMode();
-    ImGui::SameLine();
-    if (ImGui::Button("Translate", ImVec2(buttonWidth, buttonHeight)))
-        m_ToolbarPanel.SetOperation(GizmoOperation::Translate);
-    ImGui::SameLine();
-    if (ImGui::Button("Rotate", ImVec2(buttonWidth, buttonHeight)))
-        m_ToolbarPanel.SetOperation(GizmoOperation::Rotate);
-    ImGui::SameLine();
-    if (ImGui::Button("Scale", ImVec2(buttonWidth, buttonHeight)))
-        m_ToolbarPanel.SetOperation(GizmoOperation::Scale);
 
     ImGui::EndChild();
     ImGui::PopStyleVar();

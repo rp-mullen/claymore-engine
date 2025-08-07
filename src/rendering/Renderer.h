@@ -43,7 +43,7 @@ public:
     void RenderScene(Scene& scene);
 
     // Mesh submission
-    void DrawMesh(const Mesh& mesh, const float* transform, const Material& material);
+    void DrawMesh(const Mesh& mesh, const float* transform, const Material& material, const struct MaterialPropertyBlock* propertyBlock = nullptr);
 
     // Camera
     Camera* GetCamera() const { 

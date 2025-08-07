@@ -7,6 +7,9 @@
 #include "scripting/ScriptReflection.h"
 #include "ecs/EntityData.h"
 #include "ecs/ComponentUtils.h"
+#include "rendering/PBRMaterial.h"
+#include "rendering/TextureLoader.h"
+#include <bgfx/bgfx.h>
 
 bool DrawVec3Control(const char* label, glm::vec3& values, float resetValue = 0.0f) {
     bool changed = false;
@@ -74,6 +77,67 @@ void InspectorPanel::DrawComponents(EntityID entity) {
 
     if (data->Mesh && ImGui::CollapsingHeader("Mesh")) {
         registry.DrawComponentUI("Mesh", data->Mesh);
+
+        // Unique material toggle
+                bool unique = data->Mesh->UniqueMaterial;
+        if (ImGui::Checkbox("Unique Material", &unique)) {
+            if (unique && !data->Mesh->UniqueMaterial) {
+                // Make a shallow copy of the material so this entity can have unique overrides
+                if (data->Mesh->material) {
+                    // NOTE: Assumes PBRMaterial for now; deep copy constructor
+                    auto base = data->Mesh->material;
+                    // Attempt to clone by copy construction if derived from Material
+                    // If not copyable, fall back to same pointer.
+                    std::shared_ptr<Material> clone;
+                    if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(base)) {
+                        clone = std::make_shared<PBRMaterial>(*pbr);
+                    } else {
+                        // Fallback: use the same shared instance (no unique copy possible)
+                        clone = base;
+                    }
+                    data->Mesh->material = clone;
+                }
+            }
+            data->Mesh->UniqueMaterial = unique;
+        }
+
+        // Property overrides (MaterialPropertyBlock)
+        if (!data->Mesh->UniqueMaterial) {
+            ImGui::Separator();
+            ImGui::TextDisabled("Material Overrides (Property Block)");
+            // Color tint as example
+            glm::vec4 tint(1.0f);
+            auto itTint = data->Mesh->PropertyBlock.Vec4Uniforms.find("u_ColorTint");
+            if (itTint != data->Mesh->PropertyBlock.Vec4Uniforms.end())
+                tint = itTint->second;
+            if (ImGui::ColorEdit4("Tint", &tint.x)) {
+                data->Mesh->PropertyBlock.Vec4Uniforms["u_ColorTint"] = tint;
+            }
+
+            // Albedo texture override via drag-drop
+            bgfx::TextureHandle overrideTex = BGFX_INVALID_HANDLE;
+            auto itTex = data->Mesh->PropertyBlock.Textures.find("u_AlbedoSampler");
+            if (itTex != data->Mesh->PropertyBlock.Textures.end())
+                overrideTex = itTex->second;
+
+            ImGui::Text("Albedo Texture Override:");
+            if (bgfx::isValid(overrideTex)) {
+                ImGui::ImageButton("OverrideTex", (ImTextureID)(uintptr_t)overrideTex.idx, ImVec2(64,64));
+            } else {
+                ImGui::Button("Drop texture", ImVec2(64,64));
+            }
+            if (ImGui::BeginDragDropTarget()) {
+                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+                    const char* path = (const char*)payload->Data;
+                    bgfx::TextureHandle tex = TextureLoader::Load2D(path);
+                    if (bgfx::isValid(tex)) {
+                        data->Mesh->PropertyBlock.Textures["u_AlbedoSampler"] = tex;
+                    }
+                }
+                ImGui::EndDragDropTarget();
+            }
+        }
+
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));

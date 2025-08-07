@@ -14,6 +14,7 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <rendering/ModelLoader.h>
 #include <imgui_internal.h>
+#include "ViewportToolbar.h"
 
 // =============================
 // Main Viewport Render
@@ -24,6 +25,10 @@
 // =============================================================
 void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
     ImGui::Begin("Viewport");
+
+    // Draw mini viewport toolbar (translate / rotate / scale)
+    if (m_Toolbar)
+        m_Toolbar->OnImGuiRender();
 
     // Get viewport size
     m_ViewportSize = ImGui::GetContentRegionAvail();

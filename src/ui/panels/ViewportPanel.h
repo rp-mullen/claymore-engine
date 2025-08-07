@@ -5,8 +5,10 @@
 #include <utility>
 #include <imgui.h>
 #include <ImGuizmo.h>
+#include <memory>
 #include "ecs/Entity.h"
 #include "EditorPanel.h"
+#include "ViewportToolbar.h"
 
 class Scene;
 
@@ -16,10 +18,16 @@ public:
     ViewportPanel(Scene& scene, EntityID* selectedEntity)
         : m_SelectedEntity(selectedEntity) {
        SetContext(&scene);
+       // Create toolbar associated with this viewport
+       m_Toolbar = std::make_unique<ViewportToolbar>(this);
        }
 
     void OnImGuiRender(bgfx::TextureHandle sceneTexture);
     void HandleCameraControls();
+
+    // Gizmo operation control
+    void SetOperation(ImGuizmo::OPERATION op) { m_CurrentOperation = op; }
+    ImGuizmo::OPERATION GetCurrentOperation() const { return m_CurrentOperation; }
 
     // Picking API
     bool HasPickRequest() const { return m_ShouldPick; }
@@ -61,4 +69,7 @@ private:
 
     ImGuizmo::OPERATION m_CurrentOperation = ImGuizmo::TRANSLATE;
     ImGuizmo::MODE m_CurrentMode = ImGuizmo::WORLD;
+
+    // Mini toolbar displayed inside the viewport
+    std::unique_ptr<class ViewportToolbar> m_Toolbar;
 };
