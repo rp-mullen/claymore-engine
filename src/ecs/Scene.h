@@ -8,6 +8,7 @@
 #include <rendering/ModelLoader.h>
 #include <rendering/Camera.h>
 #include "Components.h"
+#include <rendering/Environment.h>
 
 class Scene {
 public:
@@ -63,9 +64,12 @@ public:
    bool HasComponent(const char* componentName);
 
    Camera* GetActiveCamera();
+    Environment& GetEnvironment() { return m_Environment; }
+    const Environment& GetEnvironment() const { return m_Environment; }
 
 private:
    std::unordered_map<EntityID, EntityData> m_Entities;
    std::vector<Entity> m_EntityList;
    EntityID m_NextID = 1;
+    Environment m_Environment{};
    };

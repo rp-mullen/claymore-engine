@@ -20,7 +20,7 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filepath,
        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_CalcTangentSpace | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
-        aiProcess_FixInfacingNormals | aiProcess_ConvertToLeftHanded | aiProcess_GlobalScale);
+        aiProcess_FixInfacingNormals);
 
    float importScale = 1.f;
 

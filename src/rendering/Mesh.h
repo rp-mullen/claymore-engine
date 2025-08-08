@@ -42,4 +42,7 @@ struct Mesh {
         BoundsMin = min;
         BoundsMax = max;
     }
+
+    // GPU resource lifetime for meshes is managed by owning systems (asset pipeline or managers).
+    // Avoid destroying handles here to prevent use-after-free during in-flight frames.
 };

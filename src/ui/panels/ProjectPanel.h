@@ -25,6 +25,8 @@ public:
    void OnImGuiRender();
    void LoadProject(const std::string& projectPath);
 
+    const std::string& GetSelectedItemName() const { return m_SelectedItemName; }
+
    // Scene and prefab operations
    void LoadSceneFile(const std::string& filepath);
    void CreatePrefabFromEntity(EntityID entityId, const std::string& prefabPath);
@@ -37,15 +39,23 @@ private:
    // Helper functions for file operations
    bool IsSceneFile(const std::string& filepath) const;
    bool IsPrefabFile(const std::string& filepath) const;
+    ImTextureID GetFileIconForPath(const std::string& path) const;
+    void EnsureExtraIconsLoaded() const;
 
 private:
    std::string m_ProjectPath;
    FileNode m_ProjectRoot;
    std::string m_CurrentFolder;
    std::string m_SearchQuery;
+    std::string m_SelectedItemName;
 
    ImTextureID m_FolderIcon;
    ImTextureID m_FileIcon;
+    // Additional icons
+    mutable bool m_IconsLoaded = false;
+    mutable ImTextureID m_Icon3DModel{};
+    mutable ImTextureID m_IconImage{};
+    mutable ImTextureID m_IconMaterial{};
 
    UILayer* m_UILayer = nullptr; // Non-owning pointer back to UI layer
    };

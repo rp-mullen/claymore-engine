@@ -460,6 +460,14 @@ namespace ps
         s_texColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
         m_texture  = bgfx::createTexture2D(SPRITE_TEXTURE_SIZE, SPRITE_TEXTURE_SIZE, false, 1, bgfx::TextureFormat::BGRA8);
 
+        // Initialize atlas with opaque white so quads are visible even without a sprite uploaded
+        {
+            const uint32_t pixelCount = SPRITE_TEXTURE_SIZE * SPRITE_TEXTURE_SIZE;
+            std::vector<uint32_t> white(pixelCount, 0xffffffffu);
+            const bgfx::Memory* mem = bgfx::copy(white.data(), uint32_t(white.size() * sizeof(uint32_t)));
+            bgfx::updateTexture2D(m_texture, 0, 0, 0, 0, SPRITE_TEXTURE_SIZE, SPRITE_TEXTURE_SIZE, mem);
+        }
+
         // Load particle shaders via global ShaderManager (requires include)
         extern bgfx::ProgramHandle LoadParticleProgram();
         m_program = LoadParticleProgram();
@@ -537,14 +545,18 @@ namespace ps
             uint16_t idx = m_emitterAlloc->getHandleAt(ii);
             Emitter& emitter = m_emitter[idx];
 
-            const Pack2D& pack = m_sprite.get(emitter.m_uniforms.m_handle);
-            const float invTex = 1.0f / SPRITE_TEXTURE_SIZE;
-            const float uv[4] = {
-                pack.m_x * invTex,
-                pack.m_y * invTex,
-                (pack.m_x + pack.m_width) * invTex,
-                (pack.m_y + pack.m_height) * invTex
-            };
+            float uv[4];
+            if (isValid(emitter.m_uniforms.m_handle)) {
+                const Pack2D& pack = m_sprite.get(emitter.m_uniforms.m_handle);
+                const float invTex = 1.0f / SPRITE_TEXTURE_SIZE;
+                uv[0] = pack.m_x * invTex;
+                uv[1] = pack.m_y * invTex;
+                uv[2] = (pack.m_x + pack.m_width) * invTex;
+                uv[3] = (pack.m_y + pack.m_height) * invTex;
+            } else {
+                // Default to a small white quad in the corner of the atlas
+                uv[0] = 0.0f; uv[1] = 0.0f; uv[2] = 8.0f / SPRITE_TEXTURE_SIZE; uv[3] = 8.0f / SPRITE_TEXTURE_SIZE;
+            }
 
             pos += emitter.render(uv, _mtxView, _eye, pos, maxDraw, sortBuf, vertices);
         }

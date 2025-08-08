@@ -210,10 +210,13 @@ void UILayer::BeginDockspace() {
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
     ImGui::SetNextWindowViewport(viewport->ID);
+    // Force this host window to be undocked to remain a root window for DockSpace
+    ImGui::SetNextWindowDockID(0, ImGuiCond_Always);
 
     window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
                     ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
-    window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+    window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus |
+                    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -225,6 +228,14 @@ void UILayer::BeginDockspace() {
     // DockSpace main area
     m_MainDockspaceID = ImGui::GetID("MyDockSpace");
     ImGuiID dockspace_id = m_MainDockspaceID;
+
+    // Ensure the dockspace node is a root node; if corrupted (e.g., created inside a child), rebuild it
+    if (ImGuiDockNode* existingNode = ImGui::DockBuilderGetNode(m_MainDockspaceID)) {
+        if (existingNode->ParentNode != nullptr) {
+            ImGui::DockBuilderRemoveNode(m_MainDockspaceID);
+            m_LayoutInitialized = false;
+        }
+    }
 
     // Default professional layout on first run or when reset requested
     if (!m_LayoutInitialized || m_ResetLayoutRequested) {
@@ -294,16 +305,20 @@ void UILayer::BeginDockspace() {
 
     // DockSpace (below toolbar), reserve space for status bar using negative height
     ImGui::Separator();
-    const float statusBarHeight = 22.0f;
-    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, -statusBarHeight), ImGuiDockNodeFlags_None);
+    const float statusBarHeight = ImGui::GetFrameHeight();
+    ImGuiID rootDockspaceId = m_MainDockspaceID;
+    if (ImGuiDockNode* node = ImGui::DockBuilderGetNode(m_MainDockspaceID)) {
+        while (node->ParentNode != nullptr) node = node->ParentNode;
+        rootDockspaceId = node->ID;
+    }
+    ImGui::DockSpace(rootDockspaceId, ImVec2(0.0f, -statusBarHeight), ImGuiDockNodeFlags_None);
 
     // Status bar
-    ImGui::Separator();
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.08f, 0.08f, 0.09f, 1.0f));
-    ImGui::BeginChild("StatusBar", ImVec2(0, statusBarHeight), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("StatusBar", ImVec2(0, statusBarHeight), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::TextDisabled("FPS: %.1f", ImGui::GetIO().Framerate);
     ImGui::SameLine();
-    ImGui::TextDisabled("Entities: %zu", m_Scene.GetEntities().size());
+    ImGui::TextDisabled("Entities: %d", (int)m_Scene.GetEntities().size());
     ImGui::SameLine();
     ImGui::TextDisabled("| Mode: %s", m_PlayMode ? "Play" : "Edit");
     ImGui::SameLine();
@@ -312,6 +327,10 @@ void UILayer::BeginDockspace() {
         if (auto* data = m_Scene.GetEntityData(m_SelectedEntity)) selName = data->Name.c_str();
     }
     ImGui::TextDisabled("| Selected: %s", selName);
+    ImGui::SameLine();
+    if (!m_ProjectPanel.GetSelectedItemName().empty()) {
+        ImGui::TextDisabled("| File: %s", m_ProjectPanel.GetSelectedItemName().c_str());
+    }
     ImGui::EndChild();
     ImGui::PopStyleColor();
 

@@ -6,6 +6,7 @@
 #include "scripting/ScriptSystem.h"
 #include "ecs/EntityData.h"
 #include "pipeline/AssetLibrary.h"
+#include "rendering/TextureLoader.h"
 
 namespace fs = std::filesystem;
 
@@ -194,6 +195,71 @@ void Serializer::DeserializeStaticBody(const json& data, StaticBodyComponent& st
     if (data.contains("restitution")) staticbody.Restitution = data["restitution"];
 }
 
+// Camera serialization
+json Serializer::SerializeCamera(const CameraComponent& camera) {
+    json data;
+    data["active"] = camera.Active;
+    data["priority"] = camera.priority;
+    data["fov"] = camera.FieldOfView;
+    data["nearClip"] = camera.NearClip;
+    data["farClip"] = camera.FarClip;
+    data["isPerspective"] = camera.IsPerspective;
+    return data;
+}
+
+void Serializer::DeserializeCamera(const json& data, CameraComponent& camera) {
+    if (data.contains("active")) camera.Active = data["active"];
+    if (data.contains("priority")) camera.priority = data["priority"];
+    if (data.contains("fov")) camera.FieldOfView = data["fov"];
+    if (data.contains("nearClip")) camera.NearClip = data["nearClip"];
+    if (data.contains("farClip")) camera.FarClip = data["farClip"];
+    if (data.contains("isPerspective")) camera.IsPerspective = data["isPerspective"];
+}
+
+// Terrain serialization (only essentials to reconstruct deterministically)
+json Serializer::SerializeTerrain(const TerrainComponent& terrain) {
+    json data;
+    data["mode"] = terrain.Mode;
+    data["size"] = terrain.Size;
+    data["paintMode"] = terrain.PaintMode;
+    // Persist heightmap raw bytes as array (compact); could be optimized later
+    // Build array without using reserve (not supported by nlohmann::json)
+    json heightArray = json::array();
+    heightArray.get_ptr<json::array_t*>()->reserve(terrain.HeightMap.size());
+    for (uint8_t v : terrain.HeightMap) heightArray.push_back(v);
+    data["heightMap"] = std::move(heightArray);
+    return data;
+}
+
+void Serializer::DeserializeTerrain(const json& data, TerrainComponent& terrain) {
+    if (data.contains("mode")) terrain.Mode = data["mode"];
+    if (data.contains("size")) terrain.Size = data["size"];
+    if (data.contains("paintMode")) terrain.PaintMode = data["paintMode"];
+    if (data.contains("heightMap") && data["heightMap"].is_array()) {
+        const auto& arr = data["heightMap"];
+        terrain.HeightMap.resize(arr.size());
+        for (size_t i = 0; i < arr.size(); ++i) terrain.HeightMap[i] = arr[i];
+        terrain.Dirty = true;
+    }
+}
+
+// Particle emitter serialization
+json Serializer::SerializeParticleEmitter(const ParticleEmitterComponent& emitter) {
+    json data;
+    data["enabled"] = emitter.Enabled;
+    data["maxParticles"] = emitter.MaxParticles;
+    // Minimal uniforms to ensure stable replay; extend as needed
+    data["particlesPerSecond"] = emitter.Uniforms.m_particlesPerSecond;
+    // Optional: sprite is an engine-created resource; omit for now
+    return data;
+}
+
+void Serializer::DeserializeParticleEmitter(const json& data, ParticleEmitterComponent& emitter) {
+    if (data.contains("enabled")) emitter.Enabled = data["enabled"];
+    if (data.contains("maxParticles")) emitter.MaxParticles = data["maxParticles"];
+    if (data.contains("particlesPerSecond")) emitter.Uniforms.m_particlesPerSecond = data["particlesPerSecond"];
+}
+
 json Serializer::SerializeScripts(const std::vector<ScriptInstance>& scripts) {
     json scriptArray = json::array();
     for (const auto& script : scripts) {
@@ -267,6 +333,16 @@ json Serializer::SerializeEntity(EntityID id, Scene& scene) {
       data["scripts"] = SerializeScripts(entityData->Scripts);
       }
 
+   if (entityData->Camera) {
+       data["camera"] = SerializeCamera(*entityData->Camera);
+   }
+   if (entityData->Terrain) {
+       data["terrain"] = SerializeTerrain(*entityData->Terrain);
+   }
+   if (entityData->Emitter) {
+       data["emitter"] = SerializeParticleEmitter(*entityData->Emitter);
+   }
+
    return data;
    }
 
@@ -324,6 +400,19 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
         DeserializeStaticBody(data["staticbody"], *entityData->StaticBody);
     }
 
+    if (data.contains("camera")) {
+        entityData->Camera = new CameraComponent();
+        DeserializeCamera(data["camera"], *entityData->Camera);
+    }
+    if (data.contains("terrain")) {
+        entityData->Terrain = new TerrainComponent();
+        DeserializeTerrain(data["terrain"], *entityData->Terrain);
+    }
+    if (data.contains("emitter")) {
+        entityData->Emitter = new ParticleEmitterComponent();
+        DeserializeParticleEmitter(data["emitter"], *entityData->Emitter);
+    }
+
     // Deserialize scripts
     if (data.contains("scripts")) {
         DeserializeScripts(data["scripts"], entityData->Scripts);
@@ -365,13 +454,53 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
     std::unordered_map<EntityID, EntityID> idMapping; // old ID -> new ID
     
     for (const auto& entityData : data["entities"]) {
-        EntityID newId = DeserializeEntity(entityData, scene);
+        // Preserve names exactly as authored. Create with base name without suffixing.
+        EntityID newId = 0;
+        if (entityData.contains("name")) {
+            // Create a temporary entity and immediately set the exact name
+            Entity temp = scene.CreateEntity(entityData["name"]);
+            newId = temp.GetID();
+            auto* ed = scene.GetEntityData(newId);
+            if (ed) ed->Name = entityData["name"]; // avoid auto-suffix pattern
+            // Fill remaining fields by deserializing into this entity
+            // Reuse DeserializeEntity by overriding name to avoid creating a second entity
+            // We'll simulate by building a new json without name to skip creation
+            json copy = entityData;
+            copy.erase("name");
+            // Write id to ensure relationships mapping still works
+            // Then call DeserializeEntity on a synthetic structure that keeps properties
+            // but our DeserializeEntity currently always creates a new entity.
+            // Instead, manually apply properties here for the created entity:
+            if (copy.contains("layer")) ed->Layer = copy["layer"];
+            if (copy.contains("tag")) ed->Tag = copy["tag"];
+            if (copy.contains("parent")) ed->Parent = copy["parent"];
+            if (copy.contains("children")) {
+                ed->Children.clear();
+                for (const auto& child : copy["children"]) ed->Children.push_back(child.get<EntityID>());
+            }
+            if (copy.contains("transform")) DeserializeTransform(copy["transform"], ed->Transform);
+            if (copy.contains("mesh")) { ed->Mesh = new MeshComponent(); DeserializeMesh(copy["mesh"], *ed->Mesh); }
+            if (copy.contains("light")) { ed->Light = new LightComponent(); DeserializeLight(copy["light"], *ed->Light); }
+            if (copy.contains("collider")) { ed->Collider = new ColliderComponent(); DeserializeCollider(copy["collider"], *ed->Collider); }
+            if (copy.contains("rigidbody")) { ed->RigidBody = new RigidBodyComponent(); DeserializeRigidBody(copy["rigidbody"], *ed->RigidBody); }
+            if (copy.contains("staticbody")) { ed->StaticBody = new StaticBodyComponent(); DeserializeStaticBody(copy["staticbody"], *ed->StaticBody); }
+            if (copy.contains("camera")) { ed->Camera = new CameraComponent(); DeserializeCamera(copy["camera"], *ed->Camera); }
+            if (copy.contains("terrain")) { ed->Terrain = new TerrainComponent(); DeserializeTerrain(copy["terrain"], *ed->Terrain); }
+            if (copy.contains("emitter")) { ed->Emitter = new ParticleEmitterComponent(); DeserializeParticleEmitter(copy["emitter"], *ed->Emitter); }
+            if (copy.contains("scripts")) { DeserializeScripts(copy["scripts"], ed->Scripts); }
+        } else {
+            newId = DeserializeEntity(entityData, scene);
+        }
         if (newId != 0 && entityData.contains("id")) {
             EntityID oldId = entityData["id"];
             idMapping[oldId] = newId;
         }
     }
 
+    // Reset children vectors to avoid duplicates, then fix up parent-child relationships
+    for (const auto& [oldId, newId] : idMapping) {
+        if (auto* ed = scene.GetEntityData(newId)) ed->Children.clear();
+    }
     // Second pass: Fix up parent-child relationships
     for (const auto& entityData : data["entities"]) {
         if (entityData.contains("id") && entityData.contains("parent")) {
@@ -384,6 +513,12 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
             }
         }
     }
+
+    // Ensure transforms are dirty and updated after load
+    for (const auto& entity : scene.GetEntities()) {
+        scene.MarkTransformDirty(entity.GetID());
+    }
+    scene.UpdateTransforms();
 
     return true;
 }

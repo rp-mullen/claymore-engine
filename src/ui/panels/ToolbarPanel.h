@@ -33,10 +33,21 @@ public:
     bool IsPlayMode() const { return m_PlayMode; }
 
 private:
+    void EnsureIconsLoaded();
+
     bool m_ShowGizmos = true;                // Default ON
     bool m_PlayMode = false;                 // Simulation play state
 
     UILayer* m_UILayer = nullptr; // Pointer to the main UI layer for context
 
     GizmoOperation m_CurrentOperation = GizmoOperation::Translate; // Default gizmo mode
+
+    // Icon textures (zero-initialized)
+    ImTextureID m_PlayIcon{};
+    ImTextureID m_StopIcon{};
+    ImTextureID m_MoveIcon{};
+    ImTextureID m_RotateIcon{};
+    ImTextureID m_ScaleIcon{};
+
+    bool m_IconsLoaded = false;
 };

@@ -48,7 +48,8 @@ private:
     void FinalizeAssetDrop();
 
 private:
-    ImVec2 m_ViewportSize = { 0, 0 };
+    ImVec2 m_ViewportSize = { 0, 0 }; // actual drawn viewport image size (letterboxed)
+    ImVec2 m_ViewportPos = { 0, 0 };  // screen-space top-left of the viewport image
     bool m_ShouldPick = false;
 
     // Mouse coords for picking (normalized)

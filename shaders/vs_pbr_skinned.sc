@@ -21,14 +21,16 @@ void main()
                 w.z * u_bones[idx.z] +
                 w.w * u_bones[idx.w];
 
-    vec4 skinnedPos   = mul(vec4(a_position, 1.0), skin);
-    // Skin normal using skin matrix. Using mat3 from mat4 to avoid translation component.
-    vec3 skinnedNormal = mul(vec4(a_normal, 0.0), skin).xyz;
+    // In bgfx shader helpers, mul(A,B) means A*B with A on the left when A is a matrix.
+    // Our vertex attributes are column vectors, so use mul(skin, vec4) form.
+    vec4 skinnedPos   = mul(skin, vec4(a_position, 1.0));
+    // Transform normal with skin (ignore translation); renormalize later
+    vec3 skinnedNormal = mul(skin, vec4(a_normal, 0.0)).xyz;
 
     vec4 worldPos = mul(u_model[0], skinnedPos);
 
     v_worldPos = worldPos.xyz;
-    v_normal   = normalize( mul(vec4(skinnedNormal,0.0), u_model[0]).xyz );
+    v_normal   = normalize( mul(u_model[0], vec4(skinnedNormal,0.0)).xyz );
     v_texcoord0.xy = a_texcoord0.xy;
     v_viewDir  = normalize(u_cameraPos.xyz - worldPos.xyz);
 

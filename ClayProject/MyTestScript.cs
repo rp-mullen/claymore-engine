@@ -9,6 +9,9 @@ public class MyTestScript : ScriptComponent
    [SerializeField]
    public float Speed = 1.0f;
 
+    [SerializeField]
+    public Entity refEntity;
+
    public override void OnCreate()
       {
       Console.WriteLine("Made it to the start of OnCreate");

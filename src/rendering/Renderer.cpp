@@ -10,6 +10,7 @@
 #include <glm/gtx/transform.hpp>
 #include <cstring>
 #include "ecs/Components.h"
+#include "Environment.h"
 
 // ---------------- Particle Vertex ----------------
 struct ParticleVertex {
@@ -169,6 +170,8 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
     u_LightPositions = bgfx::createUniform("u_lightPositions", bgfx::UniformType::Vec4, 4);
     u_LightParams = bgfx::createUniform("u_lightParams", bgfx::UniformType::Vec4, 4);
     u_cameraPos = bgfx::createUniform("u_cameraPos", bgfx::UniformType::Vec4);
+    u_AmbientFog = bgfx::createUniform("u_ambientFog", bgfx::UniformType::Vec4);
+    u_FogParams  = bgfx::createUniform("u_fogParams",  bgfx::UniformType::Vec4);
 
 
     // Terrain resources
@@ -237,7 +240,8 @@ void Renderer::RenderScene(Scene& scene) {
     glm::vec4 camPos(activeCamera->GetPosition(), 1.0f);
     bgfx::setUniform(u_cameraPos, &camPos);
 
-
+    // Upload environment
+    UploadEnvironmentToShader(scene.GetEnvironment());
 
     // --------------------------------------
     // Collect lights from ECS
@@ -289,14 +293,22 @@ void Renderer::RenderScene(Scene& scene) {
     // --------------------------------------
     // Draw all meshes
     // --------------------------------------
-    // Draw all meshes
-    for (auto& entity : scene.GetEntities()) {
-        auto* data = scene.GetEntityData(entity.GetID());
+    // Take a snapshot of entity IDs to avoid iterator invalidation during deletions
+    std::vector<EntityID> entityIds;
+    entityIds.reserve(scene.GetEntities().size());
+    for (const auto& eSnap : scene.GetEntities()) entityIds.push_back(eSnap.GetID());
+
+    for (EntityID eid : entityIds) {
+        auto* data = scene.GetEntityData(eid);
         if (!data || !data->Mesh || !data->Mesh->mesh) continue;
 
-		bool meshValid = data->Mesh->mesh->Dynamic ? bgfx::isValid(data->Mesh->mesh->dvbh) : bgfx::isValid(data->Mesh->mesh->vbh);
-		if (!meshValid || !bgfx::isValid(data->Mesh->mesh->ibh)) {
-			std::cerr << "Invalid mesh for entity " << entity.GetID() << "\n";
+        // Hold a local strong ref to guard against concurrent resets
+        std::shared_ptr<Mesh> meshPtr = data->Mesh->mesh; // local strong ref
+        if (!meshPtr) continue;
+
+        bool meshValid = meshPtr->Dynamic ? bgfx::isValid(meshPtr->dvbh) : bgfx::isValid(meshPtr->vbh);
+        if (!meshValid || !bgfx::isValid(meshPtr->ibh)) {
+            std::cerr << "Invalid mesh for entity " << eid << "\n";
 			continue;
 		}
 
@@ -306,23 +318,23 @@ void Renderer::RenderScene(Scene& scene) {
 
         
         // Only print debug info for FBX entities (ID > 1) and only once
-        if (entity.GetID() > 1) {
+        if (eid > 1) {
             static bool printedDebug = false;
             if (!printedDebug) {
-                std::cout << "[Renderer] FBX Entity " << entity.GetID() 
-                          << " - Vertices: " << data->Mesh->mesh->Vertices.size()
-                          << ", Indices: " << data->Mesh->mesh->Indices.size()
+                std::cout << "[Renderer] FBX Entity " << eid 
+                          << " - Vertices: " << meshPtr->Vertices.size()
+                          << ", Indices: " << meshPtr->Indices.size()
                           << ", Position: (" << data->Transform.Position.x << ", " 
                           << data->Transform.Position.y << ", " << data->Transform.Position.z << ")"
-                          << ", Bounds: (" << data->Mesh->mesh->BoundsMin.x << ", " 
-                          << data->Mesh->mesh->BoundsMin.y << ", " << data->Mesh->mesh->BoundsMin.z << ") to ("
-                          << data->Mesh->mesh->BoundsMax.x << ", " 
-                          << data->Mesh->mesh->BoundsMax.y << ", " << data->Mesh->mesh->BoundsMax.z << ")" << std::endl;
+                          << ", Bounds: (" << meshPtr->BoundsMin.x << ", " 
+                          << meshPtr->BoundsMin.y << ", " << meshPtr->BoundsMin.z << ") to ("
+                          << meshPtr->BoundsMax.x << ", " 
+                          << meshPtr->BoundsMax.y << ", " << meshPtr->BoundsMax.z << ")" << std::endl;
                 printedDebug = true;
             }
         }
  
-        DrawMesh(*data->Mesh->mesh.get(), transform, *data->Mesh->material, &data->Mesh->PropertyBlock);
+        DrawMesh(*meshPtr.get(), transform, *data->Mesh->material, &data->Mesh->PropertyBlock);
     }
 
     // --------------------------------------
@@ -545,6 +557,19 @@ void Renderer::UploadLightsToShader(const std::vector<LightData>& lights) {
     bgfx::setUniform(u_LightColors, colors, 4);
     bgfx::setUniform(u_LightPositions, positions, 4);
     bgfx::setUniform(u_LightParams, params, 4);
+}
+
+void Renderer::UploadEnvironmentToShader(const Environment& env)
+{
+    // Pack ambient color * intensity in xyz, w = flags (bit0: fog enabled)
+    glm::vec3 ambient = env.AmbientColor * env.AmbientIntensity;
+    float flags = env.EnableFog ? 1.0f : 0.0f;
+    glm::vec4 ambientFog(ambient, flags);
+    bgfx::setUniform(u_AmbientFog, &ambientFog);
+
+    // Fog params: x = density, yzw = fog color
+    glm::vec4 fogParams(env.FogDensity, env.FogColor.r, env.FogColor.g, env.FogColor.b);
+    bgfx::setUniform(u_FogParams, &fogParams);
 }
 
 void Renderer::DrawGrid() {

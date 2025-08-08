@@ -14,6 +14,7 @@
 #include <nlohmann/json.hpp>  // JSON serialization
 #include <rendering/StandardMeshManager.h>
 #include <rendering/MaterialManager.h>
+#include <rendering/Environment.h>
 
 using json = nlohmann::json;
 
@@ -40,7 +41,6 @@ std::string ShowOpenFolderDialog() {
             return std::string(ws.begin(), ws.end());
         }
     }
-
     pFileDialog->Release();
     return "";
 }
@@ -209,6 +209,23 @@ void MenuBarPanel::OnImGuiRender() {
 
         if (ImGui::MenuItem("Exit")) {
             // Hook into application quit logic
+        }
+        ImGui::EndMenu();
+    }
+
+    // SCENE MENU
+    if (ImGui::BeginMenu("Scene")) {
+        if (ImGui::BeginMenu("Environment")) {
+            Environment& env = m_Context->GetEnvironment();
+            ImGui::Checkbox("Enable Fog", &env.EnableFog);
+            ImGui::ColorEdit3("Fog Color", (float*)&env.FogColor);
+            ImGui::SliderFloat("Fog Density", &env.FogDensity, 0.0f, 0.2f, "%.3f");
+            ImGui::Separator();
+            ImGui::ColorEdit3("Ambient Color", (float*)&env.AmbientColor);
+            ImGui::SliderFloat("Ambient Intensity", &env.AmbientIntensity, 0.0f, 5.0f, "%.2f");
+            ImGui::Separator();
+            ImGui::SliderFloat("Exposure", &env.Exposure, 0.1f, 5.0f, "%.2f");
+            ImGui::EndMenu();
         }
         ImGui::EndMenu();
     }

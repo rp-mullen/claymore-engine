@@ -3,13 +3,17 @@
 #include "ui/UILayer.h"
 #include "pipeline/AssetPipeline.h"
 #include "ui/Logger.h"
+#include "rendering/TextureLoader.h"
 
 // Renders the main toolbar panel
 void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
     ImGui::Begin("Toolbar", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize);
 
+    EnsureIconsLoaded();
+
     // Play/Pause button
-    if (ImGui::Button(m_PlayMode ? "Stop" : "Play")) {
+    ImVec2 iconSize(20, 20);
+    if (ImGui::ImageButton("##playstop", m_PlayMode ? m_StopIcon : m_PlayIcon, iconSize)) {
         TogglePlayMode();
     }
 
@@ -23,11 +27,11 @@ void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
     ImGui::SameLine();
 
     // Gizmo operation mode
-    if (ImGui::Button("Translate")) SetOperation(GizmoOperation::Translate);
+    if (ImGui::ImageButton("##move", m_MoveIcon, iconSize)) SetOperation(GizmoOperation::Translate);
     ImGui::SameLine();
-    if (ImGui::Button("Rotate")) SetOperation(GizmoOperation::Rotate);
+    if (ImGui::ImageButton("##rotate", m_RotateIcon, iconSize)) SetOperation(GizmoOperation::Rotate);
     ImGui::SameLine();
-    if (ImGui::Button("Scale")) SetOperation(GizmoOperation::Scale);
+    if (ImGui::ImageButton("##scale", m_ScaleIcon, iconSize)) SetOperation(GizmoOperation::Scale);
 
     ImGui::End();
 }
@@ -59,3 +63,13 @@ void ToolbarPanel::TogglePlayMode() {
          }
       }
    }
+
+void ToolbarPanel::EnsureIconsLoaded() {
+    if (m_IconsLoaded) return;
+    m_PlayIcon   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/play.svg"));
+    m_StopIcon   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/pause.svg"));
+    m_MoveIcon   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/move.svg"));
+    m_RotateIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/rotate.svg"));
+    m_ScaleIcon  = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/scale.svg"));
+    m_IconsLoaded = true;
+}

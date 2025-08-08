@@ -111,6 +111,18 @@ void Application::InitWindow(int width, int height, const std::string& title) {
 
     /*Input::Init(m_window);*/
     std::cout << "[Application] GLFW window created successfully." << std::endl;
+
+    // Handle window resize: update app dimensions, bgfx reset, and renderer framebuffer
+    glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* win, int w, int h){
+        if (w <= 0 || h <= 0) return;
+        Application& app = Application::Get();
+        app.m_width = w;
+        app.m_height = h;
+        // Reset bgfx backbuffer to new size
+        bgfx::reset((uint32_t)w, (uint32_t)h, BGFX_RESET_VSYNC);
+        // Notify renderer to resize its offscreen scene texture/framebuffer
+        Renderer::Get().Resize((uint32_t)w, (uint32_t)h);
+    });
 } 
 
 // ============================================================= 

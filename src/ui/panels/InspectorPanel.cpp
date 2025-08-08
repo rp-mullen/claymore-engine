@@ -144,8 +144,11 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
         if (ImGui::Button("Remove Mesh Component", ImVec2(-1, 0))) {
-            delete data->Mesh;
-            data->Mesh = nullptr;
+            if (data->Mesh) {
+                data->Mesh->mesh.reset();
+                delete data->Mesh;
+                data->Mesh = nullptr;
+            }
         }
         ImGui::PopStyleColor(2);
     }

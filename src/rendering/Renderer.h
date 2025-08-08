@@ -72,6 +72,7 @@ public:
     void DrawCollider(const ColliderComponent& collider, const TransformComponent& transform);
 
     void UploadLightsToShader(const std::vector<LightData>& lights);
+    void UploadEnvironmentToShader(const Environment& env);
 
     std::vector<glm::mat4> ComputeFinalBoneMatrices(Entity entity, Scene& scene);
 
@@ -95,6 +96,8 @@ private:
     bgfx::UniformHandle u_LightPositions = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_LightParams = BGFX_INVALID_HANDLE;
 	    bgfx::UniformHandle u_cameraPos = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_AmbientFog   = BGFX_INVALID_HANDLE; // xyz=color/intensity, w=flags
+    bgfx::UniformHandle u_FogParams    = BGFX_INVALID_HANDLE; // x=fogDensity, y=unused
 
 
     bgfx::ProgramHandle m_DebugLineProgram = BGFX_INVALID_HANDLE;

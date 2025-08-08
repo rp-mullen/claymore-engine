@@ -29,10 +29,17 @@ Entity Scene::CreateEntity(const std::string& name) {
    EntityID id = m_NextID++;
    EntityData data;
 
-   // Convert id to string and concatenate with name
-   std::ostringstream oss;
-   oss << name << "_" << id;
-   data.Name = oss.str();
+   // Use the provided name unless a collision exists; then append _<id>
+   bool nameExists = std::any_of(m_Entities.begin(), m_Entities.end(), [&](const auto& pair) {
+       return pair.second.Name == name;
+   });
+   if (nameExists) {
+       std::ostringstream oss;
+       oss << name << "_" << id;
+       data.Name = oss.str();
+   } else {
+       data.Name = name;
+   }
 
    m_Entities[id] = data;
 
@@ -69,6 +76,8 @@ void Scene::RemoveEntity(EntityID id) {
 
     // 4. Clean up allocated components
     if (data->Mesh) {
+        // Ensure we don't delete shared mesh GPU buffers here; just release component
+        data->Mesh->mesh.reset();
         delete data->Mesh;
         data->Mesh = nullptr;
     }
@@ -93,6 +102,13 @@ void Scene::RemoveEntity(EntityID id) {
         data->StaticBody = nullptr;
     }
     if (data->Emitter) {
+        // Ensure underlying particle emitter is destroyed before freeing component
+        if (ps::isValid(data->Emitter->Handle)) {
+            ps::destroyEmitter(data->Emitter->Handle);
+            data->Emitter->Handle = { uint16_t{UINT16_MAX} };
+        }
+        data->Emitter->Uniforms.reset();
+        data->Emitter->Enabled = false;
         delete data->Emitter;
         data->Emitter = nullptr;
     }
@@ -117,13 +133,12 @@ void Scene::RemoveEntity(EntityID id) {
     }
     data->Scripts.clear();
 
-    // 6. Remove from entity collections
-    m_Entities.erase(id);
+    // 6. Remove from entity collections (erase from list first to avoid iterator use during render)
     m_EntityList.erase(
         std::remove_if(m_EntityList.begin(), m_EntityList.end(),
-            [&](const Entity& e) { return e.GetID() == id; }), 
-        m_EntityList.end()
-    );
+            [&](const Entity& e) { return e.GetID() == id; }),
+        m_EntityList.end());
+    m_Entities.erase(id);
 
     std::cout << "[Scene] Removed entity " << id << " and all its children" << std::endl;
 }
@@ -193,7 +208,7 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     Assimp::Importer importer;
     const aiScene* aScene = importer.ReadFile(path,
        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | 
-       aiProcess_ConvertToLeftHanded | aiProcess_FixInfacingNormals | aiProcess_GlobalScale);
+       aiProcess_FixInfacingNormals);
 
     if (!aScene || !aScene->mRootNode) {
         std::cerr << "[Scene] Failed to load model: " << path << std::endl;
@@ -208,11 +223,13 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     EntityID rootID = rootEntity.GetID();
     auto* rootData = GetEntityData(rootID);
     if (!rootData) return -1;
-    rootData->Transform.Position = rootPosition;
-    rootData->Transform.Rotation = glm::vec3(0.0f);
-    const float importScale = 1.f;
-    rootData->Transform.Scale    = glm::vec3(importScale);
-    rootData->Transform.TransformDirty = true;
+    // Decompose FBX root node transform to preserve authored placement
+    glm::vec3 rootT, rootS, rootSkew; glm::vec4 rootPersp; glm::quat rootR;
+    glm::mat4 rootLocal   = glm::mat4(1.0f); // will be set below prior to traversal
+    glm::mat4 invRoot     = glm::mat4(1.0f);
+    {
+        // Helper: Assimp (row-major) -> GLM (column-major) exists below. We'll use it here after it's defined.
+    }
 
     //--------------------------------------------------------------------
     // Build map of meshIndex -> transform relative to the FBX root
@@ -229,15 +246,26 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         return glm::transpose(mat);
     };
 
-    glm::mat4 rootLocal   = AiToGlm(aScene->mRootNode->mTransformation);
-    glm::mat4 invRoot     = glm::inverse(rootLocal);
+    rootLocal   = AiToGlm(aScene->mRootNode->mTransformation);
+    invRoot     = glm::inverse(rootLocal);
+
+    // Set root entity transform from FBX root transform, add requested spawn offset
+    glm::decompose(rootLocal, rootS, rootR, rootT, rootSkew, rootPersp);
+    rootData->Transform.Position = rootT + rootPosition;
+    rootData->Transform.Rotation = glm::degrees(glm::eulerAngles(rootR));
+    // Clamp unreasonable global scaling from FBX (e.g., 100)
+    if (rootS.x > 50.0f || rootS.y > 50.0f || rootS.z > 50.0f)
+        rootS = glm::vec3(1.0f);
+    rootData->Transform.Scale    = rootS;
+    rootData->Transform.TransformDirty = true;
 
     // Recursive lambda to accumulate transforms
     std::function<void(aiNode*, const glm::mat4&)> traverse;
     traverse = [&](aiNode* node, const glm::mat4& parentTransform) {
         glm::mat4 local  = AiToGlm(node->mTransformation);
         glm::mat4 global = parentTransform * local;
-        glm::mat4 relative = invRoot * global; // make it relative to model root
+        // Keep meshes in the model's local space; entity root carries the FBX root transform.
+        glm::mat4 relative = invRoot * global;
 
         // Store relative transform for all meshes referenced by this node
         for (unsigned int i = 0; i < node->mNumMeshes; ++i) {
@@ -337,6 +365,17 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     //--------------------------------------------------------------------
     // Create one entity per mesh as child of the root entity
     //--------------------------------------------------------------------
+    // If this FBX has no skeleton, apply an axis correction so the model isn't upside down.
+    // Many DCC tools export FBX with an orientation that ends up inverted in our +Y up world.
+    // A 180-degree rotation around X fixes this while preserving winding order.
+    glm::mat4 nonSkinnedAxisFix = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    bool applyAxisFix = model.BoneNames.empty();
+    if (applyAxisFix) {
+        for (auto& mt : meshTransforms) {
+            mt = nonSkinnedAxisFix * mt;
+        }
+    }
+
     for (size_t i = 0; i < model.Meshes.size(); ++i) {
         const auto& meshPtr = model.Meshes[i];
         if (!meshPtr) continue;

@@ -46,6 +46,14 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
    if (!hasChildren)
       flags |= ImGuiTreeNodeFlags_Leaf;
 
+   // Highlight background for selected entity row
+   if (*m_SelectedEntity == id) {
+       ImU32 bg = ImGui::GetColorU32(ImGuiCol_HeaderActive);
+       ImVec2 start = ImGui::GetCursorScreenPos();
+       ImVec2 end   = ImVec2(start.x + ImGui::GetContentRegionAvail().x, start.y + ImGui::GetTextLineHeightWithSpacing());
+       ImGui::GetWindowDrawList()->AddRectFilled(start, end, bg, 4.0f);
+   }
+
    bool opened = ImGui::TreeNodeEx((void*)(intptr_t)id, flags, "%s", entity.GetName().c_str());
 
    // Selection

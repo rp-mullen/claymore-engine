@@ -1,20 +1,27 @@
+#pragma once
 #include <memory>
-#include <glm.hpp>
+#include <glm/glm.hpp>
+
+class TextureCube; // forward declaration
 
 struct Environment {
-   enum class AmbientMode {
-      FlatColor,
-      Skybox
-      };
+    enum class AmbientMode {
+        FlatColor,
+        Skybox
+    };
 
-   AmbientMode Ambient = AmbientMode::FlatColor;
-   glm::vec3 AmbientColor = glm::vec3(0.2f);
-   float AmbientIntensity = 1.0f;
+    AmbientMode Ambient = AmbientMode::FlatColor;
+    glm::vec3 AmbientColor = glm::vec3(0.2f);
+    float AmbientIntensity = 1.0f;
 
-   bool UseSkybox = true;
-   std::shared_ptr<TextureCube> SkyboxTexture = nullptr;
+    bool UseSkybox = false;
+    std::shared_ptr<TextureCube> SkyboxTexture = nullptr;
 
-   float Exposure = 1.0f;
-   bool EnableFog = false;
-   // Add more: fog color, scattering, tonemapping, etc.
-   };
+    // Exposure/tonemapping placeholder
+    float Exposure = 1.0f;
+
+    // Fog
+    bool EnableFog = false;
+    glm::vec3 FogColor = glm::vec3(0.5f, 0.6f, 0.7f);
+    float FogDensity = 0.02f; // exponential fog density
+};

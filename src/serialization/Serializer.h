@@ -43,6 +43,18 @@ public:
     static json SerializeStaticBody(const StaticBodyComponent& staticbody);
     static void DeserializeStaticBody(const json& data, StaticBodyComponent& staticbody);
 
+     // Camera
+     static json SerializeCamera(const CameraComponent& camera);
+     static void DeserializeCamera(const json& data, CameraComponent& camera);
+
+     // Terrain
+     static json SerializeTerrain(const TerrainComponent& terrain);
+     static void DeserializeTerrain(const json& data, TerrainComponent& terrain);
+
+     // Particle Emitter
+     static json SerializeParticleEmitter(const ParticleEmitterComponent& emitter);
+     static void DeserializeParticleEmitter(const json& data, ParticleEmitterComponent& emitter);
+
     // Script serialization
     static json SerializeScripts(const std::vector<ScriptInstance>& scripts);
     static void DeserializeScripts(const json& data, std::vector<ScriptInstance>& scripts);

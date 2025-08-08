@@ -10,6 +10,9 @@ SAMPLER2D(s_normalMap, 2);
 uniform vec4 u_lightColors[4];     // rgb = color, a = intensity
 uniform vec4 u_lightPositions[4];  // xyz = position/direction, w = light type (0=directional, 1=point)
 uniform vec4 u_lightParams[4];     // x = range (for point lights), y = constant, z = linear, w = quadratic
+uniform vec4 u_cameraPos;          // camera position in world space
+uniform vec4 u_ambientFog;         // xyz = ambient color * intensity, w = flags (bit0: fog enabled)
+uniform vec4 u_fogParams;          // x = fogDensity, yzw = fog color
 
 // PBR lighting calculation function
 vec3 CalculatePBRLighting(vec3 N, vec3 V, vec3 L, vec3 baseColor, float metallic, float roughness, vec3 lightColor, float lightIntensity) {
@@ -58,7 +61,8 @@ void main()
     float metallic = texture2D(s_metallicRoughness, v_texcoord0.xy).r;
     float roughness = texture2D(s_metallicRoughness, v_texcoord0.xy).g;
 
-    vec3 finalColor = vec3(0.0, 0.0, 0.0);
+    vec3 ambientColor = u_ambientFog.xyz;
+    vec3 finalColor = ambientColor;
     
     // Process each light
     for (int i = 0; i < 4; i++) {
@@ -95,5 +99,11 @@ void main()
         finalColor += CalculatePBRLighting(N, V, L, baseColor, metallic, roughness, lightColor, lightIntensity) * attenuation;
     }
 
+    if (u_ambientFog.w > 0.5) {
+        float distance = length(v_worldPos - u_cameraPos.xyz);
+        float fogFactor = 1.0 - clamp(exp(-u_fogParams.x * distance), 0.0, 1.0);
+        vec3 fogColor = u_fogParams.yzw;
+        finalColor = mix(finalColor, fogColor, fogFactor);
+    }
     gl_FragColor = vec4(finalColor, 1.0);
 }

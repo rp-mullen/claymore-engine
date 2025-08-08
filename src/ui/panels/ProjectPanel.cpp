@@ -10,12 +10,38 @@
 
 namespace fs = std::filesystem;
 
+namespace {
+// Returns a string truncated to fit within maxWidth (in pixels) with an ellipsis suffix when needed
+std::string TruncateWithEllipsis(const std::string& text, float maxWidth) {
+    if (text.empty()) return text;
+    const float fullWidth = ImGui::CalcTextSize(text.c_str()).x;
+    if (fullWidth <= maxWidth) return text;
+
+    const float ellipsisWidth = ImGui::CalcTextSize("...").x;
+    const float target = std::max(0.0f, maxWidth - ellipsisWidth);
+
+    int low = 0;
+    int high = static_cast<int>(text.size());
+    int best = 0;
+    while (low <= high) {
+        int mid = (low + high) / 2;
+        float w = ImGui::CalcTextSize(text.substr(0, mid).c_str()).x;
+        if (w <= target) { best = mid; low = mid + 1; }
+        else { high = mid - 1; }
+    }
+
+    std::string out = text.substr(0, best);
+    out += "...";
+    return out;
+}
+}
+
 ProjectPanel::ProjectPanel(Scene* scene, UILayer* uiLayer)
    : m_UILayer(uiLayer)
    {
    SetContext(scene);
-   m_FolderIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/folder.png"));
-   m_FileIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/file.png"));
+   m_FolderIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/folder.svg"));
+   m_FileIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/file.svg"));
    }
 
 void ProjectPanel::LoadProject(const std::string& projectPath) {
@@ -157,11 +183,12 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
       if (!isDir && entry.path().extension() == ".meta") {
          continue;
       }
-      ImTextureRef icon = isDir ? m_FolderIcon : m_FileIcon;
+      EnsureExtraIconsLoaded();
+      ImTextureID icon = isDir ? m_FolderIcon : GetFileIconForPath(entry.path().string());
 
       ImGui::PushID(fileName.c_str());
 
-      // --- Center Icon ---
+      // --- Center Icon and align consistently ---
       ImVec2 cursorPos = ImGui::GetCursorPos();
       float iconOffsetX = (cellWidth - thumbnailSize) * 0.5f;
       ImGui::SetCursorPosX(cursorPos.x + iconOffsetX);
@@ -171,6 +198,7 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
 
       // Click-to-navigate or open
       if (ImGui::IsItemClicked()) {
+         m_SelectedItemName = fileName;
          if (isDir) {
             m_CurrentFolder = entry.path().string();
          } else {
@@ -203,15 +231,14 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
          ImGui::EndDragDropSource();
          }
 
-      // --- Filename (centered & wrapped) ---
-      float textWidth = ImGui::CalcTextSize(fileName.c_str()).x;
-      float textOffsetX = (cellWidth - textWidth) * 0.5f;
-      if (textOffsetX < 0) textOffsetX = 0;
-
-      ImGui::SetCursorPosX(cursorPos.x + textOffsetX);
-      ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + textWrapWidth);
-      ImGui::TextWrapped("%s", fileName.c_str());
-      ImGui::PopTextWrapPos();
+      // --- Filename: single-line with ellipsis if overflow ---
+      ImGui::SetCursorPosX(cursorPos.x + 2.0f);
+      ImGui::PushID((fileName + "_label").c_str());
+      ImGui::BeginChild("##label", ImVec2(textWrapWidth, 18.0f), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+      std::string clipped = TruncateWithEllipsis(fileName, textWrapWidth);
+      ImGui::TextUnformatted(clipped.c_str());
+      ImGui::EndChild();
+      ImGui::PopID();
 
       ImGui::NextColumn();
       ImGui::PopID();
@@ -219,6 +246,25 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
 
    ImGui::Columns(1);
    }
+
+// Pick icons based on file type
+ImTextureID ProjectPanel::GetFileIconForPath(const std::string& path) const {
+    std::string ext = fs::path(path).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext == ".fbx" || ext == ".obj" || ext == ".gltf" || ext == ".glb") return m_Icon3DModel ? m_Icon3DModel : m_FileIcon;
+    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" || ext == ".bmp" || ext == ".hdr") return m_IconImage ? m_IconImage : m_FileIcon;
+    if (ext == ".scene") return m_FileIcon;
+    if (ext == ".prefab") return m_FileIcon;
+    return m_FileIcon;
+}
+
+void ProjectPanel::EnsureExtraIconsLoaded() const {
+    if (m_IconsLoaded) return;
+    m_Icon3DModel = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/3d_model.svg"));
+    m_IconImage   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/image.svg"));
+    // Optional future: material icon when a material asset type exists
+    m_IconsLoaded = true;
+}
 
 // Scene and prefab operations
 void ProjectPanel::LoadSceneFile(const std::string& filepath) {

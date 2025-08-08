@@ -30,13 +30,34 @@ void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
     if (m_Toolbar)
         m_Toolbar->OnImGuiRender();
 
-    // Get viewport size
-    m_ViewportSize = ImGui::GetContentRegionAvail();
+    // Compute letterboxed viewport to preserve aspect ratio
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    float targetAspect = 16.0f / 9.0f; // default aspect if renderer size is unavailable
+    int rw = Renderer::Get().GetWidth();
+    int rh = Renderer::Get().GetHeight();
+    if (rw > 0 && rh > 0) targetAspect = (float)rw / (float)rh;
+
+    float availAspect = (avail.y > 0.0f) ? (avail.x / avail.y) : targetAspect;
+    ImVec2 drawSize = avail;
+    if (availAspect > targetAspect) {
+        // Too wide: pillarbox
+        drawSize.x = avail.y * targetAspect;
+        drawSize.y = avail.y;
+    } else {
+        // Too tall: letterbox
+        drawSize.x = avail.x;
+        drawSize.y = avail.x / targetAspect;
+    }
+
+    // Center the image within available region
+    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    ImVec2 offset = ImVec2((avail.x - drawSize.x) * 0.5f, (avail.y - drawSize.y) * 0.5f);
+    ImGui::SetCursorScreenPos(ImVec2(cursor.x + offset.x, cursor.y + offset.y));
 
     // Draw scene texture
     if (bgfx::isValid(sceneTexture)) {
         ImTextureID texId = (ImTextureID)(uintptr_t)sceneTexture.idx;
-        ImGui::Image(texId, m_ViewportSize, ImVec2(0, 0), ImVec2(1, 1));
+        ImGui::Image(texId, drawSize, ImVec2(0, 0), ImVec2(1, 1));
         // Allow gizmo to receive clicks even though the Image is an item
         ImGui::SetItemAllowOverlap();
 
@@ -56,6 +77,10 @@ void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
     else {
         ImGui::Text("Invalid scene texture!");
     }    
+
+    // Store size/pos for input mapping
+    m_ViewportSize = drawSize;
+    m_ViewportPos = ImGui::GetItemRectMin();
 
     HandleCameraControls();
 
@@ -100,9 +125,9 @@ void ViewportPanel::HandleCameraControls() {
     if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
        (!ImGuizmo::IsOver() || ImGuizmo::IsUsing())) {
        ImVec2 mousePos = ImGui::GetMousePos();
-       ImVec2 windowPos = ImGui::GetWindowPos();
-       float nx = (mousePos.x - windowPos.x) / m_ViewportSize.x;
-       float ny = (mousePos.y - windowPos.y) / m_ViewportSize.y;
+        // Convert to normalized coordinates inside the letterboxed image
+       float nx = (mousePos.x - m_ViewportPos.x) / m_ViewportSize.x;
+       float ny = (mousePos.y - m_ViewportPos.y) / m_ViewportSize.y;
 
        nx = glm::clamp(nx, 0.0f, 1.0f);
        ny = glm::clamp(ny, 0.0f, 1.0f);
@@ -211,7 +236,10 @@ void ViewportPanel::HandleAssetDragDrop(const ImVec2& viewportPos) {
 // Update Ghost Position in World
 // =============================
 void ViewportPanel::UpdateGhostPosition(float mouseX, float mouseY) {
-    Ray ray = Picking::ScreenPointToRay(mouseX / m_ViewportSize.x, mouseY / m_ViewportSize.y, Renderer::Get().GetCamera());
+    // Convert screen coords to normalized within letterboxed viewport
+    float nx = (mouseX - m_ViewportPos.x) / m_ViewportSize.x;
+    float ny = (mouseY - m_ViewportPos.y) / m_ViewportSize.y;
+    Ray ray = Picking::ScreenPointToRay(nx, ny, Renderer::Get().GetCamera());
 
     if (fabs(ray.Direction.y) > 1e-6f) {
         float t = -ray.Origin.y / ray.Direction.y;
