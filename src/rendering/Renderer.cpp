@@ -170,6 +170,8 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
     u_LightPositions = bgfx::createUniform("u_lightPositions", bgfx::UniformType::Vec4, 4);
     u_LightParams = bgfx::createUniform("u_lightParams", bgfx::UniformType::Vec4, 4);
     u_cameraPos = bgfx::createUniform("u_cameraPos", bgfx::UniformType::Vec4);
+    // CPU-provided normal matrix for skinned and static meshes
+    u_normalMat = bgfx::createUniform("u_normalMat", bgfx::UniformType::Mat4);
     u_AmbientFog = bgfx::createUniform("u_ambientFog", bgfx::UniformType::Vec4);
     u_FogParams  = bgfx::createUniform("u_fogParams",  bgfx::UniformType::Vec4);
 
@@ -431,6 +433,16 @@ void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material
     if (propertyBlock && !propertyBlock->Empty()) {
         material.ApplyPropertyBlock(*propertyBlock);
     }
+    // Provide normal matrix to shaders that use it (skinned shader expects u_normalMat)
+    // Compute transpose(inverse(mat3(model))) once on CPU
+    glm::mat4 modelMtx = glm::make_mat4(transform);
+    glm::mat3 n3 = glm::transpose(glm::inverse(glm::mat3(modelMtx)));
+    glm::mat4 normalMat4(1.0f);
+    normalMat4[0] = glm::vec4(n3[0], 0.0f);
+    normalMat4[1] = glm::vec4(n3[1], 0.0f);
+    normalMat4[2] = glm::vec4(n3[2], 0.0f);
+    bgfx::setUniform(u_normalMat, glm::value_ptr(normalMat4));
+
     material.BindUniforms();
     // Use the material’s depth state as-is
     bgfx::setState(material.GetStateFlags());

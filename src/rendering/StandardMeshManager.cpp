@@ -210,7 +210,7 @@ void StandardMeshManager::CreateSphereMesh() {
         m_SphereMesh->Vertices.push_back(glm::vec3(v.x, v.y, v.z));
     }
     
-    m_SphereMesh->Indices = sphereIndices;
+    m_SphereMesh->Indices.assign(sphereIndices.begin(), sphereIndices.end());
     m_SphereMesh->numIndices = (uint32_t)sphereIndices.size();
     
     m_SphereMesh->ComputeBounds();

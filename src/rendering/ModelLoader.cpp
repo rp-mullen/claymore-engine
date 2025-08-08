@@ -12,15 +12,14 @@
 #include <iostream>
 
 #define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/type_ptr.hpp> 
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/euler_angles.hpp>
 
 Model ModelLoader::LoadModel(const std::string& filepath) {
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filepath,
-       aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_CalcTangentSpace | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
-        aiProcess_FixInfacingNormals);
+       aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_CalcTangentSpace | aiProcess_FlipWindingOrder | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices);
 
    float importScale = 1.f;
 
@@ -54,7 +53,8 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
       aiMesh* aMesh = scene->mMeshes[m];
       std::vector<PBRVertex> vertices;
       std::vector<SkinnedPBRVertex> skVertices;
-      std::vector<uint16_t> indices;
+      // Build indices as 32-bit on CPU; we'll choose 16/32 for GPU below
+      std::vector<uint32_t> indices32;
 
       bool hasSkin = aMesh->mNumBones > 0;
       if (hasSkin) skVertices.reserve(aMesh->mNumVertices);
@@ -131,7 +131,7 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
             }
 
             // --- Clamp indices to shader palette size and normalise weights ---
-            constexpr int kMaxBones = 64;
+            constexpr int kMaxBones = (int)SkinnedPBRMaterial::MaxBones;
             for(size_t v = 0; v < vertWeights.size(); ++v)
             {
                 // Zero out any weight that references an out-of-range bone index
@@ -200,16 +200,11 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
         }
 
         for (unsigned int f = 0; f < aMesh->mNumFaces; f++) {
-         const aiFace& face = aMesh->mFaces[f];
-         for (unsigned int i = 0; i < face.mNumIndices; i++) {
-            uint32_t originalIndex = face.mIndices[i];
-            if (originalIndex > 65535) {
-                std::cerr << "[ModelLoader] ERROR: Index " << originalIndex << " exceeds uint16_t range!\n";
-                continue; // Skip this face
+            const aiFace& face = aMesh->mFaces[f];
+            for (unsigned int i = 0; i < face.mNumIndices; i++) {
+                indices32.push_back(static_cast<uint32_t>(face.mIndices[i]));
             }
-            indices.push_back(static_cast<uint16_t>(originalIndex));
-         }
-         }
+        }
 
         // ---------- Create GPU buffers ----------
         const bgfx::Memory* vbMem = nullptr;
@@ -234,14 +229,28 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
             mesh->vbh = vbh;
         }
 
-      const bgfx::Memory* ibhMem = bgfx::copy(indices.data(), sizeof(uint16_t) * indices.size());
-      bgfx::IndexBufferHandle ibh = bgfx::createIndexBuffer(ibhMem);
+      // ---------- Choose 16-bit or 32-bit index buffer ----------
+      bgfx::IndexBufferHandle ibh = BGFX_INVALID_HANDLE;
+      uint32_t maxIndex = 0;
+      for (uint32_t idx : indices32) maxIndex = std::max(maxIndex, idx);
+      bool use32 = maxIndex >= 65536u;
+      if (use32) {
+          const bgfx::Memory* ibMem32 = bgfx::copy(indices32.data(), (uint32_t)(indices32.size() * sizeof(uint32_t)));
+          ibh = bgfx::createIndexBuffer(ibMem32, BGFX_BUFFER_INDEX32);
+      } else {
+          // Build a temporary 16-bit copy for GPU
+          std::vector<uint16_t> indices16;
+          indices16.reserve(indices32.size());
+          for (uint32_t v : indices32) indices16.push_back((uint16_t)v);
+          const bgfx::Memory* ibMem16 = bgfx::copy(indices16.data(), (uint32_t)(indices16.size() * sizeof(uint16_t)));
+          ibh = bgfx::createIndexBuffer(ibMem16);
+      }
 
       // handles assigned
       
       mesh->ibh = ibh;
       mesh->numVertices = hasSkin ? static_cast<uint32_t>(skVertices.size()) : static_cast<uint32_t>(vertices.size());
-      mesh->numIndices = static_cast<uint32_t>(indices.size());
+      mesh->numIndices = static_cast<uint32_t>(indices32.size());
 
       bool vbValid = mesh->Dynamic ? bgfx::isValid(mesh->dvbh) : bgfx::isValid(mesh->vbh);
       if (!vbValid || !bgfx::isValid(ibh)) {
@@ -262,8 +271,8 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
          mesh->Normals.push_back(glm::vec3(nrm.x, nrm.y, nrm.z));
          }
 
-	  std::cout << "[ModelLoader] Loaded mesh: " << aMesh->mName.C_Str() << " with "
-		  << aMesh->mNumVertices << " vertices and " << indices.size() << " indices and" << aMesh->mNumFaces << " faces." << std::endl;
+      std::cout << "[ModelLoader] Loaded mesh: " << aMesh->mName.C_Str() << " with "
+		  << aMesh->mNumVertices << " vertices and " << indices32.size() << " indices and" << aMesh->mNumFaces << " faces." << std::endl;
       
       // Debug: Print first few vertex positions
       // Debug: Print first few vertex positions
@@ -287,17 +296,17 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
           }
       }
 
-      mesh->Indices = indices;
+      mesh->Indices = indices32;
 
       // Sanity check: No indices should exceed the number of vertices
-      uint16_t maxIndex = 0;
-      for (uint16_t i : indices)
-          maxIndex = std::max(maxIndex, i);
+      uint32_t maxIndexCpu = 0;
+      for (uint32_t i : indices32)
+          maxIndexCpu = std::max(maxIndexCpu, i);
 
       size_t vertCountForCheck = hasSkin ? skVertices.size() : vertices.size();
-      if (maxIndex >= vertCountForCheck) {
+      if (maxIndexCpu >= vertCountForCheck) {
           std::cerr << "[ModelLoader] ERROR: Mesh '" << aMesh->mName.C_Str()
-              << "' has out-of-bounds index " << maxIndex
+              << "' has out-of-bounds index " << maxIndexCpu
               << " (vertex count = " << vertCountForCheck << ")\n";
       }
 

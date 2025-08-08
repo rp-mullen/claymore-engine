@@ -16,7 +16,7 @@ struct Mesh {
     // CPU-side data for bounds & picking / morph targets / skinning
     std::vector<glm::vec3> Vertices;
     std::vector<glm::vec3> Normals;
-    std::vector<uint16_t> Indices;
+    std::vector<uint32_t> Indices;
 
     // Skinning (optional)
     std::vector<glm::vec4> BoneWeights; // xyzw weight

@@ -16,7 +16,7 @@ SkinnedPBRMaterial::SkinnedPBRMaterial(const std::string& name, bgfx::ProgramHan
     SetAlbedoTexture(whiteTex);
     SetMetallicRoughnessTexture(mrTex);
     SetNormalTexture(normalTex);
-}
+}  
 
 void SkinnedPBRMaterial::UploadBones(const std::vector<glm::mat4>& boneMatrices)
 {

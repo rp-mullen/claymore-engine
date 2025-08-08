@@ -98,6 +98,7 @@ private:
 	    bgfx::UniformHandle u_cameraPos = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_AmbientFog   = BGFX_INVALID_HANDLE; // xyz=color/intensity, w=flags
     bgfx::UniformHandle u_FogParams    = BGFX_INVALID_HANDLE; // x=fogDensity, y=unused
+    bgfx::UniformHandle u_normalMat    = BGFX_INVALID_HANDLE; // CPU-provided normal matrix
 
 
     bgfx::ProgramHandle m_DebugLineProgram = BGFX_INVALID_HANDLE;

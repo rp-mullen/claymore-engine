@@ -5,7 +5,7 @@
 class SkinnedPBRMaterial : public PBRMaterial
 {
 public:
-    static constexpr uint32_t MaxBones = 64;
+    static constexpr uint32_t MaxBones = 128;
 
     SkinnedPBRMaterial(const std::string& name, bgfx::ProgramHandle program);
 
