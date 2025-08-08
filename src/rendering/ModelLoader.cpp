@@ -21,7 +21,14 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
     const aiScene* scene = importer.ReadFile(filepath,
        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_CalcTangentSpace | aiProcess_FlipWindingOrder | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices);
 
-   float importScale = 1.f;
+   // Determine unit scale from source (e.g., FBX UnitScaleFactor). Default to 1.0.
+   float importScale = 1.0f;
+   if (scene && scene->mMetaData) {
+       double unitScaleDouble = 1.0;
+       if (scene->mMetaData->Get("UnitScaleFactor", unitScaleDouble)) {
+           importScale = static_cast<float>(unitScaleDouble);
+       }
+   }
 
    // Ensure vertex layouts are initialized once
    static bool layoutsInit = false;
@@ -87,7 +94,9 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
           }
           
           if (!hasSkin) {
-            vertices.push_back({ pos.x, pos.y, pos.z, normal.x, normal.y, normal.z, u, v });
+            // Apply uniform unit scale to positions
+            vertices.push_back({ pos.x * importScale, pos.y * importScale, pos.z * importScale,
+                                 normal.x, normal.y, normal.z, u, v });
         }
          }
 
@@ -107,6 +116,10 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
                 int boneIndex = getBoneIndex(bone->mName.C_Str());
                 // store inverse bind pose (offset) in the same convention as scene transforms
                 glm::mat4 offset = AiToGlm(bone->mOffsetMatrix);
+                // Apply the same unit scale to the translation part of the inverse bind
+                offset[3].x *= importScale;
+                offset[3].y *= importScale;
+                offset[3].z *= importScale;
                 result.InverseBindPoses[boneIndex] = offset;
                 for (unsigned int w = 0; w < bone->mNumWeights; ++w) {
                     const aiVertexWeight& vw = bone->mWeights[w];
@@ -174,7 +187,8 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
 
                 const glm::ivec4& bIdx = vertIndices[i];
                 const glm::vec4& bW  = vertWeights[i];
-                skVertices.push_back({ pos.x, pos.y, pos.z,
+                // Apply uniform unit scale to positions
+                skVertices.push_back({ pos.x * importScale, pos.y * importScale, pos.z * importScale,
                                        normal.x, normal.y, normal.z,
                                        u, v,
                                        (uint8_t)bIdx.x, (uint8_t)bIdx.y, (uint8_t)bIdx.z, (uint8_t)bIdx.w,
@@ -195,7 +209,9 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
                 else
                     normal = glm::normalize(normal);
 
-                vertices.push_back({ pos.x, pos.y, pos.z, normal.x, normal.y, normal.z, u, v });
+                // Apply uniform unit scale to positions
+                vertices.push_back({ pos.x * importScale, pos.y * importScale, pos.z * importScale,
+                                     normal.x, normal.y, normal.z, u, v });
             }
         }
 
@@ -266,7 +282,8 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
       mesh->BoneIndices = vertIndices;
       for (unsigned int i = 0; i < aMesh->mNumVertices; i++) {
          aiVector3D pos = aMesh->mVertices[i];
-         mesh->Vertices.push_back(glm::vec3(pos.x, pos.y, pos.z));
+         // Apply uniform unit scale to positions for CPU-side storage as well
+         mesh->Vertices.push_back(glm::vec3(pos.x * importScale, pos.y * importScale, pos.z * importScale));
          aiVector3D nrm = aMesh->mNormals ? aMesh->mNormals[i] : aiVector3D(0,0,1);
          mesh->Normals.push_back(glm::vec3(nrm.x, nrm.y, nrm.z));
          }
@@ -322,9 +339,10 @@ Model ModelLoader::LoadModel(const std::string& filepath) {
               bs.Name = anim->mName.C_Str();
               bs.DeltaPos.reserve(aMesh->mNumVertices);
               bs.DeltaNormal.reserve(aMesh->mNumVertices);
-              for (unsigned int v = 0; v < aMesh->mNumVertices; ++v) {
+          for (unsigned int v = 0; v < aMesh->mNumVertices; ++v) {
                   aiVector3D dp = anim->mVertices[v];
-                  bs.DeltaPos.push_back(glm::vec3(dp.x, dp.y, dp.z));
+              // Apply unit scale to blend shape deltas so they match vertex units
+              bs.DeltaPos.push_back(glm::vec3(dp.x * importScale, dp.y * importScale, dp.z * importScale));
                   aiVector3D dn = anim->mNormals ? anim->mNormals[v] : aiVector3D(0,0,0);
                   bs.DeltaNormal.push_back(glm::vec3(dn.x, dn.y, dn.z));
               }

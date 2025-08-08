@@ -247,6 +247,19 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     };
 
     rootLocal   = AiToGlm(aScene->mRootNode->mTransformation);
+    // Normalize away authoring unit scaling on the root if present (FBX UnitScaleFactor)
+    float unitScale = 1.0f;
+    if (aScene->mMetaData) {
+        double s = 1.0;
+        if (aScene->mMetaData->Get("UnitScaleFactor", s)) unitScale = static_cast<float>(s);
+    }
+    if (unitScale != 1.0f) {
+        // Remove unit scaling from root so model graph stays in consistent engine units.
+        // We counter-scale translations by unitScale to keep authored placement.
+        rootLocal[3].x *= unitScale;
+        rootLocal[3].y *= unitScale;
+        rootLocal[3].z *= unitScale;
+    }
     invRoot     = glm::inverse(rootLocal);
 
     // Set root entity transform from FBX root transform, add requested spawn offset
@@ -263,6 +276,12 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     std::function<void(aiNode*, const glm::mat4&)> traverse;
     traverse = [&](aiNode* node, const glm::mat4& parentTransform) {
         glm::mat4 local  = AiToGlm(node->mTransformation);
+        if (unitScale != 1.0f) {
+            // Apply the same unit scaling to node translations.
+            local[3].x *= unitScale;
+            local[3].y *= unitScale;
+            local[3].z *= unitScale;
+        }
         glm::mat4 global = parentTransform * local;
         // Keep meshes in the model's local space; entity root carries the FBX root transform.
         glm::mat4 relative = invRoot * global;
@@ -394,6 +413,7 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         glm::decompose(meshTransforms[i], scale, rotationQuat, translation, skew, perspective);
         glm::vec3 rotationEuler = glm::degrees(glm::eulerAngles(rotationQuat));
 
+        // Apply unit scaling to mesh local translations to match vertex units
         meshData->Transform.Position = translation;
         meshData->Transform.Rotation = rotationEuler;
                 // Clamp unreasonable global scaling from FBX (e.g., 100)
