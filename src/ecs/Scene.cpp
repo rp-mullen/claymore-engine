@@ -207,8 +207,14 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
 EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootPosition) {
     Assimp::Importer importer;
     const aiScene* aScene = importer.ReadFile(path,
-       aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | 
-       aiProcess_FixInfacingNormals);
+        aiProcess_Triangulate |
+        aiProcess_GenNormals |
+        aiProcess_CalcTangentSpace |
+        aiProcess_FlipWindingOrder |
+        aiProcess_FlipUVs |
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_ImproveCacheLocality |
+        aiProcess_LimitBoneWeights);
 
     if (!aScene || !aScene->mRootNode) {
         std::cerr << "[Scene] Failed to load model: " << path << std::endl;
@@ -238,12 +244,11 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
 
     // Helper: Assimp (row-major) -> GLM (column-major)
     auto AiToGlm = [](const aiMatrix4x4& m) {
-        glm::mat4 mat(
+        return glm::mat4(
             m.a1, m.b1, m.c1, m.d1,
             m.a2, m.b2, m.c2, m.d2,
             m.a3, m.b3, m.c3, m.d3,
             m.a4, m.b4, m.c4, m.d4);
-        return glm::transpose(mat);
     };
 
     rootLocal   = AiToGlm(aScene->mRootNode->mTransformation);
@@ -252,13 +257,6 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     if (aScene->mMetaData) {
         double s = 1.0;
         if (aScene->mMetaData->Get("UnitScaleFactor", s)) unitScale = static_cast<float>(s);
-    }
-    if (unitScale != 1.0f) {
-        // Remove unit scaling from root so model graph stays in consistent engine units.
-        // We counter-scale translations by unitScale to keep authored placement.
-        rootLocal[3].x *= unitScale;
-        rootLocal[3].y *= unitScale;
-        rootLocal[3].z *= unitScale;
     }
     invRoot     = glm::inverse(rootLocal);
 
@@ -276,12 +274,6 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     std::function<void(aiNode*, const glm::mat4&)> traverse;
     traverse = [&](aiNode* node, const glm::mat4& parentTransform) {
         glm::mat4 local  = AiToGlm(node->mTransformation);
-        if (unitScale != 1.0f) {
-            // Apply the same unit scaling to node translations.
-            local[3].x *= unitScale;
-            local[3].y *= unitScale;
-            local[3].z *= unitScale;
-        }
         glm::mat4 global = parentTransform * local;
         // Keep meshes in the model's local space; entity root carries the FBX root transform.
         glm::mat4 relative = invRoot * global;
@@ -401,43 +393,42 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
 
         Entity meshEntity = CreateEntity("Mesh_" + std::to_string(i));
         EntityID meshID = meshEntity.GetID();
-        SetParent(meshID, rootID);
+
+        // >>> CHANGE: parent skinned meshes to SkeletonRoot (not ImportedModel root)
+        const bool isSkinned = meshPtr->HasSkinning();
+        SetParent(meshID, (isSkinned && skeletonRootID != -1) ? skeletonRootID : rootID);
 
         auto* meshData = GetEntityData(meshID);
         if (!meshData) continue;
 
-        // Decompose transform
+        // Decompose the mesh-local transform you already computed (relative to FBX root)
         glm::vec3 translation, scale, skew;
         glm::vec4 perspective;
         glm::quat rotationQuat;
         glm::decompose(meshTransforms[i], scale, rotationQuat, translation, skew, perspective);
         glm::vec3 rotationEuler = glm::degrees(glm::eulerAngles(rotationQuat));
 
-        // Apply unit scaling to mesh local translations to match vertex units
         meshData->Transform.Position = translation;
         meshData->Transform.Rotation = rotationEuler;
-                // Clamp unreasonable global scaling from FBX (e.g., 100)
-        if (scale.x > 50.0f || scale.y > 50.0f || scale.z > 50.0f)
-            scale = glm::vec3(1.0f);
-        meshData->Transform.Scale    = scale;
+
+        meshData->Transform.Scale = scale;
         meshData->Transform.TransformDirty = true;
 
-        // Attach mesh component
         auto mat = (i < model.Materials.size() && model.Materials[i]) ? model.Materials[i]
-                    : MaterialManager::Instance().CreateDefaultPBRMaterial();
-        meshData->Mesh = new MeshComponent(meshPtr, "Mesh_" + std::to_string(i), mat);
-        if (meshPtr->HasSkinning()) {
-            meshData->Skinning = new SkinningComponent();
-            meshData->Skinning->SkeletonRoot = skeletonRootID;
-            meshData->Skinning->Palette.resize(model.BoneNames.size(), glm::mat4(1.0f));
-        }
+            : MaterialManager::Instance().CreateDefaultPBRMaterial();
+            meshData->Mesh = new MeshComponent(meshPtr, "Mesh_" + std::to_string(i), mat);
 
-        // Blend shapes
-        if (i < model.BlendShapes.size() && !model.BlendShapes[i].Shapes.empty()) {
-            auto bsPtr = new BlendShapeComponent(model.BlendShapes[i]);
-            meshData->BlendShapes = bsPtr;
-            meshData->Mesh->BlendShapes = bsPtr;
-        }
+            if (isSkinned) {
+                meshData->Skinning = new SkinningComponent();
+                meshData->Skinning->SkeletonRoot = skeletonRootID;
+                meshData->Skinning->Palette.resize(model.BoneNames.size(), glm::mat4(1.0f));
+            }
+
+            if (i < model.BlendShapes.size() && !model.BlendShapes[i].Shapes.empty()) {
+                auto bsPtr = new BlendShapeComponent(model.BlendShapes[i]);
+                meshData->BlendShapes = bsPtr;
+                meshData->Mesh->BlendShapes = bsPtr;
+            }
     }
 
     std::cout << "[Scene] Imported model with " << model.Meshes.size() << " mesh entities under root " << rootID << std::endl;
@@ -486,14 +477,6 @@ void Scene::UpdateTransforms() {
          data->Transform.WorldMatrix = parentWorld * data->Transform.LocalMatrix;
          data->Transform.TransformDirty = false;
          
-         // Debug: Print transform updates for parent-child relationships
-         if (data->Parent != -1) {
-            std::cout << "[Transform] Updated Entity " << id << " (Parent: " << data->Parent 
-                      << ") - Local Pos: (" << data->Transform.Position.x << ", " 
-                      << data->Transform.Position.y << ", " << data->Transform.Position.z << ")"
-                      << " - World Pos: (" << data->Transform.WorldMatrix[3].x << ", "
-                      << data->Transform.WorldMatrix[3].y << ", " << data->Transform.WorldMatrix[3].z << ")" << std::endl;
-         }
          }
       }
    }
