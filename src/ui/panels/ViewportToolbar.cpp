@@ -7,36 +7,22 @@
 void ViewportToolbar::OnImGuiRender() {
     if (!m_Viewport) return;
 
-    // Establish a small floating window. First frame uses default pos; user can drag elsewhere.
+    // Always anchor to the top-left of the Viewport panel's content region
     ImGui::SetNextWindowBgAlpha(0.55f);
     ImGui::SetNextWindowSize(ImVec2(40.0f, 120.0f), ImGuiCond_Once);
-    ImGui::SetNextWindowPos(ImVec2(40.0f, 40.0f), ImGuiCond_Once);
+    ImVec2 winPos = ImGui::GetWindowPos();
+    ImVec2 contentMin = ImGui::GetWindowContentRegionMin();
+    ImVec2 anchor = ImVec2(winPos.x + contentMin.x + 8.0f, winPos.y + contentMin.y + 28.0f); // +20px vertical offset
+    ImGui::SetNextWindowPos(anchor, ImGuiCond_Always);
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
                              ImGuiWindowFlags_NoResize |
                              ImGuiWindowFlags_AlwaysAutoResize |
                              ImGuiWindowFlags_NoSavedSettings |
-                             ImGuiWindowFlags_NoDocking;
+                             ImGuiWindowFlags_NoDocking |
+                             ImGuiWindowFlags_NoMove;
 
     ImGui::Begin("##ViewportToolbar", nullptr, flags);
-
-    // Simple manual dragging (since no title bar)
-    static bool dragging = false;
-    static ImVec2 dragOffset;
-    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && ImGui::IsMouseClicked(0)) {
-        dragging = true;
-        ImVec2 mouse = ImGui::GetMousePos();
-        ImVec2 win  = ImGui::GetWindowPos();
-        dragOffset = ImVec2(mouse.x - win.x, mouse.y - win.y);
-    }
-    if (dragging) {
-        if (ImGui::IsMouseDown(0)) {
-            ImVec2 mouse = ImGui::GetMousePos();
-            ImGui::SetWindowPos(ImVec2(mouse.x - dragOffset.x, mouse.y - dragOffset.y));
-        } else {
-            dragging = false;
-        }
-    }
 
     constexpr float kButtonSize = 26.0f;
 

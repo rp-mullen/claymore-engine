@@ -54,13 +54,9 @@ void SkinningSystem::Update(Scene& scene)
         if (skin->Palette.size() != boneCount)
             skin->Palette.assign(boneCount, glm::mat4(1.0f));
 
-        // Mesh space transform
+        // Mesh space transform (palette must be in mesh-local space because shader multiplies by u_model)
         const glm::mat4 meshWorld = data->Transform.WorldMatrix;
         const glm::mat4 invMeshWorld = glm::inverse(meshWorld);
-
-        // Align skeleton root to mesh root: maps skeleton space → mesh space
-        const glm::mat4 skelWorld = skeletonData->Transform.WorldMatrix;
-        const glm::mat4 rootCorrection = meshWorld * glm::inverse(skelWorld);
 
 
         // Build palette in mesh local space
@@ -70,8 +66,9 @@ void SkinningSystem::Update(Scene& scene)
             const glm::mat4 boneWorld = GetWorldOrIdentity(scene, jointId);
             const glm::mat4 invBind = skel.InverseBindPoses[i];
 
-            // Final: mesh^-1 * boneWorld * inverseBind
-            skin->Palette[i] = invMeshWorld * (rootCorrection * boneWorld) * invBind;
+            // Final (mesh-local): inv(meshWorld) * boneWorld * inverseBind
+            // Shader computes: world = u_model * skin * position → boneWorld * inverseBind * position
+            skin->Palette[i] = invMeshWorld * boneWorld * invBind;
         }
 
         // Upload to GPU if this mesh uses a skinned PBR material

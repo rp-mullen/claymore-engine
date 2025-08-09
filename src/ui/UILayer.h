@@ -39,6 +39,7 @@ public:
 
     // Entity selection
     void SetSelectedEntity(EntityID id) { m_SelectedEntity = id; }
+    EntityID GetSelectedEntity() const { return m_SelectedEntity; }
 
     void TogglePlayMode();
 

@@ -248,10 +248,12 @@ void Application::Run() {
         Renderer::Get().BeginFrame(0.1f, 0.1f, 0.1f);
         if (scene.m_RuntimeScene) {
            Renderer::Get().RenderScene(*scene.m_RuntimeScene);
-           }
+        }
         else {
            Renderer::Get().RenderScene(scene);
-           }
+           // Editor-only: draw outline for selected entity
+           Renderer::Get().DrawEntityOutline(scene, uiLayer->GetSelectedEntity());
+        }
 
         // --------------------------------------
         // ENTITY PICKING

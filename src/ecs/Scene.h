@@ -51,6 +51,7 @@ public:
    std::shared_ptr<Scene> m_EditScene;
    std::shared_ptr<Scene> m_RuntimeScene;
    bool m_IsPlaying = false;
+    bool m_IsPaused = false;
 
    std::unordered_map<EntityID, JPH::BodyID> m_BodyMap;
 

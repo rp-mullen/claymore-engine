@@ -31,6 +31,8 @@ public:
     // Play mode toggle
     void TogglePlayMode();
     bool IsPlayMode() const { return m_PlayMode; }
+    void TogglePause() { m_Paused = !m_Paused; }
+    bool IsPaused() const { return m_Paused; }
 
 private:
     void EnsureIconsLoaded();
@@ -45,9 +47,12 @@ private:
     // Icon textures (zero-initialized)
     ImTextureID m_PlayIcon{};
     ImTextureID m_StopIcon{};
+    ImTextureID m_PauseIcon{};
     ImTextureID m_MoveIcon{};
     ImTextureID m_RotateIcon{};
     ImTextureID m_ScaleIcon{};
 
     bool m_IconsLoaded = false;
+
+    bool m_Paused = false;
 };

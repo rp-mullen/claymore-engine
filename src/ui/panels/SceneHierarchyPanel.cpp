@@ -1,6 +1,7 @@
 #include "SceneHierarchyPanel.h"
 #include <iostream>
 #include "ecs/EntityData.h"
+#include "rendering/TextureLoader.h"
 
 SceneHierarchyPanel::SceneHierarchyPanel(Scene* scene, EntityID* selectedEntity)
    : m_SelectedEntity(selectedEntity) {
@@ -15,6 +16,8 @@ void SceneHierarchyPanel::OnImGuiRender() {
       ImGui::End();
       return;
       }
+
+    EnsureIconsLoaded();
 
    // Draw root-level entities (those with no parent)
    for (auto& entity : m_Context->GetEntities()) {
@@ -38,7 +41,7 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
    EntityData* data = m_Context->GetEntityData(id);
    if (!data) return;
 
-   ImGuiTreeNodeFlags flags = ((*m_SelectedEntity == id) ? ImGuiTreeNodeFlags_Selected : 0)
+    ImGuiTreeNodeFlags flags = ((*m_SelectedEntity == id) ? ImGuiTreeNodeFlags_Selected : 0)
       | ImGuiTreeNodeFlags_OpenOnArrow
       | ImGuiTreeNodeFlags_SpanAvailWidth;
 
@@ -54,10 +57,18 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
        ImGui::GetWindowDrawList()->AddRectFilled(start, end, bg, 4.0f);
    }
 
-   bool opened = ImGui::TreeNodeEx((void*)(intptr_t)id, flags, "%s", entity.GetName().c_str());
+    // Layout: [visibility button] [tree node label]
+    ImGui::PushID((int)id);
+    ImVec2 iconSize(16, 16);
+    ImTextureID icon = data->Visible ? m_VisibleIcon : m_NotVisibleIcon;
+    if (ImGui::ImageButton("##vis", icon, iconSize)) {
+        data->Visible = !data->Visible;
+    }
+    ImGui::SameLine();
+    bool opened = ImGui::TreeNodeEx((void*)(intptr_t)id, flags, "%s", entity.GetName().c_str());
 
    // Selection
-   if (ImGui::IsItemClicked()) {
+    if (ImGui::IsItemClicked()) {
       *m_SelectedEntity = id;
       }
 
@@ -79,11 +90,12 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
       ImGui::EndPopup();
       }
 
-   // If entity was deleted, close the tree node if it was opened and return
-   if (entityDeleted) {
+    // If entity was deleted, close the tree node if it was opened and return
+    if (entityDeleted) {
       if (opened) {
          ImGui::TreePop();
          }
+       ImGui::PopID();
       return;
       }
 
@@ -105,11 +117,20 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
       }
 
    // Children
-   if (opened) {
+    if (opened) {
       for (EntityID childID : data->Children) {
          DrawEntityNode(m_Context->FindEntityByID(childID));
          }
       ImGui::TreePop();
       }
+
+    ImGui::PopID();
    }
+
+void SceneHierarchyPanel::EnsureIconsLoaded() {
+    if (m_IconsLoaded) return;
+    m_VisibleIcon    = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/visible.svg"));
+    m_NotVisibleIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/not_visible.svg"));
+    m_IconsLoaded = true;
+}
 

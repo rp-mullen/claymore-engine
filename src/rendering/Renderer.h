@@ -76,6 +76,9 @@ public:
 
     std::vector<glm::mat4> ComputeFinalBoneMatrices(Entity entity, Scene& scene);
 
+    // Editor helpers
+    void DrawEntityOutline(Scene& scene, EntityID selectedEntity);
+
 
 private:
     Renderer() = default;
@@ -102,6 +105,8 @@ private:
 
 
     bgfx::ProgramHandle m_DebugLineProgram = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle m_OutlineProgram = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_outlineColor = BGFX_INVALID_HANDLE;
 
 
     // Terrain rendering resources

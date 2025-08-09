@@ -158,6 +158,32 @@ void ViewportPanel::HandleCameraControls() {
         if (m_Distance < 1.0f) m_Distance = 1.0f;
     }
 
+    // Middle-mouse panning: translate target along camera right/up vectors
+    if (ImGui::IsWindowHovered() && ImGui::IsMouseDown(ImGuiMouseButton_Middle) &&
+        (!ImGuizmo::IsOver() || ImGuizmo::IsUsing())) {
+        io.WantCaptureMouse = false;
+        io.WantCaptureKeyboard = false;
+
+        ImVec2 delta = io.MouseDelta;
+
+        // Compute camera basis from current yaw/pitch
+        glm::vec3 forward;
+        forward.x = cos(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
+        forward.y = sin(glm::radians(m_Pitch));
+        forward.z = sin(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
+        forward = glm::normalize(forward);
+
+        const glm::vec3 worldUp(0.0f, 1.0f, 0.0f);
+        glm::vec3 right = -1.0f*glm::normalize(glm::cross(forward, worldUp));
+        glm::vec3 up = glm::normalize(glm::cross(right, forward));
+
+        // Scale pan with distance so it feels consistent at different zoom levels
+        float panSpeed = std::max(0.001f, m_Distance * 0.01f);
+
+        // Drag right -> move camera right; drag up -> move camera up
+        m_Target += (right * delta.x - up * delta.y) * panSpeed;
+    }
+
     glm::vec3 dir;
     dir.x = cos(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
     dir.y = sin(glm::radians(m_Pitch));

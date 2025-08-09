@@ -43,6 +43,9 @@ namespace ecs
             auto& emitterComp = *dataPtr->Emitter;
             if (!emitterComp.Enabled) continue;
 
+            // Respect entity visibility for particle systems in editor and play mode
+            if (!dataPtr->Visible) continue;
+
             // Create emitter lazily.
             if (!ps::isValid(emitterComp.Handle))
             {

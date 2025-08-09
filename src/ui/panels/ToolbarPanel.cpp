@@ -11,18 +11,32 @@ void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
 
     EnsureIconsLoaded();
 
-    // Play/Pause button
-    ImVec2 iconSize(20, 20);
-    if (ImGui::ImageButton("##playstop", m_PlayMode ? m_StopIcon : m_PlayIcon, iconSize)) {
-        TogglePlayMode();
+    // Make toolbar a bit narrower (less tall)
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 4));
+
+    // Icons rendered at compact size
+    ImVec2 iconSize(18, 18);
+
+    // Play button (always enabled)
+    if (!m_PlayMode) {
+        if (ImGui::ImageButton("##play", m_PlayIcon, iconSize)) {
+            TogglePlayMode();
+        }
+    } else {
+        // While in play mode, show Pause and Stop. Pause toggles, Stop exits play mode.
+        if (ImGui::ImageButton("##pause", m_PauseIcon, iconSize)) {
+            TogglePause();
+        }
+        ImGui::SameLine();
+        if (ImGui::ImageButton("##stop", m_StopIcon, iconSize)) {
+            TogglePlayMode();
+        }
     }
 
     ImGui::SameLine();
 
     // Gizmo toggle
-    if (ImGui::Checkbox("Show Gizmos", &m_ShowGizmos)) {
-        // Toggle handled by ImGui binding
-    }
+    ImGui::Checkbox("Show Gizmos", &m_ShowGizmos);
 
     ImGui::SameLine();
 
@@ -33,6 +47,7 @@ void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
     ImGui::SameLine();
     if (ImGui::ImageButton("##scale", m_ScaleIcon, iconSize)) SetOperation(GizmoOperation::Scale);
 
+    ImGui::PopStyleVar();
     ImGui::End();
 }
 
@@ -67,7 +82,8 @@ void ToolbarPanel::TogglePlayMode() {
 void ToolbarPanel::EnsureIconsLoaded() {
     if (m_IconsLoaded) return;
     m_PlayIcon   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/play.svg"));
-    m_StopIcon   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/pause.svg"));
+    m_PauseIcon  = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/pause.svg"));
+    m_StopIcon   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/stop.svg"));
     m_MoveIcon   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/move.svg"));
     m_RotateIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/rotate.svg"));
     m_ScaleIcon  = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/scale.svg"));

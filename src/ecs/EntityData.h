@@ -34,6 +34,8 @@ struct EntityData {
 
    int Layer = 0;
    std::string Tag;
+   // Global visibility toggle for the whole entity (affects rendering and lights)
+   bool Visible = true;
 
    EntityID Parent = INVALID_ENTITY_ID;
    std::vector<EntityID> Children;

@@ -164,6 +164,9 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
 
     // Debug line program
     m_DebugLineProgram = ShaderManager::Instance().LoadProgram("vs_debug", "fs_debug");
+    // Outline program (color via uniform)
+    m_OutlineProgram = ShaderManager::Instance().LoadProgram("vs_outline", "fs_outline");
+    u_outlineColor = bgfx::createUniform("u_outlineColor", bgfx::UniformType::Vec4);
 	InitGrid(20.0f, 1.0f);
 
     u_LightColors = bgfx::createUniform("u_lightColors", bgfx::UniformType::Vec4, 4);
@@ -252,7 +255,7 @@ void Renderer::RenderScene(Scene& scene) {
     lights.reserve(4); // Max 4 lights for now
     for (auto& entity : scene.GetEntities()) {
         auto* data = scene.GetEntityData(entity.GetID());
-        if (!data || !data->Light) continue;
+        if (!data || !data->Light || !data->Visible) continue;
 
         LightData ld;
         ld.type = data->Light->Type;
@@ -302,7 +305,7 @@ void Renderer::RenderScene(Scene& scene) {
 
     for (EntityID eid : entityIds) {
         auto* data = scene.GetEntityData(eid);
-        if (!data || !data->Mesh || !data->Mesh->mesh) continue;
+        if (!data || !data->Visible || !data->Mesh || !data->Mesh->mesh) continue;
 
         // Hold a local strong ref to guard against concurrent resets
         std::shared_ptr<Mesh> meshPtr = data->Mesh->mesh; // local strong ref
@@ -345,7 +348,7 @@ void Renderer::RenderScene(Scene& scene) {
     for (auto& entity : scene.GetEntities())
     {
         auto* data = scene.GetEntityData(entity.GetID());
-        if (!data || !data->Terrain) continue;
+        if (!data || !data->Visible || !data->Terrain) continue;
 
         TerrainComponent& terrain = *data->Terrain;
 
@@ -407,7 +410,7 @@ void Renderer::RenderScene(Scene& scene) {
     if (!scene.m_IsPlaying) {
         for (auto& entity : scene.GetEntities()) {
             auto* data = scene.GetEntityData(entity.GetID());
-            if (!data || !data->Collider) continue;
+            if (!data || !data->Visible || !data->Collider) continue;
 
             DrawCollider(*data->Collider, data->Transform);
         }
@@ -585,26 +588,90 @@ void Renderer::UploadEnvironmentToShader(const Environment& env)
 }
 
 void Renderer::DrawGrid() {
-    if (!bgfx::isValid(m_GridVB)) return;
-
-    /*bgfx::setViewFrameBuffer(0, m_SceneFrameBuffer);*/
+    // View setup
     bgfx::setViewTransform(0, m_view, m_proj);
     bgfx::setViewRect(0, 0, 0, m_Width, m_Height);
+
+    // Compute camera frustum footprint on ground plane (y=0)
+    Camera* cam = GetCamera();
+    if (!cam) return;
+
+    glm::mat4 view = glm::make_mat4(m_view);
+    glm::mat4 proj = glm::make_mat4(m_proj);
+    glm::mat4 invVP = glm::inverse(proj * view);
+
+    auto intersectGround = [&](const glm::vec2& ndc) -> std::optional<glm::vec3> {
+        glm::vec4 corner = glm::vec4(ndc.x, ndc.y, 1.0f, 1.0f);
+        glm::vec4 worldFar = invVP * corner;
+        worldFar /= worldFar.w;
+        glm::vec3 origin = cam->GetPosition();
+        glm::vec3 dir = glm::normalize(glm::vec3(worldFar) - origin);
+        if (fabs(dir.y) < 1e-5f) return std::nullopt; // Almost parallel to ground
+        float t = -origin.y / dir.y;
+        if (t <= 0.0f) return std::nullopt;          // Intersection behind camera
+        glm::vec3 p = origin + dir * t;
+        return p;
+    };
+
+    std::optional<glm::vec3> p00 = intersectGround({-1.0f, -1.0f}); // bottom-left
+    std::optional<glm::vec3> p10 = intersectGround({ 1.0f, -1.0f}); // bottom-right
+    std::optional<glm::vec3> p01 = intersectGround({-1.0f,  1.0f}); // top-left
+    std::optional<glm::vec3> p11 = intersectGround({ 1.0f,  1.0f}); // top-right
+
+    // Fallback: if not enough intersections, draw nothing
+    int validCount = (p00.has_value() ? 1:0) + (p10.has_value()?1:0) + (p01.has_value()?1:0) + (p11.has_value()?1:0);
+    if (validCount < 2) return;
+
+    auto accumulate = [](float& minV, float& maxV, float v){ minV = std::min(minV, v); maxV = std::max(maxV, v); };
+    float minX =  std::numeric_limits<float>::infinity();
+    float maxX = -std::numeric_limits<float>::infinity();
+    float minZ =  std::numeric_limits<float>::infinity();
+    float maxZ = -std::numeric_limits<float>::infinity();
+
+    auto addPoint = [&](const glm::vec3& p){ accumulate(minX, maxX, p.x); accumulate(minZ, maxZ, p.z); };
+    if (p00) addPoint(*p00); if (p10) addPoint(*p10); if (p01) addPoint(*p01); if (p11) addPoint(*p11);
+
+    // Pad a little and clamp to sane range
+    const float padding = 1.0f;
+    minX -= padding; maxX += padding; minZ -= padding; maxZ += padding;
+
+    // Snap to step
+    const float step = 1.0f;
+    auto floorTo = [&](float v){ return std::floor(v / step) * step; };
+    auto ceilTo  = [&](float v){ return std::ceil (v / step) * step; };
+    minX = floorTo(minX); maxX = ceilTo(maxX); minZ = floorTo(minZ); maxZ = ceilTo(maxZ);
+
+    // Build grid vertices inside bounds on y=0 plane
+    std::vector<GridVertex> vertices;
+    for (float x = minX; x <= maxX + 1e-4f; x += step) {
+        vertices.push_back({ x, 0.0f, minZ });
+        vertices.push_back({ x, 0.0f, maxZ });
+    }
+    for (float z = minZ; z <= maxZ + 1e-4f; z += step) {
+        vertices.push_back({ minX, 0.0f, z });
+        vertices.push_back({ maxX, 0.0f, z });
+    }
+    if (vertices.empty()) return;
+
+    const bgfx::Memory* mem = bgfx::copy(vertices.data(), (uint32_t)(vertices.size() * sizeof(GridVertex)));
+    bgfx::VertexBufferHandle vbh = bgfx::createVertexBuffer(mem, GridVertex::layout);
 
     float identity[16];
     bx::mtxIdentity(identity);
     bgfx::setTransform(identity);
+    bgfx::setVertexBuffer(0, vbh);
 
-    bgfx::setVertexBuffer(0, m_GridVB);
-
+    // Semi-transparent gray, depth-tested but not writing depth
     auto debugMat = MaterialManager::Instance().CreateDefaultDebugMaterial();
     debugMat->BindUniforms();
     bgfx::setState(
-       BGFX_STATE_WRITE_RGB |
-       BGFX_STATE_WRITE_Z |              // ← Enable depth write!
-       BGFX_STATE_DEPTH_TEST_LEQUAL |      // ← Enable proper depth testing
-       BGFX_STATE_PT_LINES);
+        BGFX_STATE_WRITE_RGB |
+        BGFX_STATE_DEPTH_TEST_LEQUAL |
+        BGFX_STATE_PT_LINES |
+        BGFX_STATE_BLEND_ALPHA
+    );
     bgfx::submit(0, debugMat->GetProgram());
+    bgfx::destroy(vbh);
 }
 
 
@@ -724,6 +791,45 @@ void Renderer::DrawCollider(const ColliderComponent& collider, const TransformCo
             break;
         }
     }
+}
+
+// --------------------------------------
+// Draw simple wireframe outline around selected entity's mesh (editor only)
+// --------------------------------------
+void Renderer::DrawEntityOutline(Scene& scene, EntityID selectedEntity) {
+    if (selectedEntity < 0 || scene.m_IsPlaying) return;
+    auto* data = scene.GetEntityData(selectedEntity);
+    if (!data || !data->Visible || !data->Mesh || !data->Mesh->mesh) return;
+
+    std::shared_ptr<Mesh> meshPtr = data->Mesh->mesh;
+    if (!meshPtr) return;
+
+    bool meshValid = meshPtr->Dynamic ? bgfx::isValid(meshPtr->dvbh) : bgfx::isValid(meshPtr->vbh);
+    if (!meshValid || !bgfx::isValid(meshPtr->ibh)) return;
+
+    // Slightly scale up to create visible thickness
+    float transform[16];
+    glm::mat4 scaled = data->Transform.WorldMatrix * glm::scale(glm::mat4(1.0f), glm::vec3(1.03f));
+    memcpy(transform, glm::value_ptr(scaled), sizeof(float) * 16);
+    bgfx::setTransform(transform);
+
+    if (meshPtr->Dynamic)
+        bgfx::setVertexBuffer(0, meshPtr->dvbh, 0, meshPtr->numVertices);
+    else
+        bgfx::setVertexBuffer(0, meshPtr->vbh);
+    bgfx::setIndexBuffer(meshPtr->ibh);
+
+    // Render backfaces only to show silhouette, depth test on
+    uint64_t state =
+        BGFX_STATE_WRITE_RGB |
+        BGFX_STATE_DEPTH_TEST_LEQUAL |
+        BGFX_STATE_CULL_CW;
+    bgfx::setState(state);
+
+    // Set outline color to orange
+    glm::vec4 outlineColor = { 1.0f, 0.55f, 0.0f, 1.0f };
+    bgfx::setUniform(u_outlineColor, &outlineColor);
+    bgfx::submit(1, m_OutlineProgram);
 }
 
 void Renderer::InitGrid(float size, float step) {
