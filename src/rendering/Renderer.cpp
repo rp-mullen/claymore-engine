@@ -618,9 +618,9 @@ void Renderer::DrawGrid() {
     std::optional<glm::vec3> p01 = intersectGround({-1.0f,  1.0f}); // top-left
     std::optional<glm::vec3> p11 = intersectGround({ 1.0f,  1.0f}); // top-right
 
-    // Fallback: if not enough intersections, draw nothing
+    // Determine bounds. If too few intersections (looking above plane) or extreme grazing angles,
+    // fall back to a reasonable square around the camera projection onto the ground.
     int validCount = (p00.has_value() ? 1:0) + (p10.has_value()?1:0) + (p01.has_value()?1:0) + (p11.has_value()?1:0);
-    if (validCount < 2) return;
 
     auto accumulate = [](float& minV, float& maxV, float v){ minV = std::min(minV, v); maxV = std::max(maxV, v); };
     float minX =  std::numeric_limits<float>::infinity();
@@ -629,7 +629,29 @@ void Renderer::DrawGrid() {
     float maxZ = -std::numeric_limits<float>::infinity();
 
     auto addPoint = [&](const glm::vec3& p){ accumulate(minX, maxX, p.x); accumulate(minZ, maxZ, p.z); };
-    if (p00) addPoint(*p00); if (p10) addPoint(*p10); if (p01) addPoint(*p01); if (p11) addPoint(*p11);
+    if (validCount >= 2) {
+        if (p00) addPoint(*p00); if (p10) addPoint(*p10); if (p01) addPoint(*p01); if (p11) addPoint(*p11);
+    }
+
+    glm::vec3 camPos = cam->GetPosition();
+    glm::vec2 groundCenter = { camPos.x, camPos.z };
+    float height = std::max(0.001f, fabs(camPos.y));
+    float maxExtent = std::clamp(height * 8.0f, 10.0f, 400.0f);
+
+    if (validCount < 2) {
+        // Fallback square around camera projection
+        minX = groundCenter.x - maxExtent;
+        maxX = groundCenter.x + maxExtent;
+        minZ = groundCenter.y - maxExtent;
+        maxZ = groundCenter.y + maxExtent;
+    }
+    else {
+        // Clamp extreme bounds to avoid infinite stretching at grazing angles
+        minX = std::max(minX, groundCenter.x - maxExtent);
+        maxX = std::min(maxX, groundCenter.x + maxExtent);
+        minZ = std::max(minZ, groundCenter.y - maxExtent);
+        maxZ = std::min(maxZ, groundCenter.y + maxExtent);
+    }
 
     // Pad a little and clamp to sane range
     const float padding = 1.0f;

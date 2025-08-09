@@ -22,7 +22,7 @@
 #include "ecs/EntityData.h"
 #include "ecs/Components.h"
 #include <memory>
-
+#include "imnodes.h"
 namespace fs = std::filesystem;
 std::vector<std::string> g_RegisteredScriptNames;
 
@@ -37,6 +37,8 @@ UILayer::UILayer()
       m_MenuBarPanel(&m_Scene, &m_SelectedEntity, &m_ProjectPanel, this)
 {
     m_ToolbarPanel = ToolbarPanel(this);
+    // Initialize global ImNodes context once
+    ImNodes::CreateContext();
 
     Logger::SetCallback([this](const std::string& msg, LogLevel level) {
         m_ConsolePanel.AddLog(msg, level);
@@ -54,6 +56,11 @@ UILayer::UILayer()
 
     CreateDebugCubeEntity();
     CreateDefaultLight();
+} 
+
+UILayer::~UILayer() {
+    // Destroy global ImNodes context
+    ImNodes::DestroyContext();
 }
 void UILayer::RequestLayoutReset() {
     m_ResetLayoutRequested = true;
@@ -179,6 +186,7 @@ void UILayer::OnUIRender() {
     }
 
     m_ScriptPanel.OnImGuiRender();
+    m_AnimCtrlPanel.OnImGuiRender();
 
     // Main viewport
     m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());

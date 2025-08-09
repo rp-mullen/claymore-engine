@@ -70,6 +70,13 @@ namespace ClaymoreEngine
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate IntPtr GetBlendShapeNameFn(int entityId, int index);
 
+    // Animator parameter setters
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void Animator_SetBoolFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name, bool value);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void Animator_SetIntFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name, int value);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void Animator_SetFloatFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name, float value);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void Animator_SetTriggerFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void Animator_ResetTriggerFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name);
+
 
     internal static unsafe class ComponentInterop
     {
@@ -102,6 +109,13 @@ namespace ClaymoreEngine
         public static GetBlendShapeCountFn GetBlendShapeCount;
         public static GetBlendShapeNameFn GetBlendShapeNameInternal;
 
+        // Animator
+        public static Animator_SetBoolFn Animator_SetBool;
+        public static Animator_SetIntFn Animator_SetInt;
+        public static Animator_SetFloatFn Animator_SetFloat;
+        public static Animator_SetTriggerFn Animator_SetTrigger;
+        public static Animator_ResetTriggerFn Animator_ResetTrigger;
+
         public static string GetBlendShapeName(int entityId, int index)
         {
             IntPtr ptr = GetBlendShapeNameInternal(entityId, index);
@@ -110,9 +124,9 @@ namespace ClaymoreEngine
 
         public static void Initialize(void** ptrs, int count)
         {
-            if (count < 21) // Update this count as you add more functions
+            if (count < 26) // Update count for added animator functions
             {
-                Console.WriteLine($"[ComponentInterop] Expected at least 21 function pointers, but got {count}.");
+                Console.WriteLine($"[ComponentInterop] Expected at least 26 function pointers, but got {count}.");
                 return;
             }
 
@@ -141,6 +155,12 @@ namespace ClaymoreEngine
             GetBlendShapeWeight = Marshal.GetDelegateForFunctionPointer<GetBlendShapeWeightFn>((IntPtr)ptrs[i++]);
             GetBlendShapeCount = Marshal.GetDelegateForFunctionPointer<GetBlendShapeCountFn>((IntPtr)ptrs[i++]);
             GetBlendShapeNameInternal = Marshal.GetDelegateForFunctionPointer<GetBlendShapeNameFn>((IntPtr)ptrs[i++]);
+
+            Animator_SetBool = Marshal.GetDelegateForFunctionPointer<Animator_SetBoolFn>((IntPtr)ptrs[i++]);
+            Animator_SetInt = Marshal.GetDelegateForFunctionPointer<Animator_SetIntFn>((IntPtr)ptrs[i++]);
+            Animator_SetFloat = Marshal.GetDelegateForFunctionPointer<Animator_SetFloatFn>((IntPtr)ptrs[i++]);
+            Animator_SetTrigger = Marshal.GetDelegateForFunctionPointer<Animator_SetTriggerFn>((IntPtr)ptrs[i++]);
+            Animator_ResetTrigger = Marshal.GetDelegateForFunctionPointer<Animator_ResetTriggerFn>((IntPtr)ptrs[i++]);
         }
     }
 }

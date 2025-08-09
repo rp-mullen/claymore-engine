@@ -12,6 +12,9 @@
 #include "rendering/PBRMaterial.h"
 #include "rendering/TextureLoader.h"
 #include <bgfx/bgfx.h>
+#include "animation/AnimatorController.h"
+#include <nlohmann/json.hpp>
+#include <fstream>
 
 bool DrawVec3Control(const char* label, glm::vec3& values, float resetValue = 0.0f) {
     bool changed = false;
@@ -233,6 +236,31 @@ void InspectorPanel::DrawComponents(EntityID entity) {
     // Draw script components
     for (size_t i = 0; i < data->Scripts.size(); ++i) {
         DrawScriptComponent(data->Scripts[i], static_cast<int>(i), entity);
+    }
+
+    if (data->AnimationPlayer && ImGui::CollapsingHeader("Animator")) {
+        // Simple UI to assign controller path
+        ImGui::Text("Controller: %s", data->AnimationPlayer->ControllerPath.c_str());
+        ImGui::SameLine();
+        if (ImGui::Button("Set Path")) {
+            // For MVP, read from clipboard
+            if (const char* clip = ImGui::GetClipboardText()) {
+                data->AnimationPlayer->ControllerPath = clip;
+            }
+        }
+        if (ImGui::Button("Load Controller")) {
+            // Load JSON controller file
+            std::ifstream in(data->AnimationPlayer->ControllerPath);
+            if (in) {
+                nlohmann::json j; in >> j;
+                auto ctrl = std::make_shared<cm::animation::AnimatorController>();
+                nlohmann::from_json(j, *ctrl);
+                data->AnimationPlayer->Controller = ctrl;
+                data->AnimationPlayer->AnimatorInstance.SetController(ctrl);
+                data->AnimationPlayer->AnimatorInstance.ResetToDefaults();
+                data->AnimationPlayer->CurrentStateId = ctrl->DefaultState;
+            }
+        }
     }
 
     ImGui::Separator();

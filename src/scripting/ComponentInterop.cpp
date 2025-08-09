@@ -5,6 +5,8 @@
 #include <iostream>
 #include <cstring>
 #include "DotNetHost.h"
+#include "animation/AnimationPlayerComponent.h"
+#include "animation/AnimatorRuntime.h"
 
 // --- Global Function Pointers ---
 HasComponent_fn HasComponentPtr = &HasComponent;
@@ -234,4 +236,51 @@ const char* GetBlendShapeName(int entityID, int index)
         return nullptr;
     }
     return data->BlendShapes->Shapes[index].Name.c_str();
+}
+
+// --- Animator parameter setters ---
+static cm::animation::AnimationPlayerComponent* GetAnimatorFor(int entityID)
+{
+    EntityData* data = GetEntityDataHelper(entityID);
+    return (data ? data->AnimationPlayer : nullptr);
+}
+
+void Animator_SetBool(int entityID, const char* name, bool value)
+{
+    if (!name) return;
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        ap->AnimatorInstance.Blackboard().Bools[name] = value;
+    }
+}
+
+void Animator_SetInt(int entityID, const char* name, int value)
+{
+    if (!name) return;
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        ap->AnimatorInstance.Blackboard().Ints[name] = value;
+    }
+}
+
+void Animator_SetFloat(int entityID, const char* name, float value)
+{
+    if (!name) return;
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        ap->AnimatorInstance.Blackboard().Floats[name] = value;
+    }
+}
+
+void Animator_SetTrigger(int entityID, const char* name)
+{
+    if (!name) return;
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        ap->AnimatorInstance.Blackboard().Triggers[name] = true;
+    }
+}
+
+void Animator_ResetTrigger(int entityID, const char* name)
+{
+    if (!name) return;
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        ap->AnimatorInstance.Blackboard().Triggers[name] = false;
+    }
 }

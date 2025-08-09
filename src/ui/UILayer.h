@@ -7,6 +7,7 @@
 #include "panels/MenuBarPanel.h"
 #include "panels/ConsolePanel.h"
 #include "panels/PrefabEditorPanel.h"
+#include "panels/AnimationControllerPanel.h"
 #include "ecs/Scene.h"
 #include "panels/ScriptRegistryPanel.h"
 
@@ -18,7 +19,7 @@ extern std::vector<std::string> g_RegisteredScriptNames;
 class UILayer {
 public:
     UILayer();
-    ~UILayer() = default;
+    ~UILayer();
 
     void OnUIRender();
     void OnAttach();
@@ -75,6 +76,7 @@ private:
     MenuBarPanel m_MenuBarPanel;
     ConsolePanel m_ConsolePanel;
     ScriptRegistryPanel m_ScriptPanel;
+    AnimationControllerPanel m_AnimCtrlPanel;
 
     bool m_PlayMode = false; // Simulation state
     bool m_FocusConsoleNextFrame = false;

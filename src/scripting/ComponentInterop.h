@@ -34,6 +34,13 @@ extern "C" {
     __declspec(dllexport) int GetBlendShapeCount(int entityID);
     __declspec(dllexport) const char* GetBlendShapeName(int entityID, int index);
 
+    // --- Animator / AnimationPlayer ---
+    __declspec(dllexport) void Animator_SetBool(int entityID, const char* name, bool value);
+    __declspec(dllexport) void Animator_SetInt(int entityID, const char* name, int value);
+    __declspec(dllexport) void Animator_SetFloat(int entityID, const char* name, float value);
+    __declspec(dllexport) void Animator_SetTrigger(int entityID, const char* name);
+    __declspec(dllexport) void Animator_ResetTrigger(int entityID, const char* name);
+
 #ifdef __cplusplus
 }
 #endif

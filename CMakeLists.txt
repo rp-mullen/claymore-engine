@@ -113,7 +113,7 @@ set_target_properties(imgui_bgfx PROPERTIES
 # ============================
 file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 file(GLOB_RECURSE ENGINE_HEADERS CONFIGURE_DEPENDS src/*.h)
-set(EXTERNAL_SOURCES external/ImGuizmo/ImGuizmo.cpp)
+set(EXTERNAL_SOURCES external/ImGuizmo/ImGuizmo.cpp external/imnodes/imnodes.cpp)
 
 add_executable(Claymore
     ${ENGINE_SOURCES}
