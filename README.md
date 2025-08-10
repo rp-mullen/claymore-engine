@@ -1,8 +1,10 @@
 # claymore-engine
 A 3D game engine developed in C++ with .NET 8.0 native interop; built on bgfx, assimp, and Jolt Physics
 
+![Screenshot](assets/screenshots/engine_01.png)
+
 ## Features
-- **Cross-platform**: Runs on Windows, Linux.
+- **Cross-platform**: Runs on Windows (Linux TBA).
 - **Graphics**: Uses bgfx for rendering, supporting multiple backends.
 - **Physics**: Integrates Jolt Physics for realistic simulations.
 - **Asset Management**: Utilizes Assimp for importing various 3D model formats.
@@ -15,9 +17,16 @@ A 3D game engine developed in C++ with .NET 8.0 native interop; built on bgfx, a
 - **C++ Compiler**: A modern C++ compiler (e.g., GCC, Clang, MSVC).
 - **.NET SDK**: .NET 8.0 SDK for C# scripting.
 - **Dependencies**: Ensure you have the following libraries installed:
-  - bgfx
+  - bgfx (must be built locally)   
   - Jolt Physics
   - Assimp
+  - Dear ImGui - Docking branch
+  - ImNodes
+  - ImGuizmo
+  - nlhomann/json
+  - glm
+  - [.NET 8.0.15 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
+    
 
 ## Example Script
 ```csharp
