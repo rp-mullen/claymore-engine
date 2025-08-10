@@ -4,6 +4,7 @@
 [submodule "external/glfw"]
 	path = external/glfw
 	url = https://github.com/glfw/glfw.git
+	update = none
 [submodule "external/JoltPhysics"]
 	path = external/JoltPhysics
 	url = https://github.com/jrouwe/JoltPhysics.git
@@ -28,3 +29,5 @@
 [submodule "external/imnodes"]
 	path = external/imnodes
 	url = https://github.com/nelarius/imnodes.git
+[submodule "*"]
+	update = none
