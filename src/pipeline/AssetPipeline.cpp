@@ -22,7 +22,10 @@
 #include <stb_image.h>
 #include "scripting/DotNetHost.h"
 #include <editor/Project.h>
-
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
+#include <animation/AvatarSerializer.h>
 
 
 namespace fs = std::filesystem;
@@ -257,13 +260,100 @@ void AssetPipeline::ImportModel(const std::string& path) {
         auto model = ModelLoader::LoadModel(path);
         std::cout << "[AssetPipeline] Model uploaded to GPU: " << path << std::endl;
 
+        // --------- Auto-generate humanoid avatar (heuristic) ---------
+        // Use the runtime scene loader path to build skeleton bind data, then export an .avatar file next to the model.
+        try {
+            // Build a transient skeleton with parents using Assimp hierarchy for accurate bind locals
+            Assimp::Importer aimport;
+            const aiScene* aScene = aimport.ReadFile(path,
+                aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_CalcTangentSpace |
+                aiProcess_FlipWindingOrder | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
+                aiProcess_ImproveCacheLocality | aiProcess_LimitBoneWeights);
+            SkeletonComponent tempSkel;
+            tempSkel.InverseBindPoses = model.InverseBindPoses;
+            tempSkel.BoneParents.resize(model.BoneNames.size(), -1);
+            for (int i = 0; i < (int)model.BoneNames.size(); ++i) tempSkel.BoneNameToIndex[model.BoneNames[i]] = i;
+
+            if (aScene && aScene->mRootNode) {
+                std::unordered_map<std::string, aiNode*> nodeByName;
+                std::function<void(aiNode*)> gather = [&](aiNode* n){ nodeByName[n->mName.C_Str()] = n; for (unsigned c=0;c<n->mNumChildren;++c) gather(n->mChildren[c]); };
+                gather(aScene->mRootNode);
+                // Build name->index map
+                std::unordered_map<std::string, int> boneIndexMap;
+                for (int i = 0; i < (int)model.BoneNames.size(); ++i) boneIndexMap[model.BoneNames[i]] = i;
+                for (size_t i = 0; i < model.BoneNames.size(); ++i) {
+                    auto itNode = nodeByName.find(model.BoneNames[i]);
+                    if (itNode != nodeByName.end()) {
+                        aiNode* p = itNode->second->mParent;
+                        while (p) {
+                            auto itBI = boneIndexMap.find(p->mName.C_Str());
+                            if (itBI != boneIndexMap.end()) { tempSkel.BoneParents[i] = itBI->second; break; }
+                            p = p->mParent;
+                        }
+                    }
+                }
+            }
+
+            cm::animation::AvatarDefinition avatar;
+            avatar.RigName = std::filesystem::path(path).stem().string();
+            cm::animation::avatar_builders::BuildFromSkeleton(tempSkel, avatar, true);
+            // Save next to the model
+            std::filesystem::path p(path);
+            std::string avatarPath = (p.parent_path() / (p.stem().string() + ".avatar")).string();
+            cm::animation::SaveAvatar(avatar, avatarPath);
+            std::cout << "[AssetPipeline] Wrote avatar: " << avatarPath << std::endl;
+        } catch(...) {
+            // Non-fatal
+        } 
+
         // --------- Extract animations ---------
         using namespace cm::animation;
         auto clips = AnimationImporter::ImportFromModel(path);
+        std::cout << "[AssetPipeline] ImportFromModel found " << clips.size() << " animation(s)." << std::endl;
         if (!clips.empty()) {
             std::filesystem::path p(path);
             std::string dir = p.parent_path().string();
-            for (const auto& clip : clips) {
+            for (auto& clip : clips) {
+                // Basic humanoid detection: if there are bone tracks whose names match common human bones, mark humanoid
+                bool isHumanoid = false;
+                static const char* kHumanoidSeeds[] = {
+                    "Hips","Spine","Chest","Neck","Head",
+                    "LeftUp","LeftArm","LeftFore","LeftHand",
+                    "RightUp","RightArm","RightFore","RightHand",
+                    "LeftUpLeg","LeftLeg","LeftCalf","LeftFoot",
+                    "RightUpLeg","RightLeg","RightCalf","RightFoot"
+                };
+                for (const auto& [name, _] : clip.BoneTracks) {
+                    for (auto s : kHumanoidSeeds) {
+                        if (name.find(s) != std::string::npos) { isHumanoid = true; break; }
+                    }
+                    if (isHumanoid) break;
+                }
+                clip.IsHumanoid = isHumanoid;
+                if (isHumanoid) {
+                    clip.SourceAvatarRigName = p.stem().string();
+                    clip.SourceAvatarPath = (p.parent_path() / (p.stem().string() + ".avatar")).string();
+
+                    // Project skeletal tracks into canonical humanoid bone ids if source avatar exists
+                    cm::animation::AvatarDefinition srcAvatar;
+                    if (cm::animation::LoadAvatar(srcAvatar, clip.SourceAvatarPath)) {
+                        // Build bone-name to mapped humanoid id (if present)
+                        std::unordered_map<std::string, int> nameToHumanId;
+                        for (uint16_t i = 0; i < cm::animation::HumanoidBoneCount; ++i) {
+                            if (srcAvatar.Present[i]) {
+                                const auto& e = srcAvatar.Map[i];
+                                if (!e.BoneName.empty()) nameToHumanId[e.BoneName] = (int)i;
+                            }
+                        }
+                        for (const auto& [boneName, bt] : clip.BoneTracks) {
+                            auto it = nameToHumanId.find(boneName);
+                            if (it != nameToHumanId.end()) {
+                                clip.HumanoidTracks[it->second] = bt;
+                            }
+                        }
+                    }
+                }
+
                 std::string outPath = dir + "/" + p.stem().string() + "_" + clip.Name + ".anim";
                 if (SaveAnimationClip(clip, outPath)) {
                     std::cout << "[AssetPipeline] Saved animation clip: " << outPath << std::endl;

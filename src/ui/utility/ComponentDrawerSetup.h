@@ -5,6 +5,7 @@
 #include "rendering/TextureLoader.h"
 #include "rendering/Renderer.h"
 #include "particles/SpriteLoader.h"
+#include "editor/EnginePaths.h"
 #include "physics/Physics.h"
 
 #include <imgui.h>
@@ -151,6 +152,14 @@ inline void RegisterComponentDrawers() {
         ImGui::DragFloat3("Position", e.Uniforms.m_position, 0.1f);
         ImGui::Checkbox("Enabled", &e.Enabled);
 
+        // Blend mode control
+        int blend = (int)e.Uniforms.m_blendMode;
+        const char* blendModes[] = { "Alpha", "Additive", "Multiply" };
+        if (ImGui::Combo("Blend Mode", &blend, blendModes, IM_ARRAYSIZE(blendModes)))
+        {
+            e.Uniforms.m_blendMode = (uint32_t)blend;
+        }
+
         ImGui::Separator();
         ImGui::Text("Sprite");
         ImGui::SameLine();
@@ -182,10 +191,67 @@ inline void RegisterComponentDrawers() {
                     {
                         e.SpriteHandle = sprite;
                         e.Uniforms.m_handle = sprite;
+                        e.SpritePath = path;
                     }
                 }
             }
             ImGui::EndDragDropTarget();
+        }
+
+        // Default sprite dropdown sourced from claymore/assets/particles/
+        // Only show if user hasn't selected a sprite via drag-drop
+        {
+            static int selectedDefault = 0;
+            static std::vector<std::filesystem::path> particlePaths;
+            static std::vector<std::string> particleNames;
+            if (particlePaths.empty())
+            {
+                std::filesystem::path exeAssets = EnginePaths::GetEngineAssetPath();
+                std::filesystem::path particlesDir = exeAssets / "particles";
+                if (std::filesystem::exists(particlesDir))
+                {
+                    for (auto& entry : std::filesystem::directory_iterator(particlesDir))
+                    {
+                        if (!entry.is_regular_file()) continue;
+                        auto ext = entry.path().extension().string();
+                        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                        if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga")
+                        {
+                            particlePaths.push_back(entry.path());
+                            particleNames.push_back(entry.path().filename().string());
+                        }
+                    }
+                }
+            }
+
+            if (!particleNames.empty())
+            {
+                if (!e.SpritePath.empty())
+                {
+                    // Try to sync selectedDefault with current sprite
+                    for (size_t i = 0; i < particlePaths.size(); ++i)
+                    {
+                        if (std::filesystem::path(e.SpritePath).filename() == particlePaths[i].filename())
+                        { selectedDefault = (int)i; break; }
+                    }
+                }
+                if (ImGui::Combo("Default Sprite", &selectedDefault, [](void* data, int idx, const char** out_text){
+                        auto& names = *reinterpret_cast<std::vector<std::string>*>(data);
+                        if (idx < 0 || idx >= (int)names.size()) return false;
+                        *out_text = names[idx].c_str(); return true;
+                    }, &particleNames, (int)particleNames.size()))
+                {
+                    // Load the chosen default sprite
+                    auto path = particlePaths[(size_t)selectedDefault].string();
+                    auto sprite = particles::LoadSprite(path);
+                    if (ps::isValid(sprite))
+                    {
+                        e.SpriteHandle = sprite;
+                        e.Uniforms.m_handle = sprite;
+                        e.SpritePath = path;
+                    }
+                }
+            }
         }
     });
 
@@ -243,5 +309,27 @@ inline void RegisterComponentDrawers() {
     registry.Register<StaticBodyComponent>("StaticBody", [](StaticBodyComponent& sb) {
         ImGui::DragFloat("Friction", &sb.Friction, 0.01f, 0.0f, 1.0f);
         ImGui::DragFloat("Restitution", &sb.Restitution, 0.01f, 0.0f, 1.0f);
+    });
+
+    // Text Renderer
+    registry.Register<TextRendererComponent>("TextRenderer", [](TextRendererComponent& t) {
+        // Text field
+        static char buffer[1024];
+        strncpy(buffer, t.Text.c_str(), sizeof(buffer)-1);
+        buffer[sizeof(buffer)-1] = '\0';
+        if (ImGui::InputTextMultiline("Text", buffer, sizeof(buffer), ImVec2(-1, 80))) {
+            t.Text = buffer;
+        }
+
+        // Size and color
+        ImGui::DragFloat("Pixel Size", &t.PixelSize, 1.0f, 6.0f, 256.0f);
+
+        // Convert ABGR to ImGui RGBA for UI editing
+        ImVec4 col = ImGui::ColorConvertU32ToFloat4(t.ColorAbgr);
+        if (ImGui::ColorEdit4("Color", &col.x)) {
+            t.ColorAbgr = ImGui::ColorConvertFloat4ToU32(col);
+        }
+
+        ImGui::Checkbox("World Space", &t.WorldSpace);
     });
 }

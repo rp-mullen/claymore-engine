@@ -233,6 +233,9 @@ void Application::Run() {
 			if (Scene::CurrentScene != scene.m_RuntimeScene.get()) {
 				Scene::CurrentScene = scene.m_RuntimeScene.get();
             if (InstallSyncContextPtr) InstallSyncContextPtr();
+            // Clear any queued continuations from the editor context to avoid
+            // executing them in play mode unexpectedly.
+            if (ClearSyncContextPtr) ClearSyncContextPtr();
 			}
 
            scene.m_RuntimeScene->Update(dt);
@@ -263,6 +266,8 @@ void Application::Run() {
         if (pickedEntity != -1) {
             std::cout << "[Debug] Picked Entity: " << pickedEntity << std::endl;
             uiLayer->SetSelectedEntity(pickedEntity);
+            // Clear timeline selection so the Inspector returns to entity mode
+            uiLayer->GetTimelinePanel().ClearSelection();
         }
 
         // --------------------------------------

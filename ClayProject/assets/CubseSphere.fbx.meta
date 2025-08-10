@@ -1,14 +1,14 @@
 {
-    "guid": "825223644579b1ba63540bbf76f80e09",
+    "guid": "0352244cf2736236ab8ed47cab328736",
     "hash": "9896d6bb0fa6c19be2b3346358e67116",
-    "lastImported": "2025-08-04 14:42:19",
+    "lastImported": "2025-08-09 22:40:58",
     "processedPath": "cache/CubseSphere.fbx",
     "reference": {
         "fileID": 0,
-        "guid": "825223644579b1ba63540bbf76f80e09",
+        "guid": "0352244cf2736236ab8ed47cab328736",
         "type": 3
     },
     "settings": {},
-    "sourcePath": "C:\\Projects\\claymore\\ClayProject\\assets\\CubseSphere.fbx",
+    "sourcePath": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\CubseSphere.fbx",
     "type": "model"
 }

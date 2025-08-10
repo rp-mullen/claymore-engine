@@ -37,10 +37,30 @@ EntityData EntityData::DeepCopy(EntityID ID, Scene* newScene) const {
     if (Emitter)
       copy.Emitter = new ParticleEmitterComponent(*Emitter);
 
+   // Deep copy TextRendererComponent
+   if (Text)
+      copy.Text = new TextRendererComponent(*Text);
+
+   // Deep copy UI components
+   if (Canvas)
+      copy.Canvas = new CanvasComponent(*Canvas);
+   if (Panel)
+      copy.Panel = new PanelComponent(*Panel);
+   if (Button)
+      copy.Button = new ButtonComponent(*Button);
+
    if (BlendShapes)
       copy.BlendShapes = new BlendShapeComponent(*BlendShapes);
-   if (Skeleton)
-      copy.Skeleton = new SkeletonComponent(*Skeleton);
+   if (Skeleton) {
+      copy.Skeleton = new SkeletonComponent();
+      copy.Skeleton->InverseBindPoses = Skeleton->InverseBindPoses;
+      copy.Skeleton->BoneEntities     = Skeleton->BoneEntities;
+      copy.Skeleton->BoneNameToIndex  = Skeleton->BoneNameToIndex;
+      copy.Skeleton->BoneParents      = Skeleton->BoneParents;
+      if (Skeleton->Avatar) {
+         copy.Skeleton->Avatar = std::make_unique<cm::animation::AvatarDefinition>(*Skeleton->Avatar);
+      }
+   }
    if (Skinning)
       copy.Skinning = new SkinningComponent(*Skinning);
 

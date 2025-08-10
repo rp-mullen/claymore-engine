@@ -1,14 +1,14 @@
 {
-    "guid": "e728888628043974c7fca8a697bb5cea",
+    "guid": "182a54622781debbb954e880c76366d6",
     "hash": "ad44612de98e21b632c3d9161645b71f",
-    "lastImported": "2025-08-04 14:42:19",
+    "lastImported": "2025-08-09 23:22:10",
     "processedPath": "cache/Tree01.fbx",
     "reference": {
         "fileID": 0,
-        "guid": "e728888628043974c7fca8a697bb5cea",
+        "guid": "182a54622781debbb954e880c76366d6",
         "type": 3
     },
     "settings": {},
-    "sourcePath": "C:\\Projects\\claymore\\ClayProject\\assets\\Tree01.fbx",
+    "sourcePath": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\Tree01.fbx",
     "type": "model"
 }

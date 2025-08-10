@@ -267,6 +267,8 @@ struct ParticleEmitterComponent
 
     // Sprite for this emitter (created via ParticleSystem utility functions)
     ps::EmitterSpriteHandle SpriteHandle{ uint16_t{UINT16_MAX} };
+    // Optional path to sprite image used to (re)create atlas sprite on load/UI selection
+    std::string SpritePath;
 
     bool Enabled = true;
 
@@ -274,4 +276,21 @@ struct ParticleEmitterComponent
     {
         Uniforms.reset();
     }
+};
+
+// ---------------- Text Rendering ----------------
+struct TextRendererComponent
+{
+    // UTF-8 text to render
+    std::string Text = "Hello World";
+
+    // Approximate pixel height used when creating the font
+    float PixelSize = 32.0f;
+
+    // ABGR color packed as 0xAABBGGRR (bgfx convention)
+    uint32_t ColorAbgr = 0xffffffffu;
+
+    // If true, text is rendered in world space using the entity transform.
+    // If false, text is rendered in screen space (top-left origin) at the entity's Position.xy
+    bool WorldSpace = true;
 };

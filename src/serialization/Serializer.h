@@ -5,6 +5,7 @@
 #include "ecs/Scene.h"
 #include "ecs/Entity.h"
 #include "ecs/EntityData.h"
+#include "ecs/UIComponents.h"
 #include "rendering/MaterialManager.h"
 #include "rendering/StandardMeshManager.h"
 
@@ -54,6 +55,14 @@ public:
      // Particle Emitter
      static json SerializeParticleEmitter(const ParticleEmitterComponent& emitter);
      static void DeserializeParticleEmitter(const json& data, ParticleEmitterComponent& emitter);
+
+     // UI components
+     static json SerializeCanvas(const CanvasComponent& canvas);
+     static void DeserializeCanvas(const json& data, CanvasComponent& canvas);
+     static json SerializePanel(const PanelComponent& panel);
+     static void DeserializePanel(const json& data, PanelComponent& panel);
+     static json SerializeButton(const ButtonComponent& button);
+     static void DeserializeButton(const json& data, ButtonComponent& button);
 
     // Script serialization
     static json SerializeScripts(const std::vector<ScriptInstance>& scripts);

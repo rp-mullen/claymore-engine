@@ -13,8 +13,10 @@
 #include "rendering/TextureLoader.h"
 #include <bgfx/bgfx.h>
 #include "animation/AnimatorController.h"
+#include "animation/AnimationPlayerComponent.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
+#include "ui/panels/AvatarBuilderPanel.h"
 
 bool DrawVec3Control(const char* label, glm::vec3& values, float resetValue = 0.0f) {
     bool changed = false;
@@ -56,14 +58,102 @@ bool DrawVec3Control(const char* label, glm::vec3& values, float resetValue = 0.
 void InspectorPanel::OnImGuiRender() {
     ImGui::Begin("Inspector");
 
+    // If a timeline key is selected, show its inspector regardless of entity selection
+    if (m_TimelinePanel && m_TimelinePanel->HasSelectedKey()) {
+        DrawTimelineKeyInspector();
+        ImGui::End();
+        return;
+    }
+
+    // Prefer entity selection if available; otherwise, show animator binding when set
+    if (!(m_SelectedEntity && *m_SelectedEntity != -1 && m_Context)
+        && m_HasAnimatorBinding && m_AnimatorBinding.Name) {
+        std::string dummyName = *m_AnimatorBinding.Name;
+        ShowAnimatorStateProperties(dummyName,
+                                    *m_AnimatorBinding.ClipPath,
+                                    *m_AnimatorBinding.Speed,
+                                    *m_AnimatorBinding.Loop,
+                                    m_AnimatorBinding.IsDefault,
+                                    m_AnimatorBinding.MakeDefault);
+        ImGui::End();
+        return;
+    }
+
     if (m_SelectedEntity && *m_SelectedEntity != -1 && m_Context) {
         DrawComponents(*m_SelectedEntity);
+        // Offer to add an Animator if a skeleton exists but no AnimationPlayer is attached
+        auto* data = m_Context->GetEntityData(*m_SelectedEntity);
+        if (data && data->Skeleton && !data->AnimationPlayer) {
+            ImGui::Separator();
+            if (ImGui::Button("Add Animator to Entity")) {
+                data->AnimationPlayer = new cm::animation::AnimationPlayerComponent();
+            }
+        }
     }
     else {
         ImGui::Text("No entity selected.");
     }
 
     ImGui::End();
+}
+
+void InspectorPanel::DrawTimelineKeyInspector()
+{
+    ImGui::TextDisabled("Timeline Key");
+    if (!m_TimelinePanel) return;
+    cm::animation::KeyframeFloat key;
+    if (!m_TimelinePanel->GetSelectedKey(key)) return;
+    float fps = m_TimelinePanel->GetFPS();
+    float frame = key.Time * std::max(1.0f, fps);
+    ImGui::Text("Track: %s", m_TimelinePanel->GetSelectedTrackName().c_str());
+    if (ImGui::DragFloat("Frame", &frame, 1.0f, 0.0f, 100000.0f)) {
+        float newTime = std::max(0.0f, frame / std::max(1.0f, fps));
+        m_TimelinePanel->SetSelectedKey(newTime, key.Value);
+        m_TimelinePanel->AddOrUpdateKeyAtCursor(key.Value); // Keep consistent if on playhead
+    }
+    float value = key.Value;
+    if (ImGui::DragFloat("Value", &value, 0.01f)) {
+        m_TimelinePanel->SetSelectedKey(key.Time, value);
+    }
+    if (ImGui::Button("Delete Key")) {
+        m_TimelinePanel->RemoveSelectedKey();
+    }
+}
+
+void InspectorPanel::ShowAnimatorStateProperties(const std::string& stateName,
+                                    std::string& clipPath,
+                                    float& speed,
+                                    bool& loop,
+                                    bool isDefault,
+                                    std::function<void()> onMakeDefault,
+                                    std::vector<std::pair<std::string, int>>* conditionsInt,
+                                    std::vector<std::tuple<std::string, int, float>>* conditionsFloat)
+{
+    ImGui::Separator();
+    ImGui::Text("Animator State: %s", stateName.c_str());
+    if (isDefault) ImGui::TextDisabled("(Default Entry)");
+    else if (ImGui::Button("Make Default")) { if (onMakeDefault) onMakeDefault(); }
+
+    // Drag-and-drop animation file onto clip path
+    char buf[260];
+    strncpy(buf, clipPath.c_str(), sizeof(buf)); buf[sizeof(buf)-1] = 0;
+    ImGui::InputText("Clip Path", buf, sizeof(buf));
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+            const char* path = (const char*)payload->Data;
+            // Accept only .anim
+            if (path && strstr(path, ".anim")) {
+                strncpy(buf, path, sizeof(buf)); buf[sizeof(buf)-1] = 0;
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+    clipPath = buf;
+
+    ImGui::DragFloat("Speed", &speed, 0.01f, 0.0f, 10.0f);
+    ImGui::Checkbox("Loop", &loop);
+
+    // Optional future: render conditions
 }
 
 void InspectorPanel::DrawComponents(EntityID entity) {
@@ -77,7 +167,24 @@ void InspectorPanel::DrawComponents(EntityID entity) {
 
     if (&data->Transform && ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
         registry.DrawComponentUI("Transform", &data->Transform);
-        // We don't call MarkTransformDirty here � it's handled in the drawer!
+        // Timeline integration: quick-add keys for selected property track
+        if (m_TimelinePanel && m_TimelinePanel->HasActivePropertySelection()) {
+            // Define keyframes independently of entity values: manual input only
+            ImGui::Separator();
+            ImGui::TextDisabled("Timeline Keyframe");
+            float valueInput = 0.0f;
+            ImGui::DragFloat("Value at Cursor", &valueInput, 0.01f);
+            ImGui::SameLine();
+            if (ImGui::Button("Add/Update Key")) {
+                m_TimelinePanel->AddOrUpdateKeyAtCursor(valueInput);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Delete Key")) {
+                m_TimelinePanel->DeleteKeyNearCursor();
+            }
+            ImGui::SameLine();
+            ImGui::TextDisabled("t=%.3fs", m_TimelinePanel->GetCurrentTimeSec());
+        }
     }
 
     if (data->Mesh && ImGui::CollapsingHeader("Mesh")) {
@@ -148,7 +255,9 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
         if (ImGui::Button("Remove Mesh Component", ImVec2(-1, 0))) {
             if (data->Mesh) {
-                data->Mesh->mesh.reset();
+                // Only release references; do not attempt to destroy shared GPU buffers here
+                data->Mesh->mesh = nullptr;
+                data->Mesh->material.reset();
                 delete data->Mesh;
                 data->Mesh = nullptr;
             }
@@ -233,9 +342,30 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         ImGui::PopStyleColor(2);
     }
 
+    // Text Renderer
+    if (data->Text && ImGui::CollapsingHeader("TextRenderer")) {
+        registry.DrawComponentUI("TextRenderer", data->Text);
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+        if (ImGui::Button("Remove TextRenderer Component", ImVec2(-1, 0))) {
+            delete data->Text;
+            data->Text = nullptr;
+        }
+        ImGui::PopStyleColor(2);
+    }
+
     // Draw script components
     for (size_t i = 0; i < data->Scripts.size(); ++i) {
         DrawScriptComponent(data->Scripts[i], static_cast<int>(i), entity);
+    }
+
+    // Skeleton tools (visible whether or not Animator exists)
+    if (data->Skeleton && ImGui::CollapsingHeader("Skeleton")) {
+        ImGui::Text("Bones: %d", (int)data->Skeleton->BoneNameToIndex.size());
+        if (ImGui::Button("Open Avatar Builder")) {
+            if (m_AvatarBuilder) m_AvatarBuilder->OpenForEntity(entity);
+        }
     }
 
     if (data->AnimationPlayer && ImGui::CollapsingHeader("Animator")) {
@@ -261,6 +391,7 @@ void InspectorPanel::DrawComponents(EntityID entity) {
                 data->AnimationPlayer->CurrentStateId = ctrl->DefaultState;
             }
         }
+        // Additional animator options can be added here
     }
 
     ImGui::Separator();
@@ -338,6 +469,10 @@ void InspectorPanel::DrawAddComponentButton(EntityID entity) {
             data->Emitter = new ParticleEmitterComponent();
         }
 
+        if (!data->Text && ImGui::MenuItem("TextRenderer Component")) {
+            data->Text = new TextRendererComponent();
+        }
+
         ImGui::Separator();
         ImGui::Text("Script Components:");
         ImGui::Separator();
@@ -362,9 +497,10 @@ void InspectorPanel::DrawAddComponentButton(EntityID entity) {
                 if (created) {
                     instance.Instance = created;
                     data->Scripts.push_back(instance);
-                    
-                    // Initialize the script with the entity
-                    if (created) {
+
+                    // Only invoke OnCreate immediately when the scene is playing.
+                    // In edit mode, OnCreate will run when the scene is cloned for play.
+                    if (m_Context && m_Context->m_IsPlaying) {
                         created->OnCreate(Entity(entity, m_Context));
                     }
                 } else {

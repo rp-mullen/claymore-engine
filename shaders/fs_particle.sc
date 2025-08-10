@@ -11,9 +11,10 @@ SAMPLER2D(s_texColor, 0);
 
 void main()
 {
-    vec4 rgba = texture2D(s_texColor, v_texcoord0.xy).xxxx;
-
-    rgba.xyz = rgba.xyz * v_color0.xyz * rgba.w * v_color0.w;
-    rgba.w   = rgba.w * v_color0.w * (1.0f - v_texcoord0.z);
-	gl_FragColor = rgba;
+    vec4 tex = texture2D(s_texColor, v_texcoord0.xy);
+    // Color modulation by per-particle vertex color; use texture alpha for transparency.
+    vec4 outCol = tex * v_color0;
+    // Optional per-particle fade factor in v_texcoord0.z (0..1), multiply both rgb and alpha.
+    outCol *= vec4(1.0, 1.0, 1.0, 1.0) * (1.0 - v_texcoord0.z + 0.0000);
+    gl_FragColor = outCol;
 }

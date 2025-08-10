@@ -5,6 +5,8 @@
 #include <glm/gtx/transform.hpp>
 #include "ecs/EntityData.h"
 #include "animation/AnimationSerializer.h"
+#include "animation/HumanoidRetargeter.h"
+#include "animation/AvatarSerializer.h"
 
 namespace cm {
 namespace animation {
@@ -77,7 +79,32 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
         }
 
         std::vector<glm::mat4> localTransforms;
-        EvaluateAnimation(*state.Clip, mutableState.Time, skeleton, localTransforms);
+        // If humanoid and we have an avatar on skeleton, evaluate source-local pose then retarget from source avatar to target avatar
+        if (state.Clip->IsHumanoid && skeleton.Avatar) {
+            std::vector<glm::mat4> srcLocal;
+            EvaluateAnimation(*state.Clip, mutableState.Time, skeleton, srcLocal);
+
+            // Resolve source avatar (by path if available, else by rig name next to asset)
+            cm::animation::AvatarDefinition srcAvatar;
+            const cm::animation::AvatarDefinition* srcAvatarPtr = nullptr;
+            bool loadedSrc = false;
+            if (!state.Clip->SourceAvatarPath.empty()) {
+                loadedSrc = cm::animation::LoadAvatar(srcAvatar, state.Clip->SourceAvatarPath);
+            }
+            if (!loadedSrc && !state.Clip->SourceAvatarRigName.empty()) {
+                // Try to find an avatar file under assets/ by name
+                std::string candidate = std::string("assets/") + state.Clip->SourceAvatarRigName + ".avatar";
+                loadedSrc = cm::animation::LoadAvatar(srcAvatar, candidate);
+            }
+            if (loadedSrc) srcAvatarPtr = &srcAvatar;
+
+            cm::animation::HumanoidRetargeter retargeter;
+            if (srcAvatarPtr) retargeter.SetAvatars(srcAvatarPtr, skeleton.Avatar.get());
+            else retargeter.SetAvatars(skeleton.Avatar.get(), skeleton.Avatar.get());
+            retargeter.RetargetPose(skeleton, srcLocal, skeleton, localTransforms, {});
+        } else {
+            EvaluateAnimation(*state.Clip, mutableState.Time, skeleton, localTransforms);
+        }
 
         // --------- Build global transforms and palette ---------
         std::vector<glm::mat4> globalTransforms(localTransforms.size());

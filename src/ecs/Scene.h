@@ -68,9 +68,14 @@ public:
     Environment& GetEnvironment() { return m_Environment; }
     const Environment& GetEnvironment() const { return m_Environment; }
 
+    // Deferred deletion API to avoid mid-render invalidation
+    void QueueRemoveEntity(EntityID id);
+    void ProcessPendingRemovals();
+
 private:
    std::unordered_map<EntityID, EntityData> m_Entities;
    std::vector<Entity> m_EntityList;
    EntityID m_NextID = 1;
     Environment m_Environment{};
+    std::vector<EntityID> m_PendingRemovals;
    };

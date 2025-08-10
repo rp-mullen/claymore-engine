@@ -4,6 +4,7 @@
 #include <glm/gtx/transform.hpp>
 #include <algorithm>
 #include <unordered_map>
+#include "animation/AvatarDefinition.h"
 
 namespace cm {
 namespace animation {
@@ -49,7 +50,7 @@ void EvaluateAnimation(const AnimationClip& clip,
                        float time,
                        const ::SkeletonComponent& skeleton,
                        std::vector<glm::mat4>& outLocalTransforms,
-                       const HumanoidAvatar* avatar) {
+                       const AvatarDefinition* avatar) {
     // Ensure output container is sized correctly.
     outLocalTransforms.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f));
 
@@ -61,19 +62,8 @@ void EvaluateAnimation(const AnimationClip& clip,
     for (const auto& [boneName, track] : clip.BoneTracks) {
         const std::string* resolvedName = &boneName;
         std::string tmp;
-        if (avatar) {
-            // Need to map through avatar – brute force search.
-            for (const auto& [humanBone, mappedName] : avatar->BoneMapping) {
-                if (mappedName == boneName) {
-                    auto maybeDest = avatar->GetBoneName(humanBone);
-                    if (maybeDest) {
-                        tmp = *maybeDest;
-                        resolvedName = &tmp;
-                    }
-                    break;
-                }
-            }
-        }
+        // Note: name-to-name indirection is not performed here with AvatarDefinition;
+        // proper retargeting is handled by HumanoidRetargeter. Keep generic evaluation.
 
         // Find bone index in skeleton via name mapping
         int idx = skeleton.GetBoneIndex(*resolvedName);

@@ -12,6 +12,8 @@
 #include "ecs/Components.h"
 #include "Environment.h"
 
+#include "TextRenderer.h"
+
 // ---------------- Particle Vertex ----------------
 struct ParticleVertex {
     float x, y, z, size;
@@ -184,8 +186,16 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
     m_TerrainHeightTexProgram = ShaderManager::Instance().LoadProgram("vs_terrain_height_texture", "fs_terrain");
     s_TerrainHeightTexture = bgfx::createUniform("s_heightTexture", bgfx::UniformType::Sampler);
 
-
+    // Initialize text renderer (self-contained, stb-based)
+    m_TextRenderer = std::make_unique<TextRenderer>();
+    // Create a simple program from existing debug shaders (2D textured quads)
+    bgfx::ProgramHandle fontProgram = ShaderManager::Instance().LoadProgram("vs_debug", "fs_debug");
+    m_TextRenderer->Init("assets/fonts/Roboto-Regular.ttf", fontProgram, 512, 512, 48.0f);
 }
+Renderer::~Renderer() {
+    m_TextRenderer.reset();
+}
+
 
 void Renderer::Shutdown() {
     if (bgfx::isValid(m_DebugLineProgram)) bgfx::destroy(m_DebugLineProgram);
@@ -415,7 +425,14 @@ void Renderer::RenderScene(Scene& scene) {
             DrawCollider(*data->Collider, data->Transform);
         }
     }
-	
+
+    // --------------------------------------
+    // Draw text components (world or screen space)
+    // --------------------------------------
+    if (m_TextRenderer) {
+        m_TextRenderer->RenderTexts(scene, m_view, m_proj, m_Width, m_Height, 1, 0);
+    }
+
 }
 
 
@@ -592,68 +609,21 @@ void Renderer::DrawGrid() {
     bgfx::setViewTransform(0, m_view, m_proj);
     bgfx::setViewRect(0, 0, 0, m_Width, m_Height);
 
-    // Compute camera frustum footprint on ground plane (y=0)
+    // Fixed, angle-independent bounds: square around camera projection on ground
     Camera* cam = GetCamera();
     if (!cam) return;
-
-    glm::mat4 view = glm::make_mat4(m_view);
-    glm::mat4 proj = glm::make_mat4(m_proj);
-    glm::mat4 invVP = glm::inverse(proj * view);
-
-    auto intersectGround = [&](const glm::vec2& ndc) -> std::optional<glm::vec3> {
-        glm::vec4 corner = glm::vec4(ndc.x, ndc.y, 1.0f, 1.0f);
-        glm::vec4 worldFar = invVP * corner;
-        worldFar /= worldFar.w;
-        glm::vec3 origin = cam->GetPosition();
-        glm::vec3 dir = glm::normalize(glm::vec3(worldFar) - origin);
-        if (fabs(dir.y) < 1e-5f) return std::nullopt; // Almost parallel to ground
-        float t = -origin.y / dir.y;
-        if (t <= 0.0f) return std::nullopt;          // Intersection behind camera
-        glm::vec3 p = origin + dir * t;
-        return p;
-    };
-
-    std::optional<glm::vec3> p00 = intersectGround({-1.0f, -1.0f}); // bottom-left
-    std::optional<glm::vec3> p10 = intersectGround({ 1.0f, -1.0f}); // bottom-right
-    std::optional<glm::vec3> p01 = intersectGround({-1.0f,  1.0f}); // top-left
-    std::optional<glm::vec3> p11 = intersectGround({ 1.0f,  1.0f}); // top-right
-
-    // Determine bounds. If too few intersections (looking above plane) or extreme grazing angles,
-    // fall back to a reasonable square around the camera projection onto the ground.
-    int validCount = (p00.has_value() ? 1:0) + (p10.has_value()?1:0) + (p01.has_value()?1:0) + (p11.has_value()?1:0);
-
-    auto accumulate = [](float& minV, float& maxV, float v){ minV = std::min(minV, v); maxV = std::max(maxV, v); };
-    float minX =  std::numeric_limits<float>::infinity();
-    float maxX = -std::numeric_limits<float>::infinity();
-    float minZ =  std::numeric_limits<float>::infinity();
-    float maxZ = -std::numeric_limits<float>::infinity();
-
-    auto addPoint = [&](const glm::vec3& p){ accumulate(minX, maxX, p.x); accumulate(minZ, maxZ, p.z); };
-    if (validCount >= 2) {
-        if (p00) addPoint(*p00); if (p10) addPoint(*p10); if (p01) addPoint(*p01); if (p11) addPoint(*p11);
-    }
 
     glm::vec3 camPos = cam->GetPosition();
     glm::vec2 groundCenter = { camPos.x, camPos.z };
     float height = std::max(0.001f, fabs(camPos.y));
-    float maxExtent = std::clamp(height * 8.0f, 10.0f, 400.0f);
+    float extent = std::clamp(height * 8.0f, 10.0f, 400.0f);
 
-    if (validCount < 2) {
-        // Fallback square around camera projection
-        minX = groundCenter.x - maxExtent;
-        maxX = groundCenter.x + maxExtent;
-        minZ = groundCenter.y - maxExtent;
-        maxZ = groundCenter.y + maxExtent;
-    }
-    else {
-        // Clamp extreme bounds to avoid infinite stretching at grazing angles
-        minX = std::max(minX, groundCenter.x - maxExtent);
-        maxX = std::min(maxX, groundCenter.x + maxExtent);
-        minZ = std::max(minZ, groundCenter.y - maxExtent);
-        maxZ = std::min(maxZ, groundCenter.y + maxExtent);
-    }
+    float minX = groundCenter.x - extent;
+    float maxX = groundCenter.x + extent;
+    float minZ = groundCenter.y - extent;
+    float maxZ = groundCenter.y + extent;
 
-    // Pad a little and clamp to sane range
+    // Pad a little
     const float padding = 1.0f;
     minX -= padding; maxX += padding; minZ -= padding; maxZ += padding;
 

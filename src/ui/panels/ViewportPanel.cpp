@@ -25,9 +25,10 @@
 // =============================================================
 void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
     ImGui::Begin("Viewport");
+    bool viewportActive = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
 
     // Draw mini viewport toolbar (translate / rotate / scale)
-    if (m_Toolbar)
+    if (m_Toolbar && viewportActive)
         m_Toolbar->OnImGuiRender();
 
     // Compute letterboxed viewport to preserve aspect ratio
@@ -296,6 +297,14 @@ void ViewportPanel::DrawGhostPreview() {
 void ViewportPanel::DrawGizmo() {
     if (*m_SelectedEntity < 0 || !m_Context || !m_ShowGizmos) return;
 
+    // Do not allow gizmo in play mode
+    if (m_Context->m_IsPlaying) {
+        ImGuizmo::Enable(false);
+        return;
+    } else {
+        ImGuizmo::Enable(true);
+    }
+
     auto* data = m_Context->GetEntityData(*m_SelectedEntity);
     if (!data) return;
 
@@ -326,7 +335,8 @@ void ViewportPanel::DrawGizmo() {
         data->Transform.Position = pos;
         data->Transform.Rotation = rot;
         data->Transform.Scale = scale;
-
+        // Ensure transform updates propagate to children
+        m_Context->MarkTransformDirty(*m_SelectedEntity);
     }
 }
 

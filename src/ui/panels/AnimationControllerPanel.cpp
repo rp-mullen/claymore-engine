@@ -84,7 +84,8 @@ void AnimationControllerPanel::DrawParameterList() {
 
 void AnimationControllerPanel::DrawNodeEditor() {
     if (!m_Controller) return;
-    ImGui::BeginChild("Graph", ImVec2(0, 0), true);
+    // Use a child without eating inputs globally
+    ImGui::BeginChild("Graph", ImVec2(0, 0), true, ImGuiWindowFlags_NoNav);
     // Capture editor's top-left in screen space for coordinate conversions
     ImVec2 editorScreenOrigin = ImGui::GetCursorScreenPos();
     ImNodes::BeginNodeEditor();
@@ -177,25 +178,38 @@ void AnimationControllerPanel::DrawNodeEditor() {
 
     // Selection
     int hoveredNode = -1, hoveredLink = -1;
-    if (ImNodes::IsNodeHovered(&hoveredNode) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) selectedStateId = hoveredNode;
-    if (ImNodes::IsLinkHovered(&hoveredLink) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) selectedLinkId = hoveredLink;
+    if (ImNodes::IsNodeHovered(&hoveredNode) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        selectedStateId = hoveredNode;
+        selectedLinkId = -1;
+    }
+    if (ImNodes::IsLinkHovered(&hoveredLink) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        selectedLinkId = hoveredLink;
+        selectedStateId = -1;
+    }
 
     ImGui::EndChild();
 
-    // Right-side property editor under the graph
-    ImGui::Separator();
-    if (selectedStateId >= 0) {
+    // Forward selection to Inspector when a state is clicked
+    if (selectedStateId >= 0 && m_Inspector) {
         for (auto& s : m_Controller->States) if (s.Id == selectedStateId) {
-            ImGui::Text("State Properties");
-            ImGui::Checkbox("Default (Entry)", &reinterpret_cast<bool&>(*(new bool(m_Controller->DefaultState == s.Id))));
-            if (ImGui::IsItemClicked()) m_Controller->DefaultState = s.Id;
-            ImGui::InputFloat("Speed", &s.Speed);
-            ImGui::Checkbox("Loop", &s.Loop);
-            char pathBuf[260]; strncpy(pathBuf, s.ClipPath.c_str(), sizeof(pathBuf)); pathBuf[sizeof(pathBuf)-1] = 0;
-            if (ImGui::InputText("Clip Path", pathBuf, sizeof(pathBuf))) s.ClipPath = pathBuf;
+            bool isDefault = (m_Controller->DefaultState == s.Id);
+            InspectorPanel::AnimatorStateBinding binding;
+            binding.Name = &s.Name;
+            binding.ClipPath = &s.ClipPath;
+            binding.Speed = &s.Speed;
+            binding.Loop = &s.Loop;
+            binding.IsDefault = isDefault;
+            binding.MakeDefault = [this, &s]() { m_Controller->DefaultState = s.Id; };
+            m_Inspector->SetAnimatorStateBinding(binding);
             break;
         }
-    } else if (selectedLinkId >= 0) {
+    } else if (m_Inspector) {
+        m_Inspector->ClearAnimatorBinding();
+    }
+
+    // Transition inspector drawn below graph for now
+    ImGui::Separator();
+    if (selectedLinkId >= 0) {
         for (auto& t : m_Controller->Transitions) {
             int lid = (t.Id >= 0 ? t.Id : (t.FromState + 1) * 100000 + t.ToState + 1);
             if (lid == selectedLinkId) {

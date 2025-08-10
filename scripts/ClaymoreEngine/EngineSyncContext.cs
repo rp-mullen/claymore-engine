@@ -53,6 +53,17 @@ namespace ClaymoreEngine
             }
          }
 
+         // Clear any pending work without executing it. Useful when switching
+         // between editor and play runtime to avoid executing stale continuations
+         // captured under a previous scene/context.
+         public static void Clear()
+            {
+            while (Instance._queue.TryDequeue(out _))
+               {
+               // intentionally empty
+               }
+            }
+
       // ---------------- Native hooks ----------------
       public static void Flush()
          {

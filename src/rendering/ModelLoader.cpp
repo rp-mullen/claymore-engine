@@ -219,7 +219,7 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         {
             std::string albedo, mr, normal;
             ExtractPbrTextures(scene->mMaterials[aMesh->mMaterialIndex], albedo, mr, normal);
-            ApplyTexturesToMaterial(mat.get(), baseDir, albedo, mr, normal);
+            //ApplyTexturesToMaterial(mat.get(), baseDir, albedo, mr, normal);
         }
 
         // ---- CPU vertex arrays (final packed types for GPU upload)

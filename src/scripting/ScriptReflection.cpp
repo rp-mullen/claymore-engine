@@ -47,8 +47,23 @@ PropertyType ScriptReflection::StringToPropertyType(const std::string& typeStr) 
 // ---------------- Boxing helpers ----------------
 PropertyValue ScriptReflection::BoxToValue(void* boxed, PropertyType type)
 {
-    if(!boxed) return 0;
-    switch(type)
+    // If no boxed value is provided from managed side, fall back to a
+    // sensible typed default so variant alternatives always match the
+    // declared PropertyType.
+    if (!boxed)
+    {
+        switch (type)
+        {
+            case PropertyType::Int:      return 0;
+            case PropertyType::Float:    return 0.0f;
+            case PropertyType::Bool:     return false;
+            case PropertyType::String:   return std::string();
+            case PropertyType::Vector3:  return glm::vec3(0.0f);
+            case PropertyType::Entity:   return -1; // "None" entity by convention
+        }
+    }
+
+    switch (type)
     {
         case PropertyType::Int:
         case PropertyType::Entity:
@@ -62,6 +77,7 @@ PropertyValue ScriptReflection::BoxToValue(void* boxed, PropertyType type)
         case PropertyType::Vector3:
             return *(glm::vec3*)boxed;
     }
+    // Fallback to int 0 if an unknown type ever slips through
     return 0;
 }
 

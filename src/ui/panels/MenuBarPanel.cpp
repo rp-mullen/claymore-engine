@@ -15,8 +15,29 @@
 #include <rendering/StandardMeshManager.h>
 #include <rendering/MaterialManager.h>
 #include <rendering/Environment.h>
+#include <Windows.h>
 
 using json = nlohmann::json;
+
+static std::string WideToUtf8(const std::wstring& wide)
+{
+    if (wide.empty()) return {};
+    int requiredBytes = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (requiredBytes <= 0) return {};
+    std::string utf8(static_cast<size_t>(requiredBytes - 1), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, utf8.data(), requiredBytes, nullptr, nullptr);
+    return utf8;
+}
+
+static std::wstring Utf8ToWide(const std::string& utf8)
+{
+    if (utf8.empty()) return {};
+    int requiredWchars = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
+    if (requiredWchars <= 0) return {};
+    std::wstring wide(static_cast<size_t>(requiredWchars - 1), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, wide.data(), requiredWchars);
+    return wide;
+}
 
 std::string ShowOpenFolderDialog() {
     IFileDialog* pFileDialog;
@@ -38,7 +59,7 @@ std::string ShowOpenFolderDialog() {
             CoTaskMemFree(path);
             pItem->Release();
             pFileDialog->Release();
-            return std::string(ws.begin(), ws.end());
+            return WideToUtf8(ws);
         }
     }
     pFileDialog->Release();
@@ -59,7 +80,7 @@ std::string ShowSaveFileDialog(const std::string& defaultName = "scene.scene") {
     pFileDialog->SetDefaultExtension(L"scene");
 
     // Set default file name
-    std::wstring defaultNameW(defaultName.begin(), defaultName.end());
+    std::wstring defaultNameW = Utf8ToWide(defaultName);
     pFileDialog->SetFileName(defaultNameW.c_str());
 
     hr = pFileDialog->Show(nullptr);
@@ -73,7 +94,7 @@ std::string ShowSaveFileDialog(const std::string& defaultName = "scene.scene") {
             CoTaskMemFree(path);
             pItem->Release();
             pFileDialog->Release();
-            return std::string(ws.begin(), ws.end());
+            return WideToUtf8(ws);
         }
     }
 
@@ -104,7 +125,7 @@ std::string ShowOpenFileDialog() {
             CoTaskMemFree(path);
             pItem->Release();
             pFileDialog->Release();
-            return std::string(ws.begin(), ws.end());
+            return WideToUtf8(ws);
         }
     }
 

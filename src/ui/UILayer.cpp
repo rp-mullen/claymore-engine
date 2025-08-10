@@ -75,6 +75,11 @@ void UILayer::LoadProject(std::string path) {
 void UILayer::OnAttach() {
     m_ScriptPanel.SetScriptSource(&g_RegisteredScriptNames);
     m_ScriptPanel.SetContext(&m_Scene);
+    // Wire node editor to inspector for selection details
+    m_AnimCtrlPanel.SetInspectorPanel(&m_InspectorPanel);
+    // Allow inspector to push keyframes into the active timeline
+    m_InspectorPanel.SetTimelinePanel(&m_AnimTimelinePanel);
+    m_InspectorPanel.SetAvatarBuilderPanel(&m_AvatarBuilderPanel);
 }
 
 // =============================
@@ -187,6 +192,10 @@ void UILayer::OnUIRender() {
 
     m_ScriptPanel.OnImGuiRender();
     m_AnimCtrlPanel.OnImGuiRender();
+    m_AnimTimelinePanel.SetContext(activeScene);
+    m_AnimTimelinePanel.OnImGuiRender();
+    // Avatar Builder (opens as a standalone window when requested)
+    m_AvatarBuilderPanel.OnImGuiRender();
 
     // Main viewport
     m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());
@@ -264,6 +273,8 @@ void UILayer::BeginDockspace() {
         ImGui::DockBuilderDockWindow("Console", dock_down);
         ImGui::DockBuilderDockWindow("Script Registry", dock_right);
         ImGui::DockBuilderDockWindow("Viewport", dockspace_id);
+        ImGui::DockBuilderDockWindow("Animation Controller", dockspace_id);
+        ImGui::DockBuilderDockWindow("Animation Timeline", dockspace_id);
         ImGui::DockBuilderFinish(m_MainDockspaceID);
     }
 
@@ -319,7 +330,7 @@ void UILayer::BeginDockspace() {
         while (node->ParentNode != nullptr) node = node->ParentNode;
         rootDockspaceId = node->ID;
     }
-    ImGui::DockSpace(rootDockspaceId, ImVec2(0.0f, -statusBarHeight), ImGuiDockNodeFlags_None);
+    ImGui::DockSpace(rootDockspaceId, ImVec2(0.0f, -statusBarHeight), ImGuiDockNodeFlags_PassthruCentralNode);
 
     // Status bar
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.08f, 0.08f, 0.09f, 1.0f));

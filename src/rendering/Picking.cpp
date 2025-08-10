@@ -51,7 +51,10 @@ int Picking::PickEntityRay(const Ray& ray, Scene& scene) {
         glm::mat4 transform = data->Transform.WorldMatrix;
 
         float tTri;
-        if (RayIntersectsMesh(ray, *data->Mesh->mesh.get(), transform, tTri)) {
+        // Take a strong reference to guard against entity deletion during this loop
+        std::shared_ptr<Mesh> meshRef = data->Mesh->mesh;
+        if (!meshRef) continue;
+        if (RayIntersectsMesh(ray, *meshRef.get(), transform, tTri)) {
             if (tTri < closestT && tTri > 0.0f) {
                 closestT = tTri;
                 pickedEntity = entity.GetID();

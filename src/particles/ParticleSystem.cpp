@@ -97,6 +97,7 @@ namespace ps
         m_easeScale = bx::Easing::Linear;
 
         m_handle.idx = UINT16_MAX; // invalid
+        m_blendMode = 0; // Alpha by default
     }
 
     // -------------------------------------------------------------------------
@@ -397,6 +398,7 @@ namespace ps
             const float scale = bx::lerp(p.scaleStart, p.scaleEnd, p.life);
             const float blend = bx::lerp(p.blendStart, p.blendEnd, p.life);
 
+            // Use view matrix columns (inverse rotation axes): right = col0, up = col1
             const bx::Vec3 udir = { _mtxView[0]*scale, _mtxView[4]*scale, _mtxView[8]*scale };
             const bx::Vec3 vdir = { _mtxView[1]*scale, _mtxView[5]*scale, _mtxView[9]*scale };
 
@@ -538,6 +540,7 @@ namespace ps
 
         PosColorTexCoord0Vertex* vertices = (PosColorTexCoord0Vertex*)tvb.data;
         ParticleSort* sortBuf = (ParticleSort*)bx::alloc(m_allocator, sizeof(ParticleSort)*maxDraw);
+        std::vector<uint8_t> modePerQuad; modePerQuad.resize(maxDraw, 0);
 
         uint32_t pos = 0;
         for (uint16_t ii = 0, nh = m_emitterAlloc->getNumHandles(); ii < nh && pos < maxDraw; ++ii)
@@ -558,14 +561,16 @@ namespace ps
                 uv[0] = 0.0f; uv[1] = 0.0f; uv[2] = 8.0f / SPRITE_TEXTURE_SIZE; uv[3] = 8.0f / SPRITE_TEXTURE_SIZE;
             }
 
+            uint32_t start = pos;
             pos += emitter.render(uv, _mtxView, _eye, pos, maxDraw, sortBuf, vertices);
+            for (uint32_t q = start; q < pos; ++q) modePerQuad[q] = (uint8_t)bx::uint32_min(emitter.m_uniforms.m_blendMode, 2u);
         }
 
         // sort particles back-to-front
-        qsort(sortBuf, maxDraw, sizeof(ParticleSort), particleSortFn);
+        qsort(sortBuf, pos, sizeof(ParticleSort), particleSortFn);
 
         uint16_t* indices = (uint16_t*)tib.data;
-        for (uint32_t ii = 0; ii < maxDraw; ++ii)
+        for (uint32_t ii = 0; ii < pos; ++ii)
         {
             const ParticleSort& s = sortBuf[ii];
             uint16_t idx = (uint16_t)s.idx;
@@ -578,13 +583,64 @@ namespace ps
             idxPtr[5] = idx*4 + 0;
         }
 
+        // Select blend state based on emitter blend mode. Default depth test less, write RGB/A.
+        uint64_t blendState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS;
+        // We will submit once per emitter range to avoid state change per particle. For now, a single pass with state that fits most.
+        // If multiple emitters use different modes in the same frame, we change state before submit below.
+        // Here we pick a conservative default and override per-emitter just before submit.
+        // Note: actual override is done in the submit per emitter loop below.
+        (void)blendState;
+        // We'll render all particles in a single draw for now. Since emitters might have different blend modes,
+        // we conservatively sort by blend mode segments and submit up to three draws.
+        // For simplicity, split the index buffer into three buckets by blend mode.
+
+        // Build remapped indices by mode, preserving back-to-front order
+        std::vector<uint16_t> indicesAlpha;
+        std::vector<uint16_t> indicesAdd;
+        std::vector<uint16_t> indicesMul;
+        indicesAlpha.reserve(pos*6);
+        indicesAdd.reserve(pos*6);
+        indicesMul.reserve(pos*6);
+
+        for (uint32_t ii = 0; ii < pos; ++ii)
+        {
+            const ParticleSort& s = sortBuf[ii];
+            uint16_t qidx = (uint16_t)s.idx;
+            uint16_t base = (uint16_t)(qidx*4);
+            uint16_t local[6] = { (uint16_t)(base+0), (uint16_t)(base+1), (uint16_t)(base+2), (uint16_t)(base+2), (uint16_t)(base+3), (uint16_t)(base+0) };
+            uint8_t mode = (qidx < modePerQuad.size()) ? modePerQuad[qidx] : 0;
+            switch (mode)
+            {
+                default:
+                case 0: indicesAlpha.insert(indicesAlpha.end(), local, local+6); break;
+                case 1: indicesAdd.insert(indicesAdd.end(), local, local+6); break;
+                case 2: indicesMul.insert(indicesMul.end(), local, local+6); break;
+            }
+        }
+
         bx::free(m_allocator, sortBuf);
 
-        bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_BLEND_NORMAL);
+        // Submit draws per mode bucket
+        float idMtx[16]; bx::mtxIdentity(idMtx);
+        bgfx::setTransform(idMtx);
         bgfx::setVertexBuffer(0, &tvb);
-        bgfx::setIndexBuffer(&tib);
         bgfx::setTexture(0, s_texColor, m_texture);
-        bgfx::submit(_view, m_program);
+
+        auto submitBucket = [&](const std::vector<uint16_t>& idxList, uint64_t blendFlags)
+        {
+            if (idxList.empty()) return;
+            bgfx::TransientIndexBuffer tibLocal;
+            bgfx::allocTransientIndexBuffer(&tibLocal, (uint32_t)idxList.size());
+            memcpy(tibLocal.data, idxList.data(), idxList.size()*sizeof(uint16_t));
+            bgfx::setIndexBuffer(&tibLocal);
+            bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS | blendFlags);
+            bgfx::submit(_view, m_program);
+        };
+
+        submitBucket(indicesAlpha, BGFX_STATE_BLEND_ALPHA);
+        submitBucket(indicesAdd,   BGFX_STATE_BLEND_ADD);
+        const uint64_t BLEND_MULTIPLY = BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_DST_COLOR, BGFX_STATE_BLEND_ZERO);
+        submitBucket(indicesMul, BLEND_MULTIPLY);
     }
 
     EmitterHandle ParticleSystem::createEmitter(EmitterShape::Enum _shape, EmitterDirection::Enum _direction, uint32_t _maxParticles)

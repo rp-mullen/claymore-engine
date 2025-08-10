@@ -3,6 +3,8 @@
 #include <string>
 #include <glm/glm.hpp>
 #include <unordered_map>
+#include <memory>
+#include "animation/AvatarDefinition.h"
 #include "ecs/Entity.h" // assumes EntityID typedef lives there; adjust path if different
 
 // ------------ Blend Shapes ------------
@@ -31,6 +33,9 @@ struct SkeletonComponent {
         auto it = BoneNameToIndex.find(name);
         return it != BoneNameToIndex.end() ? it->second : -1;
     }
+
+    // Optional humanoid avatar built for this skeleton
+    std::unique_ptr<cm::animation::AvatarDefinition> Avatar;
 };
 
 struct SkinningComponent {

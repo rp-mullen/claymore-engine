@@ -6,6 +6,7 @@
 #include "scripting/ScriptSystem.h"
 #include "animation/AnimationPlayerComponent.h"
 #include <scripting/ScriptComponent.h>
+#include "UIComponents.h"
 
 // Forward declaration
 class Scene;
@@ -27,6 +28,14 @@ struct EntityData {
    StaticBodyComponent* StaticBody = nullptr; // Optional StaticBody
    TerrainComponent* Terrain = nullptr; // Optional Terrain
    ParticleEmitterComponent* Emitter = nullptr; // Optional particle emitter
+
+   // Text rendering
+   TextRendererComponent* Text = nullptr; // Optional text renderer
+
+   // UI Components
+   CanvasComponent* Canvas = nullptr; // Optional UI canvas
+   PanelComponent* Panel = nullptr;   // Optional UI panel (textured rect)
+   ButtonComponent* Button = nullptr; // Optional UI button behavior
 
    cm::animation::AnimationPlayerComponent* AnimationPlayer = nullptr; // Optional animation player
 

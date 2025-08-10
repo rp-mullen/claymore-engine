@@ -7,6 +7,7 @@
 #include "ecs/EntityData.h"
 #include "pipeline/AssetLibrary.h"
 #include "rendering/TextureLoader.h"
+#include "ecs/UIComponents.h"
 
 namespace fs = std::filesystem;
 
@@ -250,6 +251,8 @@ json Serializer::SerializeParticleEmitter(const ParticleEmitterComponent& emitte
     data["maxParticles"] = emitter.MaxParticles;
     // Minimal uniforms to ensure stable replay; extend as needed
     data["particlesPerSecond"] = emitter.Uniforms.m_particlesPerSecond;
+    data["blendMode"] = emitter.Uniforms.m_blendMode;
+    if (!emitter.SpritePath.empty()) data["spritePath"] = emitter.SpritePath;
     // Optional: sprite is an engine-created resource; omit for now
     return data;
 }
@@ -258,6 +261,115 @@ void Serializer::DeserializeParticleEmitter(const json& data, ParticleEmitterCom
     if (data.contains("enabled")) emitter.Enabled = data["enabled"];
     if (data.contains("maxParticles")) emitter.MaxParticles = data["maxParticles"];
     if (data.contains("particlesPerSecond")) emitter.Uniforms.m_particlesPerSecond = data["particlesPerSecond"];
+    if (data.contains("blendMode")) emitter.Uniforms.m_blendMode = data["blendMode"];
+    if (data.contains("spritePath")) emitter.SpritePath = data["spritePath"];
+}
+
+// UI serialization
+json Serializer::SerializeCanvas(const CanvasComponent& canvas) {
+    json data;
+    data["width"] = canvas.Width;
+    data["height"] = canvas.Height;
+    data["dpiScale"] = canvas.DPIScale;
+    data["space"] = static_cast<int>(canvas.Space);
+    data["sortOrder"] = canvas.SortOrder;
+    data["blockSceneInput"] = canvas.BlockSceneInput;
+    return data;
+}
+
+void Serializer::DeserializeCanvas(const json& data, CanvasComponent& canvas) {
+    if (data.contains("width")) canvas.Width = data["width"];
+    if (data.contains("height")) canvas.Height = data["height"];
+    if (data.contains("dpiScale")) canvas.DPIScale = data["dpiScale"];
+    if (data.contains("space")) canvas.Space = static_cast<CanvasComponent::RenderSpace>(data["space"]);
+    if (data.contains("sortOrder")) canvas.SortOrder = data["sortOrder"];
+    if (data.contains("blockSceneInput")) canvas.BlockSceneInput = data["blockSceneInput"];
+}
+
+json Serializer::SerializePanel(const PanelComponent& panel) {
+    json data;
+    data["position"] = { panel.Position.x, panel.Position.y };
+    data["size"] = { panel.Size.x, panel.Size.y };
+    data["pivot"] = { panel.Pivot.x, panel.Pivot.y };
+    data["rotation"] = panel.Rotation;
+    data["texture"] = panel.Texture;
+    data["uvRect"] = { panel.UVRect.x, panel.UVRect.y, panel.UVRect.z, panel.UVRect.w };
+    data["tintColor"] = { panel.TintColor.r, panel.TintColor.g, panel.TintColor.b, panel.TintColor.a };
+    data["opacity"] = panel.Opacity;
+    data["visible"] = panel.Visible;
+    data["zOrder"] = panel.ZOrder;
+    return data;
+}
+
+void Serializer::DeserializePanel(const json& data, PanelComponent& panel) {
+    if (data.contains("position") && data["position"].is_array() && data["position"].size() == 2) {
+        panel.Position.x = data["position"][0];
+        panel.Position.y = data["position"][1];
+    }
+    if (data.contains("size") && data["size"].is_array() && data["size"].size() == 2) {
+        panel.Size.x = data["size"][0];
+        panel.Size.y = data["size"][1];
+    }
+    if (data.contains("pivot") && data["pivot"].is_array() && data["pivot"].size() == 2) {
+        panel.Pivot.x = data["pivot"][0];
+        panel.Pivot.y = data["pivot"][1];
+    }
+    if (data.contains("rotation")) panel.Rotation = data["rotation"];
+    if (data.contains("texture")) data["texture"].get_to(panel.Texture);
+    if (data.contains("uvRect") && data["uvRect"].is_array() && data["uvRect"].size() == 4) {
+        panel.UVRect.x = data["uvRect"][0];
+        panel.UVRect.y = data["uvRect"][1];
+        panel.UVRect.z = data["uvRect"][2];
+        panel.UVRect.w = data["uvRect"][3];
+    }
+    if (data.contains("tintColor") && data["tintColor"].is_array() && data["tintColor"].size() == 4) {
+        panel.TintColor.r = data["tintColor"][0];
+        panel.TintColor.g = data["tintColor"][1];
+        panel.TintColor.b = data["tintColor"][2];
+        panel.TintColor.a = data["tintColor"][3];
+    }
+    if (data.contains("opacity")) panel.Opacity = data["opacity"];
+    if (data.contains("visible")) panel.Visible = data["visible"];
+    if (data.contains("zOrder")) panel.ZOrder = data["zOrder"];
+}
+
+json Serializer::SerializeButton(const ButtonComponent& button) {
+    json data;
+    data["interactable"] = button.Interactable;
+    data["toggle"] = button.Toggle;
+    data["toggled"] = button.Toggled;
+    data["normalTint"] = { button.NormalTint.r, button.NormalTint.g, button.NormalTint.b, button.NormalTint.a };
+    data["hoverTint"] = { button.HoverTint.r, button.HoverTint.g, button.HoverTint.b, button.HoverTint.a };
+    data["pressedTint"] = { button.PressedTint.r, button.PressedTint.g, button.PressedTint.b, button.PressedTint.a };
+    data["hoverSound"] = button.HoverSound;
+    data["clickSound"] = button.ClickSound;
+    return data;
+}
+
+void Serializer::DeserializeButton(const json& data, ButtonComponent& button) {
+    if (data.contains("interactable")) button.Interactable = data["interactable"];
+    if (data.contains("toggle")) button.Toggle = data["toggle"];
+    if (data.contains("toggled")) button.Toggled = data["toggled"];
+    if (data.contains("normalTint") && data["normalTint"].is_array() && data["normalTint"].size() == 4) {
+        button.NormalTint.r = data["normalTint"][0];
+        button.NormalTint.g = data["normalTint"][1];
+        button.NormalTint.b = data["normalTint"][2];
+        button.NormalTint.a = data["normalTint"][3];
+    }
+    if (data.contains("hoverTint") && data["hoverTint"].is_array() && data["hoverTint"].size() == 4) {
+        button.HoverTint.r = data["hoverTint"][0];
+        button.HoverTint.g = data["hoverTint"][1];
+        button.HoverTint.b = data["hoverTint"][2];
+        button.HoverTint.a = data["hoverTint"][3];
+    }
+    if (data.contains("pressedTint") && data["pressedTint"].is_array() && data["pressedTint"].size() == 4) {
+        button.PressedTint.r = data["pressedTint"][0];
+        button.PressedTint.g = data["pressedTint"][1];
+        button.PressedTint.b = data["pressedTint"][2];
+        button.PressedTint.a = data["pressedTint"][3];
+    }
+    if (data.contains("hoverSound")) data["hoverSound"].get_to(button.HoverSound);
+    if (data.contains("clickSound")) data["clickSound"].get_to(button.ClickSound);
 }
 
 json Serializer::SerializeScripts(const std::vector<ScriptInstance>& scripts) {
@@ -343,6 +455,17 @@ json Serializer::SerializeEntity(EntityID id, Scene& scene) {
        data["emitter"] = SerializeParticleEmitter(*entityData->Emitter);
    }
 
+   // UI Components
+   if (entityData->Canvas) {
+       data["canvas"] = SerializeCanvas(*entityData->Canvas);
+   }
+   if (entityData->Panel) {
+       data["panel"] = SerializePanel(*entityData->Panel);
+   }
+   if (entityData->Button) {
+       data["button"] = SerializeButton(*entityData->Button);
+   }
+
    return data;
    }
 
@@ -411,6 +534,20 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
     if (data.contains("emitter")) {
         entityData->Emitter = new ParticleEmitterComponent();
         DeserializeParticleEmitter(data["emitter"], *entityData->Emitter);
+    }
+
+    // UI Components
+    if (data.contains("canvas")) {
+        entityData->Canvas = new CanvasComponent();
+        DeserializeCanvas(data["canvas"], *entityData->Canvas);
+    }
+    if (data.contains("panel")) {
+        entityData->Panel = new PanelComponent();
+        DeserializePanel(data["panel"], *entityData->Panel);
+    }
+    if (data.contains("button")) {
+        entityData->Button = new ButtonComponent();
+        DeserializeButton(data["button"], *entityData->Button);
     }
 
     // Deserialize scripts
@@ -487,6 +624,9 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
             if (copy.contains("camera")) { ed->Camera = new CameraComponent(); DeserializeCamera(copy["camera"], *ed->Camera); }
             if (copy.contains("terrain")) { ed->Terrain = new TerrainComponent(); DeserializeTerrain(copy["terrain"], *ed->Terrain); }
             if (copy.contains("emitter")) { ed->Emitter = new ParticleEmitterComponent(); DeserializeParticleEmitter(copy["emitter"], *ed->Emitter); }
+            if (copy.contains("canvas")) { ed->Canvas = new CanvasComponent(); DeserializeCanvas(copy["canvas"], *ed->Canvas); }
+            if (copy.contains("panel")) { ed->Panel = new PanelComponent(); DeserializePanel(copy["panel"], *ed->Panel); }
+            if (copy.contains("button")) { ed->Button = new ButtonComponent(); DeserializeButton(copy["button"], *ed->Button); }
             if (copy.contains("scripts")) { DeserializeScripts(copy["scripts"], ed->Scripts); }
         } else {
             newId = DeserializeEntity(entityData, scene);

@@ -8,6 +8,8 @@
 #include "panels/ConsolePanel.h"
 #include "panels/PrefabEditorPanel.h"
 #include "panels/AnimationControllerPanel.h"
+#include "panels/AnimationTimelinePanel.h"
+#include "panels/AvatarBuilderPanel.h"
 #include "ecs/Scene.h"
 #include "panels/ScriptRegistryPanel.h"
 
@@ -77,9 +79,15 @@ private:
     ConsolePanel m_ConsolePanel;
     ScriptRegistryPanel m_ScriptPanel;
     AnimationControllerPanel m_AnimCtrlPanel;
+    AnimationTimelinePanel m_AnimTimelinePanel{ &m_Scene, &m_SelectedEntity };
+    AvatarBuilderPanel m_AvatarBuilderPanel{ &m_Scene };
+
+public:
+    AnimationTimelinePanel& GetTimelinePanel() { return m_AnimTimelinePanel; }
 
     bool m_PlayMode = false; // Simulation state
     bool m_FocusConsoleNextFrame = false;
+    bool m_FocusViewportNextFrame = false;
 
     uint32_t m_LastViewportWidth = 0;
     ImGuiID m_MainDockspaceID = 0;

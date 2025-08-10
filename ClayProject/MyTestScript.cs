@@ -15,7 +15,12 @@ public class MyTestScript : ScriptComponent
    public override void OnCreate()
       {
       Console.WriteLine("Made it to the start of OnCreate");
-      _ = DoAsyncMethod();
+      
+        Console.WriteLine("[MyTestScript] Referencing Entity" + refEntity.EntityID);
+        
+        _ = DoAsyncMethod();
+
+
       }
 
 
@@ -26,7 +31,8 @@ public class MyTestScript : ScriptComponent
       Console.WriteLine("MyTestScript created successfully after 1 second!");
       await Task.Delay(5000);
       Entity newEntity = Entity.Create("MyTestEntity");
-      LightComponent l = newEntity.AddComponent<LightComponent>();
+      Console.WriteLine("Created MyTestEntity");
+        LightComponent l = newEntity.AddComponent<LightComponent>();
       l.Type = LightType.Point;
       l.Color = new Vector3(1, 0, 0);
       }

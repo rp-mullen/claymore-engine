@@ -55,6 +55,7 @@ void AddComponent(int entityID, const char* componentName) {
     if (!data) return;
 
     if (strcmp(componentName, "LightComponent") == 0 && !data->Light) {
+        std::cout << "[Interop] AddComponent Light -> Entity " << entityID << "\n";
         data->Light = new LightComponent();
     } else if (strcmp(componentName, "RigidBodyComponent") == 0 && !data->RigidBody) {
         data->RigidBody = new RigidBodyComponent();
@@ -90,7 +91,10 @@ int GetLightType(int entityID) {
 
 void SetLightType(int entityID, int type) {
     EntityData* data = GetEntityDataHelper(entityID);
-    if (data && data->Light) data->Light->Type = static_cast<LightType>(type);
+    if (data && data->Light) {
+        data->Light->Type = static_cast<LightType>(type);
+        std::cout << "[Interop] SetLightType entity=" << entityID << " type=" << type << "\n";
+    }
 }
 
 void GetLightColor(int entityID, float* r, float* g, float* b) {
@@ -104,7 +108,10 @@ void GetLightColor(int entityID, float* r, float* g, float* b) {
 
 void SetLightColor(int entityID, float r, float g, float b) {
     EntityData* data = GetEntityDataHelper(entityID);
-    if (data && data->Light) data->Light->Color = {r, g, b};
+    if (data && data->Light) {
+        data->Light->Color = {r, g, b};
+        std::cout << "[Interop] SetLightColor entity=" << entityID << " color=(" << r << "," << g << "," << b << ")\n";
+    }
 }
 
 float GetLightIntensity(int entityID) {

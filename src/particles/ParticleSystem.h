@@ -66,6 +66,9 @@ namespace ps // short namespace for particle system
         uint32_t m_rgba[5];
         uint32_t m_particlesPerSecond;
 
+        // Blend mode: 0 = Alpha, 1 = Additive, 2 = Multiply
+        uint32_t m_blendMode;
+
         bx::Easing::Enum m_easePos;
         bx::Easing::Enum m_easeRgba;
         bx::Easing::Enum m_easeBlend;

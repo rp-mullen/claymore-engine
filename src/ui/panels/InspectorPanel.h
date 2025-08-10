@@ -4,7 +4,10 @@
 #include <vector>
 #include "ecs/Scene.h"
 #include "EditorPanel.h"
+#include "ui/panels/AnimationTimelinePanel.h"
 #include "scripting/ScriptReflection.h"
+
+class AvatarBuilderPanel; // forward decl
 
 extern std::vector<std::string> g_RegisteredScriptNames;
 
@@ -17,6 +20,29 @@ public:
 
 
    void OnImGuiRender();
+   void SetTimelinePanel(AnimationTimelinePanel* panel) { m_TimelinePanel = panel; }
+   void SetAvatarBuilderPanel(AvatarBuilderPanel* panel) { m_AvatarBuilder = panel; }
+    void DrawTimelineKeyInspector();
+   // Animator node selection bridge
+   void ShowAnimatorStateProperties(const std::string& stateName,
+                                    std::string& clipPath,
+                                    float& speed,
+                                    bool& loop,
+                                    bool isDefault,
+                                    std::function<void()> onMakeDefault,
+                                    std::vector<std::pair<std::string, int>>* conditionsInt = nullptr,
+                                    std::vector<std::tuple<std::string, int, float>>* conditionsFloat = nullptr);
+
+   struct AnimatorStateBinding {
+       std::string* Name = nullptr;
+       std::string* ClipPath = nullptr;
+       float* Speed = nullptr;
+       bool* Loop = nullptr;
+       bool IsDefault = false;
+       std::function<void()> MakeDefault;
+   };
+   void SetAnimatorStateBinding(const AnimatorStateBinding& binding) { m_AnimatorBinding = binding; m_HasAnimatorBinding = true; }
+   void ClearAnimatorBinding() { m_HasAnimatorBinding = false; m_AnimatorBinding = {}; }
 
 private:
    void DrawComponents(EntityID entity);
@@ -27,4 +53,8 @@ private:
 private:
    EntityID* m_SelectedEntity = nullptr;
    bool m_ShowAddComponentPopup = false;
+   bool m_HasAnimatorBinding = false;
+   AnimatorStateBinding m_AnimatorBinding;
+   AnimationTimelinePanel* m_TimelinePanel = nullptr;
+   AvatarBuilderPanel* m_AvatarBuilder = nullptr;
    };

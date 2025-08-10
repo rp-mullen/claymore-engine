@@ -8,6 +8,9 @@
 #include "ecs/Components.h"
 #include "Material.h"
 #include "DebugMaterial.h"
+#include "TextRenderer.h"
+
+// TextRenderer is used via unique_ptr; include full type to avoid incomplete-type destructor issues
 
 struct LightData {
     LightType type;
@@ -82,7 +85,7 @@ public:
 
 private:
     Renderer() = default;
-    ~Renderer() = default;
+    ~Renderer();
 
     uint32_t m_Width = 0;
     uint32_t m_Height = 0;
@@ -117,5 +120,8 @@ private:
     bgfx::VertexBufferHandle m_GridVB = BGFX_INVALID_HANDLE;
     uint32_t m_GridVertexCount = 0;
 
+    // Text rendering state
+    std::unique_ptr<TextRenderer> m_TextRenderer;
 
+ 
 };

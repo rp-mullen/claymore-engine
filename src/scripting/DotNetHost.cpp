@@ -14,6 +14,7 @@ extern "C" {
 #include "pipeline/AssetPipeline.h"
 #include "scripting/InputInterop.h"
 #include "scripting/ScriptReflectionInterop.h"
+#include "scripting/ComponentInterop.h"
 #include <filesystem>
 
 // --------------------------------------------------------------------------------------
@@ -43,14 +44,16 @@ static load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_
 Script_Create_fn g_Script_Create = nullptr;
 Script_OnCreate_fn g_Script_OnCreate = nullptr;
 Script_OnUpdate_fn g_Script_OnUpdate = nullptr;
+Script_Invoke_fn g_Script_Invoke = nullptr;
 ReloadScripts_fn g_ReloadScripts = nullptr;
 
 InstallSyncContext_fn InstallSyncContextPtr = nullptr;
 EnsureInstalled_fn    EnsureInstalledPtr = nullptr;
 
 
-// SyncContext flush pointer
+// SyncContext control pointers
 FlushSyncContext_fn FlushSyncContextPtr = nullptr;
+ClearSyncContext_fn ClearSyncContextPtr = nullptr;
 
 // Struct passed to managed side for script registration callbacks
 struct ScriptRegistrationInterop {
@@ -255,6 +258,21 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
       rc |= localRc;
    }
 
+   // Resolve Script_Invoke for arbitrary method calls
+   {
+      void* fn = nullptr;
+      int localRc = load_assembly_and_get_function_pointer(
+         fullPath.c_str(),
+         L"ClaymoreEngine.InteropExports, ClaymoreEngine",
+         L"Script_Invoke",
+         L"ClaymoreEngine.InteropExports+Script_InvokeDelegate, ClaymoreEngine",
+         nullptr,
+         &fn
+      );
+      if (localRc == 0 && fn)
+         g_Script_Invoke = reinterpret_cast<Script_Invoke_fn>(fn);
+   }
+
    // Load FlushSyncContext from managed side
    rc |= load_assembly_and_get_function_pointer(
       fullPath.c_str(),
@@ -264,6 +282,21 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
       nullptr,
       (void**)&FlushSyncContextPtr
    );
+
+   // Load ClearSyncContext from managed side (optional safety)
+   {
+      void* fn = nullptr;
+      int localRc = load_assembly_and_get_function_pointer(
+         fullPath.c_str(),
+         L"ClaymoreEngine.EngineSyncContext, ClaymoreEngine",
+         L"Clear",
+         L"ClaymoreEngine.VoidDelegate, ClaymoreEngine",
+         nullptr,
+         &fn
+      );
+      if (localRc == 0 && fn)
+         ClearSyncContextPtr = reinterpret_cast<ClearSyncContext_fn>(fn);
+   }
 
    {
    void* fn = nullptr;
@@ -482,7 +515,14 @@ void SetupEntityInterop(std::filesystem::path fullPath)
            (void*)SetBlendShapeWeightPtr,
            (void*)GetBlendShapeWeightPtr,
            (void*)GetBlendShapeCountPtr,
-           (void*)GetBlendShapeNamePtr
+            (void*)GetBlendShapeNamePtr,
+
+            // Animator parameter setters (5)
+            (void*)&Animator_SetBool,
+            (void*)&Animator_SetInt,
+            (void*)&Animator_SetFloat,
+            (void*)&Animator_SetTrigger,
+            (void*)&Animator_ResetTrigger
         };
 
         using EntityInteropInitFn = void(*)(void**, int);

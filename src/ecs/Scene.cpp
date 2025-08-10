@@ -13,15 +13,21 @@ namespace fs = std::filesystem;
 #include <rendering/TextureLoader.h>
 #include <rendering/MaterialManager.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
+#include "scripting/ManagedScriptComponent.h"
+#include "scripting/ScriptReflection.h"
+#include "scripting/ScriptReflectionInterop.h"
+#include "animation/AvatarDefinition.h"
 
 
 #include <sstream> // Include for std::ostringstream
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <glm/gtc/quaternion.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/euler_angles.hpp>
 #include <windows.h>
+#include "animation/AvatarSerializer.h"
 
 Scene* Scene::CurrentScene = nullptr;
 
@@ -76,8 +82,10 @@ void Scene::RemoveEntity(EntityID id) {
 
     // 4. Clean up allocated components
     if (data->Mesh) {
-        // Ensure we don't delete shared mesh GPU buffers here; just release component
-        data->Mesh->mesh.reset();
+        // Do not touch underlying GPU buffers here; just drop references and free the component
+        data->Mesh->mesh = nullptr;          // avoid invoking custom/non-owning shared_ptr control blocks
+        data->Mesh->material.reset();        // release material reference if any
+        data->Mesh->BlendShapes = nullptr;   // component owns blendshapes via EntityData, not here
         delete data->Mesh;
         data->Mesh = nullptr;
     }
@@ -150,6 +158,26 @@ EntityData* Scene::GetEntityData(EntityID id) {
        data = (it != m_Entities.end()) ? &it->second : nullptr;
     }
     return data;
+}
+
+void Scene::QueueRemoveEntity(EntityID id) {
+    // Allow duplicates; we'll dedupe when processing
+    m_PendingRemovals.push_back(id);
+}
+
+void Scene::ProcessPendingRemovals() {
+    if (m_PendingRemovals.empty()) return;
+    // Deduplicate while preserving order of first occurrence
+    std::unordered_set<EntityID> seen;
+    std::vector<EntityID> unique;
+    unique.reserve(m_PendingRemovals.size());
+    for (EntityID id : m_PendingRemovals) {
+        if (seen.insert(id).second) unique.push_back(id);
+    }
+    for (EntityID id : unique) {
+        RemoveEntity(id);
+    }
+    m_PendingRemovals.clear();
 }
 
 Entity Scene::FindEntityByID(EntityID id) {
@@ -369,6 +397,16 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         }
 
         skelData->Skeleton->BoneEntities = boneEntities;
+
+        // Try to load a prebuilt .avatar next to the model if present; otherwise, build via heuristics
+        skelData->Skeleton->Avatar = std::make_unique<cm::animation::AvatarDefinition>();
+        {
+            std::filesystem::path p(path);
+            std::string avatarPath = (p.parent_path() / (p.stem().string() + ".avatar")).string();
+            if (!cm::animation::LoadAvatar(*skelData->Skeleton->Avatar, avatarPath)) {
+                cm::animation::avatar_builders::BuildFromSkeleton(*skelData->Skeleton, *skelData->Skeleton->Avatar, true);
+            }
+        }
     }
 
 
@@ -452,6 +490,8 @@ void Scene::SetParent(EntityID child, EntityID parent) {
 
    childData->Parent = parent;
    parentData->Children.push_back(child);
+   // Mark child subtree dirty so transforms recompute relative to new parent
+   MarkTransformDirty(child);
    }
 
 
@@ -578,10 +618,54 @@ std::shared_ptr<Scene> Scene::RuntimeClone() {
       }
       }
 
-   // Initialize scripts after cloning
+   // Apply reflected property values to managed scripts, then initialize
    for (auto& [scriptPtr, entity] : toInitialize) {
-      scriptPtr->Instance->OnCreate(entity);
+      if (scriptPtr && scriptPtr->Instance &&
+          scriptPtr->Instance->GetBackend() == ScriptBackend::Managed) {
+         auto managed = std::dynamic_pointer_cast<ManagedScriptComponent>(scriptPtr->Instance);
+         if (managed && SetManagedFieldPtr) {
+            void* handle = managed->GetHandle();
+            auto& properties = ScriptReflection::GetScriptProperties(scriptPtr->ClassName);
+            for (auto& property : properties) {
+               switch (property.type) {
+                  case PropertyType::Int: {
+                     int v = std::get<int>(property.currentValue);
+                     SetManagedFieldPtr(handle, property.name.c_str(), &v);
+                     break;
+                  }
+                  case PropertyType::Float: {
+                     float v = std::get<float>(property.currentValue);
+                     SetManagedFieldPtr(handle, property.name.c_str(), &v);
+                     break;
+                  }
+                  case PropertyType::Bool: {
+                     bool v = std::get<bool>(property.currentValue);
+                     SetManagedFieldPtr(handle, property.name.c_str(), &v);
+                     break;
+                  }
+                  case PropertyType::String: {
+                     const std::string& s = std::get<std::string>(property.currentValue);
+                     const char* cstr = s.c_str();
+                     SetManagedFieldPtr(handle, property.name.c_str(), (void*)cstr);
+                     break;
+                  }
+                  case PropertyType::Vector3: {
+                     glm::vec3 v = std::get<glm::vec3>(property.currentValue);
+                     SetManagedFieldPtr(handle, property.name.c_str(), &v);
+                     break;
+                  }
+                  case PropertyType::Entity: {
+                     int id = std::get<int>(property.currentValue);
+                     SetManagedFieldPtr(handle, property.name.c_str(), &id);
+                     break;
+                  }
+               }
+            }
+         }
       }
+      // Now call OnCreate so scripts see the configured values at startup
+      scriptPtr->Instance->OnCreate(entity);
+   }
 
    // Debug: Print parent-child relationships
    std::cout << "[Scene] Cloned scene parent-child relationships:" << std::endl;
@@ -748,6 +832,8 @@ void Scene::CreatePhysicsBody(EntityID id, const TransformComponent& transform, 
 
 void Scene::Update(float dt) {
    static bool once = (std::cout << "[C++] Scene::Update thread: " << GetCurrentThreadId() << "\n", true);
+   // Ensure any queued deletions are processed at a safe point each frame
+   ProcessPendingRemovals();
    UpdateTransforms();
 
    // Update GPU skinning palette after transforms
@@ -760,6 +846,7 @@ void Scene::Update(float dt) {
 
    extern void(__stdcall * EnsureInstalledPtr)();    // forward if needed, or capture in a singleton
    extern void(__stdcall * FlushSyncContextPtr)();
+   extern void(__stdcall * ClearSyncContextPtr)();
 
    if (EnsureInstalledPtr) EnsureInstalledPtr();
 
@@ -831,7 +918,11 @@ void Scene::Update(float dt) {
 
       // Flush managed SynchronizationContext so that await continuations run on the main thread
       if(FlushSyncContextPtr)
-         FlushSyncContextPtr();
+      {
+         auto fnBits = reinterpret_cast<uintptr_t>(FlushSyncContextPtr);
+         if(fnBits > 0x10000)
+            FlushSyncContextPtr();
+      }
       }
    }
 
@@ -856,6 +947,12 @@ bool Scene::HasComponent(const char* componentName) {
       if (strcmp(componentName, "SkeletonComponent") == 0 && data->Skeleton)
          return true;
       if (strcmp(componentName, "SkinningComponent") == 0 && data->Skinning)
+         return true;
+      if (strcmp(componentName, "CanvasComponent") == 0 && data->Canvas)
+         return true;
+      if (strcmp(componentName, "PanelComponent") == 0 && data->Panel)
+         return true;
+      if (strcmp(componentName, "ButtonComponent") == 0 && data->Button)
          return true;
       }
    return false;

@@ -10,7 +10,8 @@ $output v_color0, v_texcoord0
 
 void main()
 {
-	gl_Position = mul(u_modelViewProj, vec4(a_position, 1.0) );
-	v_color0    = a_color0;
-	v_texcoord0 = a_texcoord0;
+    // CPU builds camera-facing billboard quads. Just transform to clip space and pass varyings.
+    gl_Position = mul(u_modelViewProj, vec4(a_position, 1.0));
+    v_color0    = a_color0;
+    v_texcoord0 = a_texcoord0; // .xy = UV, .z = per-particle blend factor (0..1), .w reserved
 }

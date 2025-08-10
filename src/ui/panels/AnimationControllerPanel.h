@@ -6,8 +6,9 @@
 #include <vector>
 #include <unordered_map>
 #include <imgui.h>
-
+#include "ui/panels/InspectorPanel.h"
 namespace cm { namespace animation { class AnimatorController; } }
+
 
 class AnimationControllerPanel : public EditorPanel {
 public:
@@ -19,6 +20,9 @@ public:
     bool Load(const std::string& path);
     bool Save(const std::string& path);
 
+    // Wiring: let panel drive the Inspector when nodes/links are selected
+    void SetInspectorPanel(InspectorPanel* inspector) { m_Inspector = inspector; }
+
 private:
     void DrawToolbar();
     void DrawParameterList();
@@ -28,6 +32,7 @@ private:
     std::shared_ptr<cm::animation::AnimatorController> m_Controller;
     std::string m_OpenPath;
     int m_NextStateId = 1;
+    InspectorPanel* m_Inspector = nullptr;
 };
 
 

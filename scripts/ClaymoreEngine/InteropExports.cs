@@ -157,6 +157,29 @@ namespace ClaymoreEngine
             script.OnUpdate(dt);
         }
 
+        // Invoke an arbitrary method on a managed script instance by name
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void Script_InvokeDelegate(IntPtr handle, [MarshalAs(UnmanagedType.LPStr)] string methodName);
+
+        public static void Script_Invoke(IntPtr handle, string methodName)
+        {
+            try
+            {
+                var gch = GCHandle.FromIntPtr(handle);
+                var script = gch.Target;
+                if (script == null) return;
+                var mi = script.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                if (mi != null)
+                {
+                    mi.Invoke(script, Array.Empty<object>());
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[C#] Script_Invoke error: {ex}");
+            }
+        }
+
         // Native passes pointer to struct containing function pointers
         [StructLayout(LayoutKind.Sequential)]
         private struct ScriptRegistrationInterop
@@ -189,13 +212,9 @@ namespace ClaymoreEngine
                     if (field.GetCustomAttribute<SerializeField>() == null) continue;
 
                     NativePropertyType nType = ToNative(field.FieldType);
-                    object? defVal = field.FieldType.IsValueType ? Activator.CreateInstance(field.FieldType) : null;
+                    // Do NOT pass GCHandle/addresses of temporary boxed values here.
+                    // Native side will construct type-correct defaults when boxedDefault == 0.
                     IntPtr boxedPtr = IntPtr.Zero;
-                    if(defVal != null)
-                    {
-                        var h = GCHandle.Alloc(defVal, GCHandleType.Pinned);
-                        boxedPtr = GCHandle.ToIntPtr(h);
-                    }
                     _registerPropNative!(t.FullName!, field.Name, (int)nType, boxedPtr);
                 }
             }

@@ -68,7 +68,8 @@ extern "C"
 
     __declspec(dllexport) void DestroyEntity(int entityID)
     {
-        Scene::Get().RemoveEntity(entityID);
+       // Defer deletion to avoid mid-frame invalidation
+       Scene::Get().QueueRemoveEntity(entityID);
     }
 
     __declspec(dllexport) int GetEntityByID(int entityID)

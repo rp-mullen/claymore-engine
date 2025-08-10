@@ -82,7 +82,8 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
          // TODO: implement duplication
          }
       if (ImGui::MenuItem("Delete")) {
-         m_Context->RemoveEntity(id);
+         // Defer deletion to avoid invalidation during render
+         m_Context->QueueRemoveEntity(id);
          if (*m_SelectedEntity == id)
             *m_SelectedEntity = -1;
          entityDeleted = true;

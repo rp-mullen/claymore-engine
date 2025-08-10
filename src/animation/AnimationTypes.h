@@ -51,6 +51,15 @@ struct AnimationClip {
 
     // Map of skeleton bone name -> animated track
     std::unordered_map<std::string, BoneTrack> BoneTracks;
+
+    // Humanoid metadata (optional)
+    bool IsHumanoid = false;                              // true if clip is authored for a humanoid avatar
+    std::string SourceAvatarRigName;                      // rig signature/name for provenance
+    std::string SourceAvatarPath;                         // absolute or project-relative path to .avatar for source rig
+
+    // When IsHumanoid is true, avatar-level tracks (by canonical humanoid bone id)
+    // Keys are integer ids of HumanoidBone enum; values are the same BoneTrack format
+    std::unordered_map<int, BoneTrack> HumanoidTracks;
 };
 
 } // namespace animation
