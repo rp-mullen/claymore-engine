@@ -2,6 +2,7 @@
 #include <fstream>
 #include "animation/PropertyTrack.h"
 #include "animation/AnimationAsset.h"
+#include "animation/HumanoidAvatar.h"
 #include <iostream>
 namespace cm {
 namespace animation {
@@ -321,6 +322,10 @@ AnimationAsset DeserializeAnimationAsset(const json& j)
                 if (jt.contains("t")) readCurve(jt["t"], t->t);
                 if (jt.contains("r")) readCurve(jt["r"], t->r);
                 if (jt.contains("s")) readCurve(jt["s"], t->s);
+                // Fallback naming for display if not provided
+                if (t->name.empty() && t->humanBoneId >= 0) {
+                    t->name = std::string("Humanoid:") + ToString(static_cast<HumanBone>(t->humanBoneId));
+                }
                 a.tracks.push_back(std::move(t));
             } else if (tt == "Property") {
                 auto t = std::make_unique<AssetPropertyTrack>();
@@ -375,7 +380,20 @@ AnimationAsset WrapLegacyClipAsAsset(const AnimationClip& clip)
         for (const auto& k : bt.ScaleKeys)    t->s.keys.push_back({0ull, k.Time, k.Value});
         a.tracks.push_back(std::move(t));
     }
-    // Optionally include humanoid tracks by mapping to AvatarTrack later
+    // Include humanoid tracks by mapping to AvatarTrack if present in legacy clip
+    if (!clip.HumanoidTracks.empty()) {
+        for (const auto& hv : clip.HumanoidTracks) {
+            int humanId = hv.first;
+            const BoneTrack& bt = hv.second;
+            auto t = std::make_unique<AssetAvatarTrack>();
+            t->humanBoneId = humanId;
+            t->name = std::string("Humanoid:") + ToString(static_cast<HumanBone>(humanId));
+            for (const auto& k : bt.PositionKeys) t->t.keys.push_back({0ull, k.Time, k.Value});
+            for (const auto& k : bt.RotationKeys) t->r.keys.push_back({0ull, k.Time, k.Value});
+            for (const auto& k : bt.ScaleKeys)    t->s.keys.push_back({0ull, k.Time, k.Value});
+            a.tracks.push_back(std::move(t));
+        }
+    }
     return a;
 }
 

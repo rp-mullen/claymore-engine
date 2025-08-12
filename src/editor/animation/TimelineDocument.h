@@ -32,6 +32,14 @@ public:
     bool Save(const std::string& filePath);
     void MarkDirty();
     float Duration() const;
+
+    // Key utilities used by the editor
+    cm::animation::KeyID GenerateKeyID();
+    void ReindexMissingKeyIDs();
+    void ClearSelection() { selectedTracks.clear(); selectedKeys.clear(); }
+
+private:
+    cm::animation::KeyID m_NextKeyId = 1;
 };
 
 

@@ -11,6 +11,10 @@
 #include "animation/BindingCache.h"
 #include "animation/HumanoidRetargeter.h"
 #include "animation/AvatarSerializer.h"
+// Script event dispatch to managed C# scripts
+#include "scripting/ManagedScriptComponent.h"
+#include "scripting/DotNetHost.h"
+#include <nlohmann/json.hpp>
 
 namespace cm {
 namespace animation {
@@ -131,12 +135,36 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
             EvalInputs in{ state.Asset, mutableState.Time, mutableState.Loop };
             EvalTargets tgt{ &pose };
             EvalContext ctx{ &s_bindings, skeleton.Avatar.get(), &skeleton };
-            SampleAsset(in, ctx, tgt, nullptr, nullptr);
+            // Collect script events and property writes (if any)
+            std::vector<cm::animation::ScriptEvent> firedEvents;
+            nlohmann::json propWrites;
+            SampleAsset(in, ctx, tgt, &firedEvents, &propWrites);
             localTransforms = std::move(pose.local);
             // Fill untouched bones with bind pose locals
             for (int i = 0; i < (int)localTransforms.size(); ++i) {
                 if (i < (int)pose.touched.size() && !pose.touched[i]) {
                     localTransforms[i] = computeLocalBind(i);
+                }
+            }
+
+            // Dispatch script events to managed scripts attached to the skeleton root entity
+            if (!firedEvents.empty()) {
+                auto* rootData = scene.GetEntityData(ent.GetID());
+                if (rootData) {
+                    for (const auto& ev : firedEvents) {
+                        const std::string& targetClass  = ev.className;
+                        const std::string& targetMethod = ev.method;
+                        for (auto& script : rootData->Scripts) {
+                            if (!script.Instance) continue;
+                            if (script.ClassName != targetClass) continue;
+                            if (script.Instance->GetBackend() == ScriptBackend::Managed) {
+                                auto managed = std::dynamic_pointer_cast<ManagedScriptComponent>(script.Instance);
+                                if (managed && g_Script_Invoke) {
+                                    g_Script_Invoke(managed->GetHandle(), targetMethod.c_str());
+                                }
+                            }
+                        }
+                    }
                 }
             }
         } else if (state.LegacyClip) {
@@ -149,7 +177,7 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                 }
             }
         }
-
+         
         // Crossfade blend if active: sample next state and blend matrices linearly (local-space)
         if (player.AnimatorInstance.IsCrossfading() && player.Controller) {
             int nextId = player.AnimatorInstance.Playback().NextStateId;

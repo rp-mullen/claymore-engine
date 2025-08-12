@@ -26,6 +26,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <animation/AvatarSerializer.h>
+#include <animation/HumanoidBone.h>
 
 
 namespace fs = std::filesystem;
@@ -306,57 +307,60 @@ void AssetPipeline::ImportModel(const std::string& path) {
             // Non-fatal
         } 
 
-        // --------- Extract animations ---------
+        // --------- Extract animations (unified .anim as primary) ---------
         using namespace cm::animation;
+        
         auto clips = AnimationImporter::ImportFromModel(path);
         std::cout << "[AssetPipeline] ImportFromModel found " << clips.size() << " animation(s)." << std::endl;
         if (!clips.empty()) {
             std::filesystem::path p(path);
             std::string dir = p.parent_path().string();
+            // Try to load/create a source avatar for this rig
+            AvatarDefinition srcAvatar;
+            std::string avatarPath = (p.parent_path() / (p.stem().string() + ".avatar")).string();
+            bool hasAvatar = cm::animation::LoadAvatar(srcAvatar, avatarPath);
             for (auto& clip : clips) {
-                // Basic humanoid detection: if there are bone tracks whose names match common human bones, mark humanoid
+                // Build a unified AnimationAsset and convert skeletal to Avatar tracks if humanoid
+                AnimationAsset asset; asset.name = clip.Name; asset.meta.version = 1; asset.meta.fps = (clip.TicksPerSecond > 0.0f ? clip.TicksPerSecond : 30.0f); asset.meta.length = clip.Duration;
                 bool isHumanoid = false;
-                static const char* kHumanoidSeeds[] = {
-                    "Hips","Spine","Chest","Neck","Head",
-                    "LeftUp","LeftArm","LeftFore","LeftHand",
-                    "RightUp","RightArm","RightFore","RightHand",
-                    "LeftUpLeg","LeftLeg","LeftCalf","LeftFoot",
-                    "RightUpLeg","RightLeg","RightCalf","RightFoot"
-                };
-                for (const auto& [name, _] : clip.BoneTracks) {
-                    for (auto s : kHumanoidSeeds) {
-                        if (name.find(s) != std::string::npos) { isHumanoid = true; break; }
-                    }
-                    if (isHumanoid) break;
-                }
-                clip.IsHumanoid = isHumanoid;
-                if (isHumanoid) {
-                    clip.SourceAvatarRigName = p.stem().string();
-                    clip.SourceAvatarPath = (p.parent_path() / (p.stem().string() + ".avatar")).string();
-
-                    // Project skeletal tracks into canonical humanoid bone ids if source avatar exists
-                    cm::animation::AvatarDefinition srcAvatar;
-                    if (cm::animation::LoadAvatar(srcAvatar, clip.SourceAvatarPath)) {
-                        // Build bone-name to mapped humanoid id (if present)
-                        std::unordered_map<std::string, int> nameToHumanId;
+                if (hasAvatar) {
+                    // Convert using avatar mapping when bone names match, otherwise fall back to skeletal
+                    for (const auto& [boneName, bt] : clip.BoneTracks) {
+                        // Find mapped humanoid id
+                        int mappedId = -1;
                         for (uint16_t i = 0; i < cm::animation::HumanoidBoneCount; ++i) {
-                            if (srcAvatar.Present[i]) {
-                                const auto& e = srcAvatar.Map[i];
-                                if (!e.BoneName.empty()) nameToHumanId[e.BoneName] = (int)i;
-                            }
+                            if (!srcAvatar.Present[i]) continue;
+                            const auto& e = srcAvatar.Map[i];
+                            if (!e.BoneName.empty() && e.BoneName == boneName) { mappedId = (int)i; break; }
                         }
-                        for (const auto& [boneName, bt] : clip.BoneTracks) {
-                            auto it = nameToHumanId.find(boneName);
-                            if (it != nameToHumanId.end()) {
-                                clip.HumanoidTracks[it->second] = bt;
-                            }
+                        if (mappedId >= 0) {
+                            isHumanoid = true;
+                            auto t = std::make_unique<AssetAvatarTrack>();
+                            t->humanBoneId = mappedId;
+                            t->name = std::string("Humanoid:") + ToString(static_cast<cm::animation::HumanoidBone>(mappedId));
+                            for (const auto& k : bt.PositionKeys) t->t.keys.push_back({0ull, k.Time, k.Value});
+                            for (const auto& k : bt.RotationKeys) t->r.keys.push_back({0ull, k.Time, k.Value});
+                            for (const auto& k : bt.ScaleKeys)    t->s.keys.push_back({0ull, k.Time, k.Value});
+                            asset.tracks.push_back(std::move(t));
                         }
                     }
                 }
+                // If not humanoid or no avatar mapping, keep skeletal bone tracks
+                if (!isHumanoid) {
+                    for (const auto& [boneName, bt] : clip.BoneTracks) {
+                        auto t = std::make_unique<AssetBoneTrack>();
+                        t->name = boneName;
+                        for (const auto& k : bt.PositionKeys) t->t.keys.push_back({0ull, k.Time, k.Value});
+                        for (const auto& k : bt.RotationKeys) t->r.keys.push_back({0ull, k.Time, k.Value});
+                        for (const auto& k : bt.ScaleKeys)    t->s.keys.push_back({0ull, k.Time, k.Value});
+                        asset.tracks.push_back(std::move(t));
+                    }
+                }
 
+                // Save as unified .anim
                 std::string outPath = dir + "/" + p.stem().string() + "_" + clip.Name + ".anim";
-                if (SaveAnimationClip(clip, outPath)) {
-                    std::cout << "[AssetPipeline] Saved animation clip: " << outPath << std::endl;
+                if (SaveAnimationAsset(asset, outPath)) {
+                    std::cout << "[AssetPipeline] Saved animation asset: " << outPath << std::endl;
                 }
             }
         }

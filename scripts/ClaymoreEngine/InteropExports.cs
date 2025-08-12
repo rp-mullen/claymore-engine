@@ -157,10 +157,6 @@ namespace ClaymoreEngine
             script.OnUpdate(dt);
         }
 
-        // Invoke an arbitrary method on a managed script instance by name
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void Script_InvokeDelegate(IntPtr handle, [MarshalAs(UnmanagedType.LPStr)] string methodName);
-
         public static void Script_Invoke(IntPtr handle, string methodName)
         {
             try
@@ -245,4 +241,9 @@ namespace ClaymoreEngine
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void RegisterAllScriptsDelegate(IntPtr nativeCallback);
+
+    // Top-level delegate for invoking arbitrary method calls on managed scripts
+    // (Resolved by native via load_assembly_and_get_function_pointer)
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void Script_InvokeDelegate(IntPtr handle, [MarshalAs(UnmanagedType.LPStr)] string methodName);
 }

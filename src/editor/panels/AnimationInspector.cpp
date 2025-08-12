@@ -31,8 +31,10 @@ bool AnimationInspectorPanel::IsVisible() const {
 void AnimationInspectorPanel::LoadClip(const std::string& path)
 {
     m_CurrentClipPath = path;
-    // Resolve avatar from clip metadata
-    auto clip = cm::animation::LoadAnimationClip(path);
+    // Prefer unified asset; fall back to legacy clip for compatibility
+    auto asset = cm::animation::LoadAnimationAsset(path);
+    bool loadedAsset = !asset.tracks.empty();
+    auto clip = loadedAsset ? cm::animation::AnimationClip{} : cm::animation::LoadAnimationClip(path);
     auto [unusedModel, unusedSkel, humanoid] = m_AvatarCache->ResolveForClip(clip);
     m_Preview->Shutdown();
     m_Preview->Init(480, 320);
@@ -41,8 +43,12 @@ void AnimationInspectorPanel::LoadClip(const std::string& path)
         m_Preview->SetModelPath("assets/prefabs/default_humanoid.fbx");
         m_Preview->ResetCamera();
     }
-    auto clipPtr = std::make_shared<AnimationClip>(clip);
-    m_Player->SetClip(clipPtr);
+    if (loadedAsset) {
+        m_Player->SetAsset(&asset);
+    } else {
+        auto clipPtr = std::make_shared<AnimationClip>(clip);
+        m_Player->SetClip(clipPtr);
+    }
     m_Player->SetSkeleton(m_Preview->GetSkeleton());
     m_Player->SetScene(m_Preview->GetScene());
     // If no skeleton/model is available yet, ensure a default model is loaded

@@ -265,12 +265,18 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
          fullPath.c_str(),
          L"ClaymoreEngine.InteropExports, ClaymoreEngine",
          L"Script_Invoke",
-         L"ClaymoreEngine.InteropExports+Script_InvokeDelegate, ClaymoreEngine",
+         L"ClaymoreEngine.Script_InvokeDelegate, ClaymoreEngine",
          nullptr,
          &fn
       );
       if (localRc == 0 && fn)
+      {
          g_Script_Invoke = reinterpret_cast<Script_Invoke_fn>(fn);
+      }
+      else
+      {
+         std::cerr << "[Interop] Failed to resolve Script_Invoke (HRESULT=" << std::hex << localRc << ")\n";
+      }
    }
 
    // Load FlushSyncContext from managed side

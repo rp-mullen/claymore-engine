@@ -46,9 +46,12 @@ AssetPickerResult DrawAssetPicker(AssetPickerConfig cfg)
     // List all matching assets from project roots
     std::vector<std::string> all;
     std::vector<std::filesystem::path> roots;
-    roots.emplace_back("assets");
+    // Prefer the configured asset directory; fall back to project root and default 'assets'
+    auto assetDir = Project::GetAssetDirectory();
+    if (!assetDir.empty()) roots.emplace_back(assetDir);
     const auto& projDir = Project::GetProjectDirectory();
     if (!projDir.empty()) roots.emplace_back(Project::GetProjectDirectory());
+    roots.emplace_back("assets");
 
     std::error_code ec;
     for (const auto& root : roots) {
