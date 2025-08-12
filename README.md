@@ -9,6 +9,7 @@ A 3D game engine developed in C++ with .NET 8.0 native interop; built on bgfx, a
 - **Physics**: Integrates Jolt Physics for realistic simulations.
 - **Asset Management**: Utilizes Assimp for importing various 3D model formats.
 - **Scripting**: Supports C# scripting with .NET 8.0 native interop.
+  - HostCLR allows for modern LTS .NET SDK use, JIT compiling that makes scripts more performant than the traditional Mono/IL2CPP
 - **Modular Design**: Engine components are designed to be modular and extensible.
 - **Open Source**: Licensed under the MIT License, allowing for free use and modification.
 
