@@ -47,8 +47,12 @@ void AnimationControllerPanel::DrawToolbar() {
         m_NextStateId = 1;
     }
     ImGui::SameLine();
+    static char ctrlPathBuf[512] = {0};
+    ImGui::SetNextItemWidth(240);
+    ImGui::InputText("##ctrlPath", ctrlPathBuf, sizeof(ctrlPathBuf));
+    ImGui::SameLine();
     if (ImGui::Button("Open")) {
-        // Minimal: expect user to paste path into input
+        if (ctrlPathBuf[0]) Load(ctrlPathBuf);
     }
     ImGui::SameLine();
     if (ImGui::Button("Save")) {
@@ -56,7 +60,7 @@ void AnimationControllerPanel::DrawToolbar() {
     }
     ImGui::SameLine();
     if (ImGui::Button("Save As")) {
-        // Minimal: saving is triggered externally
+        if (ctrlPathBuf[0]) { m_OpenPath = ctrlPathBuf; Save(m_OpenPath); }
     }
 }
 
@@ -196,6 +200,7 @@ void AnimationControllerPanel::DrawNodeEditor() {
             InspectorPanel::AnimatorStateBinding binding;
             binding.Name = &s.Name;
             binding.ClipPath = &s.ClipPath;
+            binding.AssetPath = &s.AnimationAssetPath;
             binding.Speed = &s.Speed;
             binding.Loop = &s.Loop;
             binding.IsDefault = isDefault;

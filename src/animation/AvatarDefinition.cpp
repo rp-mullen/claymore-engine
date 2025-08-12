@@ -1,4 +1,6 @@
 #include "animation/AvatarDefinition.h"
+#include "animation/HumanoidAvatar.h"
+#include "ecs/AnimationComponents.h"
 #include "ecs/AnimationComponents.h"
 #include <algorithm>
 #include <cctype>
@@ -148,6 +150,13 @@ void avatar_builders::BuildFromSkeleton(const SkeletonComponent& skeleton,
         glm::mat4 parentModel = parentIdx >= 0 ? modelBind[parentIdx] : glm::mat4(1.0f);
         outAvatar.BindLocal[i] = glm::inverse(parentModel) * outAvatar.BindModel[i];
     }
+}
+
+int HumanoidAvatar::HumanToSkeleton(int humanBoneId, const ::SkeletonComponent& skeleton) const {
+    HumanBone hb = static_cast<HumanBone>(humanBoneId);
+    auto it = BoneMapping.find(hb);
+    if (it == BoneMapping.end()) return -1;
+    return skeleton.GetBoneIndex(it->second);
 }
 
 } // namespace animation

@@ -8,7 +8,8 @@
 #include "panels/ConsolePanel.h"
 #include "panels/PrefabEditorPanel.h"
 #include "panels/AnimationControllerPanel.h"
-#include "panels/AnimationTimelinePanel.h"
+// Legacy timeline panel removed in favor of new editor/animation panel
+#include "editor/animation/AnimationTimelinePanel.h"
 #include "panels/AvatarBuilderPanel.h"
 #include "ecs/Scene.h"
 #include "panels/ScriptRegistryPanel.h"
@@ -31,6 +32,7 @@ public:
     void RequestLayoutReset();
 
     Scene& GetScene() { return m_Scene; }
+    class AnimationInspectorPanel* GetAnimationInspector() { return m_AnimationInspector.get(); }
 
     // Camera controls (forwarded to viewport)
     void HandleCameraControls() { m_ViewportPanel.HandleCameraControls(); }
@@ -48,6 +50,9 @@ public:
 
     // Prefab editor management
     void OpenPrefabEditor(const std::string& prefabPath);
+    // Access to Project panel
+    ProjectPanel& GetProjectPanel() { return m_ProjectPanel; }
+    class AnimTimelinePanel& GetTimelinePanel() { return m_AnimTimelinePanel; }
     
     // Deferred scene loading
     void DeferSceneLoad(const std::string& filepath);
@@ -67,6 +72,7 @@ public:
 
 private:
     Scene m_Scene;
+    std::unique_ptr<class AnimationInspectorPanel> m_AnimationInspector;
     EntityID m_SelectedEntity = -1;
     EntityID m_PreviousSelectedEntity = -1;
 
@@ -79,11 +85,8 @@ private:
     ConsolePanel m_ConsolePanel;
     ScriptRegistryPanel m_ScriptPanel;
     AnimationControllerPanel m_AnimCtrlPanel;
-    AnimationTimelinePanel m_AnimTimelinePanel{ &m_Scene, &m_SelectedEntity };
+    class AnimTimelinePanel m_AnimTimelinePanel{};
     AvatarBuilderPanel m_AvatarBuilderPanel{ &m_Scene };
-
-public:
-    AnimationTimelinePanel& GetTimelinePanel() { return m_AnimTimelinePanel; }
 
     bool m_PlayMode = false; // Simulation state
     bool m_FocusConsoleNextFrame = false;

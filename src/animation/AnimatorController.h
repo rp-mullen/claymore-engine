@@ -49,7 +49,8 @@ struct AnimatorCondition {
 struct AnimatorState {
     int Id = -1;
     std::string Name;
-    std::string ClipPath; // Path to .anim JSON clip (project-relative)
+    std::string ClipPath; // Legacy .anim
+    std::string AnimationAssetPath; // Unified .anim (new)
     float Speed = 1.0f;
     bool Loop = true;
     // Editor visualization
@@ -145,12 +146,13 @@ struct AnimatorController {
     }
 
     inline void to_json(nlohmann::json& j, const AnimatorState& s) {
-        j = nlohmann::json{{"id", s.Id}, {"name", s.Name}, {"clip", s.ClipPath}, {"speed", s.Speed}, {"loop", s.Loop}, {"x", s.EditorPosX}, {"y", s.EditorPosY}};
+        j = nlohmann::json{{"id", s.Id}, {"name", s.Name}, {"clip", s.ClipPath}, {"asset", s.AnimationAssetPath}, {"speed", s.Speed}, {"loop", s.Loop}, {"x", s.EditorPosX}, {"y", s.EditorPosY}};
     }
     inline void from_json(const nlohmann::json& j, AnimatorState& s) {
         s.Id = j.value("id", -1);
         s.Name = j.value("name", "");
         s.ClipPath = j.value("clip", "");
+        s.AnimationAssetPath = j.value("asset", "");
         s.Speed = j.value("speed", 1.0f);
         s.Loop = j.value("loop", true);
         s.EditorPosX = j.value("x", 0.0f);

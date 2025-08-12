@@ -58,12 +58,7 @@ bool DrawVec3Control(const char* label, glm::vec3& values, float resetValue = 0.
 void InspectorPanel::OnImGuiRender() {
     ImGui::Begin("Inspector");
 
-    // If a timeline key is selected, show its inspector regardless of entity selection
-    if (m_TimelinePanel && m_TimelinePanel->HasSelectedKey()) {
-        DrawTimelineKeyInspector();
-        ImGui::End();
-        return;
-    }
+    // Timeline key inspection removed; the new animation panel owns track/key inspection UI
 
     // Prefer entity selection if available; otherwise, show animator binding when set
     if (!(m_SelectedEntity && *m_SelectedEntity != -1 && m_Context)
@@ -97,28 +92,7 @@ void InspectorPanel::OnImGuiRender() {
     ImGui::End();
 }
 
-void InspectorPanel::DrawTimelineKeyInspector()
-{
-    ImGui::TextDisabled("Timeline Key");
-    if (!m_TimelinePanel) return;
-    cm::animation::KeyframeFloat key;
-    if (!m_TimelinePanel->GetSelectedKey(key)) return;
-    float fps = m_TimelinePanel->GetFPS();
-    float frame = key.Time * std::max(1.0f, fps);
-    ImGui::Text("Track: %s", m_TimelinePanel->GetSelectedTrackName().c_str());
-    if (ImGui::DragFloat("Frame", &frame, 1.0f, 0.0f, 100000.0f)) {
-        float newTime = std::max(0.0f, frame / std::max(1.0f, fps));
-        m_TimelinePanel->SetSelectedKey(newTime, key.Value);
-        m_TimelinePanel->AddOrUpdateKeyAtCursor(key.Value); // Keep consistent if on playhead
-    }
-    float value = key.Value;
-    if (ImGui::DragFloat("Value", &value, 0.01f)) {
-        m_TimelinePanel->SetSelectedKey(key.Time, value);
-    }
-    if (ImGui::Button("Delete Key")) {
-        m_TimelinePanel->RemoveSelectedKey();
-    }
-}
+// Timeline key inspector removed (new animation panel owns it)
 
 void InspectorPanel::ShowAnimatorStateProperties(const std::string& stateName,
                                     std::string& clipPath,
@@ -134,7 +108,7 @@ void InspectorPanel::ShowAnimatorStateProperties(const std::string& stateName,
     if (isDefault) ImGui::TextDisabled("(Default Entry)");
     else if (ImGui::Button("Make Default")) { if (onMakeDefault) onMakeDefault(); }
 
-    // Drag-and-drop animation file onto clip path
+    // Drag-and-drop animation file onto clip path (legacy)
     char buf[260];
     strncpy(buf, clipPath.c_str(), sizeof(buf)); buf[sizeof(buf)-1] = 0;
     ImGui::InputText("Clip Path", buf, sizeof(buf));
@@ -149,6 +123,23 @@ void InspectorPanel::ShowAnimatorStateProperties(const std::string& stateName,
         ImGui::EndDragDropTarget();
     }
     clipPath = buf;
+
+    // Unified asset path next to legacy for migration
+    if (m_HasAnimatorBinding && m_AnimatorBinding.AssetPath) {
+        char abuf[260];
+        strncpy(abuf, m_AnimatorBinding.AssetPath->c_str(), sizeof(abuf)); abuf[sizeof(abuf)-1] = 0;
+        ImGui::InputText("Asset Path", abuf, sizeof(abuf));
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+                const char* path = (const char*)payload->Data;
+                if (path && strstr(path, ".anim")) {
+                    strncpy(abuf, path, sizeof(abuf)); abuf[sizeof(abuf)-1] = 0;
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        *m_AnimatorBinding.AssetPath = abuf;
+    }
 
     ImGui::DragFloat("Speed", &speed, 0.01f, 0.0f, 10.0f);
     ImGui::Checkbox("Loop", &loop);
@@ -167,24 +158,7 @@ void InspectorPanel::DrawComponents(EntityID entity) {
 
     if (&data->Transform && ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
         registry.DrawComponentUI("Transform", &data->Transform);
-        // Timeline integration: quick-add keys for selected property track
-        if (m_TimelinePanel && m_TimelinePanel->HasActivePropertySelection()) {
-            // Define keyframes independently of entity values: manual input only
-            ImGui::Separator();
-            ImGui::TextDisabled("Timeline Keyframe");
-            float valueInput = 0.0f;
-            ImGui::DragFloat("Value at Cursor", &valueInput, 0.01f);
-            ImGui::SameLine();
-            if (ImGui::Button("Add/Update Key")) {
-                m_TimelinePanel->AddOrUpdateKeyAtCursor(valueInput);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Delete Key")) {
-                m_TimelinePanel->DeleteKeyNearCursor();
-            }
-            ImGui::SameLine();
-            ImGui::TextDisabled("t=%.3fs", m_TimelinePanel->GetCurrentTimeSec());
-        }
+        // Timeline key operations removed
     }
 
     if (data->Mesh && ImGui::CollapsingHeader("Mesh")) {
@@ -369,7 +343,11 @@ void InspectorPanel::DrawComponents(EntityID entity) {
     }
 
     if (data->AnimationPlayer && ImGui::CollapsingHeader("Animator")) {
-        // Simple UI to assign controller path
+        // Draw standard Animator controls (clip assign, loop, speed, drag-drop)
+        registry.DrawComponentUI("Animator", data->AnimationPlayer);
+
+        ImGui::Separator();
+        ImGui::TextDisabled("Controller (optional)");
         ImGui::Text("Controller: %s", data->AnimationPlayer->ControllerPath.c_str());
         ImGui::SameLine();
         if (ImGui::Button("Set Path")) {
@@ -391,7 +369,6 @@ void InspectorPanel::DrawComponents(EntityID entity) {
                 data->AnimationPlayer->CurrentStateId = ctrl->DefaultState;
             }
         }
-        // Additional animator options can be added here
     }
 
     ImGui::Separator();

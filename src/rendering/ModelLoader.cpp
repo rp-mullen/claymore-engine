@@ -128,6 +128,7 @@ Model ModelLoader::LoadModel(const std::string& filepath)
     }
 
     Assimp::Importer importer;
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
     const aiScene* scene = importer.ReadFile(
         filepath.c_str(),
         aiProcess_Triangulate |
@@ -137,7 +138,8 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         aiProcess_FlipUVs |
         aiProcess_JoinIdenticalVertices |
         aiProcess_ImproveCacheLocality |
-        aiProcess_LimitBoneWeights
+		aiProcess_LimitBoneWeights |
+        aiProcess_GlobalScale
     );
 
     Model result;
@@ -174,7 +176,7 @@ Model ModelLoader::LoadModel(const std::string& filepath)
             boneIndexMap.emplace(name, idx);
             result.BoneNames.push_back(name);
 
-            // Inverse bind pose (offset) with transpose and scaled translation
+            // Use raw construction (no extra transpose) to match skinning convention elsewhere
             glm::mat4 offset = AiToGlm(abone->mOffsetMatrix);
             result.InverseBindPoses.push_back(offset);
 

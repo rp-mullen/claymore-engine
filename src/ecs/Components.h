@@ -18,6 +18,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/euler_angles.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/transform.hpp>
@@ -30,28 +31,36 @@
 
 
 struct TransformComponent {
-	glm::vec3 Position = glm::vec3(0.0f);
-	glm::vec3 Rotation = glm::vec3(0.0f); // Euler degrees (XYZ order)
-	glm::vec3 Scale = glm::vec3(1.0f);
+    glm::vec3 Position = glm::vec3(0.0f);
+    glm::vec3 Rotation = glm::vec3(0.0f); // Euler degrees (XYZ order) — kept for UI
+    glm::quat RotationQ = glm::quat(1, 0, 0, 0); // Authoritative when UseQuatRotation is true
+    glm::vec3 Scale = glm::vec3(1.0f);
 
-	glm::mat4 LocalMatrix = glm::mat4(1.0f);  // Local transform
-	glm::mat4 WorldMatrix = glm::mat4(1.0f);  // Computed
+    bool UseQuatRotation = false; // If true, build rotation from RotationQ instead of Euler
 
-	bool TransformDirty = true;
+    glm::mat4 LocalMatrix = glm::mat4(1.0f);  // Local transform
+    glm::mat4 WorldMatrix = glm::mat4(1.0f);  // Computed
 
-	inline glm::mat4 CalculateLocalMatrix() {
-		glm::mat4 translation = glm::translate(glm::mat4(1.0f), Position);
+    bool TransformDirty = true;
 
-		glm::mat4 rotation =
-			glm::rotate(glm::mat4(1.0f), glm::radians(Rotation.x), glm::vec3(1, 0, 0)) *
-			glm::rotate(glm::mat4(1.0f), glm::radians(Rotation.y), glm::vec3(0, 1, 0)) *
-			glm::rotate(glm::mat4(1.0f), glm::radians(Rotation.z), glm::vec3(0, 0, 1));
+    inline glm::mat4 CalculateLocalMatrix() {
+        const glm::mat4 translation = glm::translate(glm::mat4(1.0f), Position);
 
-		glm::mat4 scale = glm::scale(glm::mat4(1.0f), Scale);
+        const glm::mat4 rotation = UseQuatRotation
+            ? glm::toMat4(glm::normalize(RotationQ))
+            : (
+                glm::yawPitchRoll(
+                    glm::radians(Rotation.y),
+                    glm::radians(Rotation.x),
+                    glm::radians(Rotation.z)
+                )
+            );
 
-		LocalMatrix = translation * rotation * scale;
-		return LocalMatrix;
-	}
+        const glm::mat4 scale = glm::scale(glm::mat4(1.0f), Scale);
+
+        LocalMatrix = translation * rotation * scale;
+        return LocalMatrix;
+    }
 };
 
 

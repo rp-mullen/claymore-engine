@@ -59,23 +59,35 @@ void SkinningSystem::Update(Scene& scene)
         const glm::mat4 invMeshWorld = glm::inverse(meshWorld);
 
 
-        // Build palette in mesh local space
+        // Build palette in mesh local space (correct bind handling)
+        const bool inBindPose =
+            (!skeletonData->AnimationPlayer) ||
+            (skeletonData->AnimationPlayer->ActiveStates.empty()) ||
+            std::all_of(skeletonData->AnimationPlayer->ActiveStates.begin(),
+                skeletonData->AnimationPlayer->ActiveStates.end(),
+                [](const auto& s) { return s.Weight <= 0.0f; });
+
         for (size_t i = 0; i < boneCount; ++i)
         {
-            const EntityID jointId = skel.BoneEntities[i];
-            const glm::mat4 boneWorld = GetWorldOrIdentity(scene, jointId);
             const glm::mat4 invBind = skel.InverseBindPoses[i];
 
-            // Final (mesh-local): inv(meshWorld) * boneWorld * inverseBind
-            // Shader computes: world = u_model * skin * position → boneWorld * inverseBind * position
+            // Reconstruct exact bind bone WORLD:
+            // InvBind = inverse(B_bind) * M_bind  =>  B_bind = M_bind * inverse(InvBind)
+            const glm::mat4 boneWorld =
+                inBindPose
+                ? (meshWorld * glm::inverse(invBind))           // exact bind world
+                : GetWorldOrIdentity(scene, skel.BoneEntities[i]);
+
+            // Palette in mesh-local:
+            // P = inverse(M_current) * B_world * InvBind
             skin->Palette[i] = invMeshWorld * boneWorld * invBind;
         }
 
         // Upload to GPU if this mesh uses a skinned PBR material
-        if (auto skMat = std::dynamic_pointer_cast<SkinnedPBRMaterial>(data->Mesh->material))
-        {
+        if (auto skMat = std::dynamic_pointer_cast<SkinnedPBRMaterial>(data->Mesh->material)) {
             skMat->UploadBones(skin->Palette);
         }
+
 
 
         // ------------- CPU Blend-shape deformation ----------------------

@@ -64,6 +64,11 @@ EntityData EntityData::DeepCopy(EntityID ID, Scene* newScene) const {
    if (Skinning)
       copy.Skinning = new SkinningComponent(*Skinning);
 
+   // Deep copy AnimationPlayerComponent to preserve default playback setup
+   if (AnimationPlayer) {
+      copy.AnimationPlayer = new cm::animation::AnimationPlayerComponent(*AnimationPlayer);
+   }
+
    // Scripts: clone and rebind context
    copy.Scripts.clear();
    for (const auto& script : Scripts) {

@@ -10,6 +10,8 @@
 #include <rendering/TextureLoader.h>
 #include "panels/InspectorPanel.h"
 #include "Logger.h"
+#include "editor/panels/AnimationInspector.h"
+#include "editor/animation/AnimationTimelinePanel.h"
 #include <rendering/MaterialManager.h>
 #include <rendering/StandardMeshManager.h>
 #include "utility/ComponentDrawerRegistry.h"
@@ -56,6 +58,8 @@ UILayer::UILayer()
 
     CreateDebugCubeEntity();
     CreateDefaultLight();
+
+    m_AnimationInspector = std::make_unique<AnimationInspectorPanel>(this);
 } 
 
 UILayer::~UILayer() {
@@ -77,8 +81,7 @@ void UILayer::OnAttach() {
     m_ScriptPanel.SetContext(&m_Scene);
     // Wire node editor to inspector for selection details
     m_AnimCtrlPanel.SetInspectorPanel(&m_InspectorPanel);
-    // Allow inspector to push keyframes into the active timeline
-    m_InspectorPanel.SetTimelinePanel(&m_AnimTimelinePanel);
+    // New timeline panel owns its own inspector; legacy inspector-timeline wiring removed
     m_InspectorPanel.SetAvatarBuilderPanel(&m_AvatarBuilderPanel);
 }
 
@@ -182,7 +185,17 @@ void UILayer::OnUIRender() {
 
     // Core panels
     m_SceneHierarchyPanel.OnImGuiRender();
-    m_InspectorPanel.OnImGuiRender();
+    // Route Inspector to Animation inspector when a .anim is selected in Project panel
+    {
+        std::string selExt = m_ProjectPanel.GetSelectedItemExtension();
+        if (selExt == ".anim") {
+            ImGui::Begin("Inspector");
+            if (m_AnimationInspector) m_AnimationInspector->OnImGuiRender();
+            ImGui::End();
+        } else {
+            m_InspectorPanel.OnImGuiRender();
+        }
+    }
     m_ProjectPanel.OnImGuiRender();
     m_ConsolePanel.OnImGuiRender();
     if (m_FocusConsoleNextFrame) {
@@ -192,7 +205,7 @@ void UILayer::OnUIRender() {
 
     m_ScriptPanel.OnImGuiRender();
     m_AnimCtrlPanel.OnImGuiRender();
-    m_AnimTimelinePanel.SetContext(activeScene);
+    m_AnimTimelinePanel.SetContext(activeScene, &m_SelectedEntity);
     m_AnimTimelinePanel.OnImGuiRender();
     // Avatar Builder (opens as a standalone window when requested)
     m_AvatarBuilderPanel.OnImGuiRender();

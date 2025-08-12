@@ -44,9 +44,11 @@ public:
 
     // Scene rendering
     void RenderScene(Scene& scene);
+    void RenderScene(Scene& scene, uint16_t viewId);
 
     // Mesh submission
     void DrawMesh(const Mesh& mesh, const float* transform, const Material& material, const struct MaterialPropertyBlock* propertyBlock = nullptr);
+    void DrawMesh(const Mesh& mesh, const float* transform, const Material& material, uint16_t viewId, const struct MaterialPropertyBlock* propertyBlock = nullptr);
 
     // Camera
     Camera* GetCamera() const { 
@@ -71,6 +73,7 @@ public:
     // Debug utilities
 	void InitGrid(float size, float step);
     void DrawGrid();
+    void DrawGrid(uint16_t viewId);
     void DrawDebugRay(const glm::vec3& origin, const glm::vec3& dir, float length = 10.0f);
     void DrawCollider(const ColliderComponent& collider, const TransformComponent& transform);
 

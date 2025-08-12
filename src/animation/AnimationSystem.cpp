@@ -2,9 +2,13 @@
 #include "ecs/Scene.h"
 #include "ecs/Entity.h"
 #include <cmath>
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/transform.hpp>
 #include "ecs/EntityData.h"
 #include "animation/AnimationSerializer.h"
+#include "animation/AnimationAsset.h"
+#include "animation/AnimationEvaluator.h"
+#include "animation/BindingCache.h"
 #include "animation/HumanoidRetargeter.h"
 #include "animation/AvatarSerializer.h"
 
@@ -14,10 +18,10 @@ namespace animation {
 void AnimationSystem::Update(::Scene& scene, float deltaTime) {
     for (const auto& ent : scene.GetEntities()) {
         auto* data = scene.GetEntityData(ent.GetID());
-        if (!data || !data->AnimationPlayer || !data->Skeleton || !data->Skinning) continue;
+        // Drive animation from entities that own an AnimationPlayer and a Skeleton (skeleton root)
+        if (!data || !data->AnimationPlayer || !data->Skeleton) continue;
         auto& player   = *data->AnimationPlayer;
         auto& skeleton = *data->Skeleton;
-        auto& skin     = *data->Skinning;
 
         // Animator controller update (if set)
         if (player.Controller) {
@@ -30,93 +34,197 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
 
             const auto* st = player.Controller->FindState(player.CurrentStateId);
             if (!st) continue;
-            // Load or get cached clip
-            std::shared_ptr<cm::animation::AnimationClip> clip;
-            auto itc = player.CachedClips.find(st->Id);
-            if (itc != player.CachedClips.end()) clip = itc->second; else {
-                // Load from file path
-                clip = std::make_shared<cm::animation::AnimationClip>(cm::animation::LoadAnimationClip(st->ClipPath));
-                player.CachedClips[st->Id] = clip;
+            // Load or get cached unified asset (prefer) or legacy clip (fallback)
+            std::shared_ptr<cm::animation::AnimationAsset> asset;
+            if (!st->AnimationAssetPath.empty()) {
+                auto ita = player.CachedAssets.find(st->Id);
+                if (ita != player.CachedAssets.end()) asset = ita->second; else {
+                    asset = std::make_shared<cm::animation::AnimationAsset>(cm::animation::LoadAnimationAsset(st->AnimationAssetPath));
+                    player.CachedAssets[st->Id] = asset;
+                }
             }
-            if (!clip) continue;
+            std::shared_ptr<cm::animation::AnimationClip> clip;
+            if (!asset && !st->ClipPath.empty()) {
+                auto itc = player.CachedClips.find(st->Id);
+                if (itc != player.CachedClips.end()) clip = itc->second; else {
+                    clip = std::make_shared<cm::animation::AnimationClip>(cm::animation::LoadAnimationClip(st->ClipPath));
+                    player.CachedClips[st->Id] = clip;
+                }
+            }
+            if (!asset && !clip) continue;
             // Advance animator time
-            player.AnimatorInstance.Update(deltaTime * st->Speed * player.PlaybackSpeed, clip->Duration);
+            float currentDuration = asset ? asset->Duration() : (clip ? clip->Duration : 0.0f);
+            player.AnimatorInstance.Update(deltaTime * st->Speed * player.PlaybackSpeed, currentDuration);
             // Check transitions
             int next = player.AnimatorInstance.ChooseNextState();
             if (next >= 0 && next != player.CurrentStateId) {
-                player.CurrentStateId = next;
-                // Reset time for new state
-                player.AnimatorInstance.Update(0.0f, 0.0f);
-                player.AnimatorInstance.ConsumeTriggers();
+                // Query transition duration (MVP: first matching)
+                float duration = 0.0f;
+                for (const auto& tr : player.Controller->Transitions) {
+                    if ((tr.FromState == -1 || tr.FromState == player.CurrentStateId) && tr.ToState == next) { duration = tr.Duration; break; }
+                }
+                if (duration > 0.0f) {
+                    player.AnimatorInstance.BeginCrossfade(next, duration);
+                } else {
+                    player.CurrentStateId = next;
+                    // Reset time for new state
+                    player.AnimatorInstance.Update(0.0f, 0.0f);
+                    player.AnimatorInstance.ConsumeTriggers();
+                }
             }
 
-            // Evaluate current state clip at time
-            std::vector<glm::mat4> localTransforms;
-            // For now, write into first active state for compatibility with skinning path below
-            if (player.ActiveStates.empty()) player.ActiveStates.push_back({clip.get(), 0.0f, 1.0f, st->Loop});
+            // Evaluate current state asset at time – prefer unified asset if present
+            if (player.ActiveStates.empty()) player.ActiveStates.push_back({});
             AnimationState& s0 = player.ActiveStates.front();
-            s0.Clip = clip.get();
+            s0.Asset = asset.get();
+            s0.LegacyClip = clip.get();
             s0.Loop = st->Loop;
-            // Reconstruct time from normalized in AnimatorPlayback
-            float time = player.AnimatorInstance.Playback().StateNormalized * (clip->Duration > 0.0f ? clip->Duration : 1.0f);
+            // Time from normalized
+            float time = player.AnimatorInstance.Playback().StateNormalized * (currentDuration > 0.0f ? currentDuration : 1.0f);
             s0.Time = time;
         }
 
         if (player.ActiveStates.empty()) continue;
 
-        // Ensure palette size matches bone count
-        skin.Palette.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f));
-
-        // Evaluate blended pose (currently supports single state)
+        // Evaluate pose; if crossfading, blend between two states linearly
         const AnimationState& state = player.ActiveStates.front();
-        if (!state.Clip) continue;
+        if (!state.LegacyClip && !state.Asset) continue;
 
         // Advance time
         AnimationState& mutableState = player.ActiveStates.front();
         mutableState.Time += deltaTime * player.PlaybackSpeed;
-        if (state.Clip->Duration > 0.0f && mutableState.Loop) {
-            mutableState.Time = fmod(mutableState.Time, state.Clip->Duration);
+        float clipDuration = state.LegacyClip ? state.LegacyClip->Duration : (state.Asset ? state.Asset->Duration() : 0.0f);
+        if (clipDuration > 0.0f && mutableState.Loop) mutableState.Time = fmod(mutableState.Time, clipDuration);
+        if (player.AnimatorInstance.IsCrossfading()) {
+            player.AnimatorInstance.AdvanceCrossfade(deltaTime * player.PlaybackSpeed);
         }
 
         std::vector<glm::mat4> localTransforms;
-        // If humanoid and we have an avatar on skeleton, evaluate source-local pose then retarget from source avatar to target avatar
-        if (state.Clip->IsHumanoid && skeleton.Avatar) {
-            std::vector<glm::mat4> srcLocal;
-            EvaluateAnimation(*state.Clip, mutableState.Time, skeleton, srcLocal);
+        // Helper to compute local bind transform for a bone index
+        auto computeLocalBind = [&](int boneIndex) -> glm::mat4 {
+            if (boneIndex < 0 || boneIndex >= (int)skeleton.InverseBindPoses.size()) return glm::mat4(1.0f);
+            glm::mat4 invBind = skeleton.InverseBindPoses[boneIndex];
+            glm::mat4 globalBind = glm::inverse(invBind);
+            int parent = (boneIndex < (int)skeleton.BoneParents.size()) ? skeleton.BoneParents[boneIndex] : -1;
+            glm::mat4 parentGlobal = (parent >= 0 && parent < (int)skeleton.InverseBindPoses.size()) ? glm::inverse(skeleton.InverseBindPoses[parent]) : glm::mat4(1.0f);
+            glm::mat4 localBind = glm::inverse(parentGlobal) * globalBind;
+            return localBind;
+        };
 
-            // Resolve source avatar (by path if available, else by rig name next to asset)
-            cm::animation::AvatarDefinition srcAvatar;
-            const cm::animation::AvatarDefinition* srcAvatarPtr = nullptr;
-            bool loadedSrc = false;
-            if (!state.Clip->SourceAvatarPath.empty()) {
-                loadedSrc = cm::animation::LoadAvatar(srcAvatar, state.Clip->SourceAvatarPath);
+        if (state.Asset) {
+            // Unified evaluation into a temporary pose buffer sized to skeleton
+            PoseBuffer pose; pose.local.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f)); pose.touched.resize(skeleton.BoneEntities.size(), false);
+            static BindingCache s_bindings; s_bindings.SetSkeleton(&skeleton);
+            EvalInputs in{ state.Asset, mutableState.Time, mutableState.Loop };
+            EvalTargets tgt{ &pose };
+            EvalContext ctx{ &s_bindings, skeleton.Avatar.get(), &skeleton };
+            SampleAsset(in, ctx, tgt, nullptr, nullptr);
+            localTransforms = std::move(pose.local);
+            // Fill untouched bones with bind pose locals
+            for (int i = 0; i < (int)localTransforms.size(); ++i) {
+                if (i < (int)pose.touched.size() && !pose.touched[i]) {
+                    localTransforms[i] = computeLocalBind(i);
+                }
             }
-            if (!loadedSrc && !state.Clip->SourceAvatarRigName.empty()) {
-                // Try to find an avatar file under assets/ by name
-                std::string candidate = std::string("assets/") + state.Clip->SourceAvatarRigName + ".avatar";
-                loadedSrc = cm::animation::LoadAvatar(srcAvatar, candidate);
+        } else if (state.LegacyClip) {
+            EvaluateAnimation(*state.LegacyClip, mutableState.Time, skeleton, localTransforms);
+            // EvaluateAnimation leaves non-animated bones as identity; replace with bind locals
+            for (int i = 0; i < (int)localTransforms.size(); ++i) {
+                // Identity check: compare to mat4 identity exactly (inputs are exact identity)
+                if (localTransforms[i] == glm::mat4(1.0f)) {
+                    localTransforms[i] = computeLocalBind(i);
+                }
             }
-            if (loadedSrc) srcAvatarPtr = &srcAvatar;
-
-            cm::animation::HumanoidRetargeter retargeter;
-            if (srcAvatarPtr) retargeter.SetAvatars(srcAvatarPtr, skeleton.Avatar.get());
-            else retargeter.SetAvatars(skeleton.Avatar.get(), skeleton.Avatar.get());
-            retargeter.RetargetPose(skeleton, srcLocal, skeleton, localTransforms, {});
-        } else {
-            EvaluateAnimation(*state.Clip, mutableState.Time, skeleton, localTransforms);
         }
 
-        // --------- Build global transforms and palette ---------
-        std::vector<glm::mat4> globalTransforms(localTransforms.size());
-        for (size_t i = 0; i < localTransforms.size(); ++i) {
-            int parent = (i < skeleton.BoneParents.size()) ? skeleton.BoneParents[i] : -1;
-            if (parent < 0) globalTransforms[i] = localTransforms[i];
-            else            globalTransforms[i] = globalTransforms[parent] * localTransforms[i];
+        // Crossfade blend if active: sample next state and blend matrices linearly (local-space)
+        if (player.AnimatorInstance.IsCrossfading() && player.Controller) {
+            int nextId = player.AnimatorInstance.Playback().NextStateId;
+            const auto* nextSt = player.Controller->FindState(nextId);
+            if (nextSt) {
+                const AnimationAsset* nextAsset = nullptr;
+                std::shared_ptr<AnimationAsset> nextAssetPtr;
+                if (!nextSt->AnimationAssetPath.empty()) {
+                    auto it = player.CachedAssets.find(nextSt->Id);
+                    if (it != player.CachedAssets.end()) nextAssetPtr = it->second; else {
+                        nextAssetPtr = std::make_shared<AnimationAsset>(LoadAnimationAsset(nextSt->AnimationAssetPath));
+                        player.CachedAssets[nextSt->Id] = nextAssetPtr;
+                    }
+                    nextAsset = nextAssetPtr.get();
+                }
+                std::shared_ptr<AnimationClip> nextClip;
+                if (!nextAsset && !nextSt->ClipPath.empty()) {
+                    auto itc = player.CachedClips.find(nextSt->Id);
+                    if (itc != player.CachedClips.end()) nextClip = itc->second; else {
+                        nextClip = std::make_shared<AnimationClip>(LoadAnimationClip(nextSt->ClipPath));
+                        player.CachedClips[nextSt->Id] = nextClip;
+                    }
+                }
+
+                std::vector<glm::mat4> nextLocal(localTransforms.size(), glm::mat4(1.0f));
+                float nextTime = player.AnimatorInstance.Playback().NextStateTime;
+                if (nextAsset) {
+                    PoseBuffer pose; pose.local.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f)); pose.touched.resize(skeleton.BoneEntities.size(), false);
+                    static BindingCache s_bindings; s_bindings.SetSkeleton(&skeleton);
+                    EvalInputs in{ nextAsset, nextTime, nextSt->Loop };
+                    EvalTargets tgt{ &pose };
+                    EvalContext ctx{ &s_bindings, skeleton.Avatar.get(), &skeleton };
+                    SampleAsset(in, ctx, tgt, nullptr, nullptr);
+                    nextLocal = std::move(pose.local);
+                } else if (nextClip) {
+                    EvaluateAnimation(*nextClip, nextTime, skeleton, nextLocal);
+                }
+
+                float a = player.AnimatorInstance.CrossfadeAlpha();
+                if (!nextLocal.empty() && nextLocal.size() == localTransforms.size()) {
+                    for (size_t i = 0; i < localTransforms.size(); ++i) {
+                        glm::vec3 T0, S0, T1, S1; glm::quat R0, R1;
+                        auto decompose = [](const glm::mat4& m, glm::vec3& T, glm::quat& R, glm::vec3& S){
+                            T = glm::vec3(m[3]);
+                            glm::vec3 X = glm::vec3(m[0]);
+                            glm::vec3 Y = glm::vec3(m[1]);
+                            glm::vec3 Z = glm::vec3(m[2]);
+                            S = glm::vec3(glm::length(X), glm::length(Y), glm::length(Z));
+                            if (S.x > 1e-6f) X /= S.x; if (S.y > 1e-6f) Y /= S.y; if (S.z > 1e-6f) Z /= S.z;
+                            glm::mat3 rotMat(X, Y, Z);
+                            R = glm::quat_cast(rotMat);
+                        };
+                        decompose(localTransforms[i], T0, R0, S0);
+                        decompose(nextLocal[i], T1, R1, S1);
+                        glm::vec3 T = glm::mix(T0, T1, a);
+                        glm::quat R = glm::slerp(R0, R1, a);
+                        glm::vec3 S = glm::mix(S0, S1, a);
+                        localTransforms[i] = glm::translate(T) * glm::mat4_cast(glm::normalize(R)) * glm::scale(S);
+                    }
+                }
+                if (a >= 1.0f) {
+                    player.CurrentStateId = nextId;
+                }
+            }
         }
 
-        for (size_t i = 0; i < skin.Palette.size(); ++i) {
-            glm::mat4 invBind = (i < skeleton.InverseBindPoses.size()) ? skeleton.InverseBindPoses[i] : glm::mat4(1.0f);
-            skin.Palette[i] = globalTransforms[i] * invBind;
+        // Write evaluated local pose into bone entities as TRS so transform system recomputes matrices
+        auto decomposeTRS = [](const glm::mat4& m, glm::vec3& T, glm::quat& R, glm::vec3& S){
+            T = glm::vec3(m[3]);
+            glm::vec3 X = glm::vec3(m[0]);
+            glm::vec3 Y = glm::vec3(m[1]);
+            glm::vec3 Z = glm::vec3(m[2]);
+            S = glm::vec3(glm::length(X), glm::length(Y), glm::length(Z));
+            if (S.x > 1e-6f) X /= S.x; if (S.y > 1e-6f) Y /= S.y; if (S.z > 1e-6f) Z /= S.z;
+            glm::mat3 rotMat(X, Y, Z);
+            R = glm::quat_cast(rotMat);
+        };
+        for (size_t i = 0; i < localTransforms.size() && i < skeleton.BoneEntities.size(); ++i) {
+            EntityID boneId = skeleton.BoneEntities[i];
+            if (boneId == (EntityID)-1) continue;
+            if (auto* bd = scene.GetEntityData(boneId)) {
+                glm::vec3 T, S; glm::quat R;
+                decomposeTRS(localTransforms[i], T, R, S);
+                bd->Transform.Position = T;
+                bd->Transform.Rotation = glm::degrees(glm::eulerAngles(glm::normalize(R)));
+                bd->Transform.Scale    = S;
+                bd->Transform.TransformDirty = true;
+            }
         }
     }
 }

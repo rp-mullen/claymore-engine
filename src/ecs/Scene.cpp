@@ -17,6 +17,10 @@ namespace fs = std::filesystem;
 #include "scripting/ScriptReflection.h"
 #include "scripting/ScriptReflectionInterop.h"
 #include "animation/AvatarDefinition.h"
+#include "animation/AnimationSystem.h"
+#include "animation/AnimationAsset.h"
+#include "animation/AnimationSerializer.h"
+#include "animation/AnimationPlayerComponent.h"
 
 
 #include <sstream> // Include for std::ostringstream
@@ -234,6 +238,7 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
 
 EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootPosition) {
     Assimp::Importer importer;
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
     const aiScene* aScene = importer.ReadFile(path,
         aiProcess_Triangulate |
         aiProcess_GenNormals |
@@ -242,7 +247,8 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         aiProcess_FlipUVs |
         aiProcess_JoinIdenticalVertices |
         aiProcess_ImproveCacheLocality |
-        aiProcess_LimitBoneWeights);
+        aiProcess_LimitBoneWeights |
+        aiProcess_GlobalScale);
 
     if (!aScene || !aScene->mRootNode) {
         std::cerr << "[Scene] Failed to load model: " << path << std::endl;
@@ -272,6 +278,7 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
 
     // Helper: Assimp (row-major) -> GLM (column-major)
     auto AiToGlm = [](const aiMatrix4x4& m) {
+        // Keep consistent with ModelLoader's AiToGlm: construct directly (no transpose)
         return glm::mat4(
             m.a1, m.b1, m.c1, m.d1,
             m.a2, m.b2, m.c2, m.d2,
@@ -291,6 +298,9 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     // Set root entity transform from FBX root transform, add requested spawn offset
     glm::decompose(rootLocal, rootS, rootR, rootT, rootSkew, rootPersp);
     rootData->Transform.Position = rootT + rootPosition;
+    rootData->Transform.RotationQ = glm::normalize(rootR);
+    rootData->Transform.UseQuatRotation = true;
+    // Keep Euler for inspector display
     rootData->Transform.Rotation = glm::degrees(glm::eulerAngles(rootR));
     // Clamp unreasonable global scaling from FBX (e.g., 100)
     if (rootS.x > 50.0f || rootS.y > 50.0f || rootS.z > 50.0f)
@@ -338,12 +348,9 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         };
         gatherNodes(aScene->mRootNode);
 
-        // Compute global bind matrices and parent indices
-        std::vector<glm::mat4> globalBind(model.BoneNames.size(), glm::mat4(1.0f));
+        // Compute parent indices from the Assimp node hierarchy
         std::vector<int> parentIndex(model.BoneNames.size(), -1);
         for (size_t i = 0; i < model.BoneNames.size(); ++i) {
-            globalBind[i] = glm::inverse(model.InverseBindPoses[i]);
-
             auto itNode = nodeByName.find(model.BoneNames[i]);
             if (itNode != nodeByName.end()) {
                 aiNode* p = itNode->second->mParent;
@@ -355,6 +362,8 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
             }
         }
 
+        // No runtime toggle: default to inverse-bind initialization
+
         // Create skeleton root and bone entities
         Entity skeletonRootEnt = CreateEntity("SkeletonRoot");
         skeletonRootID = skeletonRootEnt.GetID();
@@ -363,6 +372,14 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         auto* skelData = GetEntityData(skeletonRootID);
         skelData->Skeleton = new SkeletonComponent();
         skelData->Skeleton->InverseBindPoses = model.InverseBindPoses;
+
+        // Fill exact bind-pose globals (no decomposition/round-trips)
+        skelData->Skeleton->BindPoseGlobals.resize(model.InverseBindPoses.size());
+        for (size_t i = 0; i < model.InverseBindPoses.size(); ++i) {
+            skelData->Skeleton->BindPoseGlobals[i] = glm::inverse(model.InverseBindPoses[i]);
+        }
+
+
         skelData->Skeleton->BoneParents = parentIndex;
         for (int i = 0; i < (int)model.BoneNames.size(); ++i)
             skelData->Skeleton->BoneNameToIndex[model.BoneNames[i]] = i;
@@ -374,24 +391,27 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
             boneEntities[b] = boneEnt.GetID();
         }
 
-        // Parent bones according to hierarchy and set local transforms from bind pose
+        // Parent bones and set local transforms from inverse bind matrices
         for (size_t b = 0; b < model.BoneNames.size(); ++b) {
             EntityID boneID = boneEntities[b];
             int pIdx = parentIndex[b];
             EntityID parentEntity = (pIdx >= 0) ? boneEntities[pIdx] : skeletonRootID;
             SetParent(boneID, parentEntity);
-
-            glm::mat4 parentGlobal = (pIdx >= 0) ? globalBind[pIdx] : glm::mat4(1.0f);
-            glm::mat4 localBind = glm::inverse(parentGlobal) * globalBind[b];
+            // Classic: derive local from inverse bind matrices (global = inverse(invBind))
+            glm::mat4 thisGlobal = glm::inverse(model.InverseBindPoses[b]);
+            glm::mat4 parentGlobal = (pIdx >= 0) ? glm::inverse(model.InverseBindPoses[pIdx]) : glm::mat4(1.0f);
+            glm::mat4 localBind = glm::inverse(parentGlobal) * thisGlobal;
 
             glm::vec3 t, scale, skew; glm::vec4 persp; glm::quat rq;
             glm::decompose(localBind, scale, rq, t, skew, persp);
-            glm::vec3 euler = glm::degrees(glm::eulerAngles(rq));
             auto* boneData = GetEntityData(boneID);
             if (boneData) {
                 boneData->Transform.Position = t;
-                boneData->Transform.Rotation = euler;
                 boneData->Transform.Scale    = scale;
+                boneData->Transform.RotationQ = glm::normalize(rq);
+                boneData->Transform.UseQuatRotation = true;
+                // Optional: populate Euler for read-only inspector
+                boneData->Transform.Rotation = glm::degrees(glm::eulerAngles(rq));
                 boneData->Transform.TransformDirty = true;
             }
         }
@@ -405,6 +425,54 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
             std::string avatarPath = (p.parent_path() / (p.stem().string() + ".avatar")).string();
             if (!cm::animation::LoadAvatar(*skelData->Skeleton->Avatar, avatarPath)) {
                 cm::animation::avatar_builders::BuildFromSkeleton(*skelData->Skeleton, *skelData->Skeleton->Avatar, true);
+            }
+        }
+
+        // Auto-add an AnimationPlayerComponent at the skeleton root if the source FBX has animations
+        // Load the first unified .anim next to the FBX into the player's first state so it can play without a controller
+        Assimp::Importer animImporter;
+        const aiScene* fbxForAnims = animImporter.ReadFile(path,
+            aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_LimitBoneWeights | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality | aiProcess_FlipUVs);
+        if (fbxForAnims && fbxForAnims->mNumAnimations > 0) {
+            if (!skelData->AnimationPlayer) skelData->AnimationPlayer = new cm::animation::AnimationPlayerComponent();
+            // Look for a unified .anim next to the FBX using the pattern <fbxname>_*.anim; fallback to first .anim
+            std::filesystem::path p(path);
+            std::filesystem::path dir = p.parent_path();
+            std::string stem = p.stem().string();
+            std::string chosenAnim;
+            for (auto& entry : std::filesystem::directory_iterator(dir)) {
+                if (!entry.is_regular_file()) continue;
+                auto ext = entry.path().extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                if (ext == ".anim") {
+                    if (entry.path().filename().string().rfind(stem + "_", 0) == 0) { // starts with stem + "_"
+                        chosenAnim = entry.path().string();
+                        break;
+                    }
+                    if (chosenAnim.empty()) chosenAnim = entry.path().string();
+                }
+            }
+            // Initialize the first active state with loop on by default
+            if (skelData->AnimationPlayer->ActiveStates.empty()) skelData->AnimationPlayer->ActiveStates.push_back({});
+            skelData->AnimationPlayer->ActiveStates.front().Loop = true;
+
+            if (!chosenAnim.empty()) {
+                // Load unified asset; fallback to legacy skeletal clip if needed
+                cm::animation::AnimationAsset asset = cm::animation::LoadAnimationAsset(chosenAnim);
+                if (asset.tracks.empty()) {
+                    cm::animation::AnimationClip legacy = cm::animation::LoadAnimationClip(chosenAnim);
+                    if (!legacy.BoneTracks.empty()) {
+                        asset = cm::animation::WrapLegacyClipAsAsset(legacy);
+                    }
+                }
+                auto assetPtr = std::make_shared<cm::animation::AnimationAsset>(std::move(asset));
+                // Cache and bind into the first active state so non-controller playback works
+                skelData->AnimationPlayer->CachedAssets[0] = assetPtr;
+                skelData->AnimationPlayer->ActiveStates.front().Asset = assetPtr.get();
+                skelData->AnimationPlayer->ActiveStates.front().Time = 0.0f;
+                skelData->AnimationPlayer->ActiveStates.front().Weight = 1.0f;
+                skelData->AnimationPlayer->Controller.reset();
+                skelData->AnimationPlayer->CurrentStateId = -1;
             }
         }
     }
@@ -444,12 +512,11 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         glm::vec4 perspective;
         glm::quat rotationQuat;
         glm::decompose(meshTransforms[i], scale, rotationQuat, translation, skew, perspective);
-        glm::vec3 rotationEuler = glm::degrees(glm::eulerAngles(rotationQuat));
 
         meshData->Transform.Position = translation;
-        meshData->Transform.Rotation = rotationEuler;
-
         meshData->Transform.Scale = scale;
+        // For non-bone entities keep Euler as primary unless needed
+        meshData->Transform.Rotation = glm::degrees(glm::eulerAngles(rotationQuat));
         meshData->Transform.TransformDirty = true;
 
         auto mat = (i < model.Materials.size() && model.Materials[i]) ? model.Materials[i]
@@ -834,10 +901,18 @@ void Scene::Update(float dt) {
    static bool once = (std::cout << "[C++] Scene::Update thread: " << GetCurrentThreadId() << "\n", true);
    // Ensure any queued deletions are processed at a safe point each frame
    ProcessPendingRemovals();
+
+   // In play mode, evaluate animations before recomputing world transforms
+   if (m_IsPlaying) {
+      cm::animation::AnimationSystem::Update(*this, dt);
+   }
+
+   // Recompute world transforms after potential animation updates
    UpdateTransforms();
 
    // Update GPU skinning palette after transforms
    if (m_IsPlaying) {
+      // Step skinning after animation so GPU palettes reflect latest pose
       SkinningSystem::Update(*this);
    }
 

@@ -23,6 +23,8 @@ struct BlendShapeComponent {
 // ------------ Skeleton & Skinning ------------
 struct SkeletonComponent {
     std::vector<glm::mat4> InverseBindPoses;  // inverse bind matrices per bone
+    std::vector<glm::mat4> BindPoseGlobals;
+
     std::vector<EntityID>  BoneEntities;      // entity for each bone (index matches InverseBindPoses)
 
     // Name → index lookup to enable fast sampling & editor display.
@@ -36,6 +38,7 @@ struct SkeletonComponent {
 
     // Optional humanoid avatar built for this skeleton
     std::unique_ptr<cm::animation::AvatarDefinition> Avatar;
+
 };
 
 struct SkinningComponent {

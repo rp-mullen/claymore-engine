@@ -111,8 +111,8 @@ set_target_properties(imgui_bgfx PROPERTIES
 # ============================
 # MAIN EXECUTABLE
 # ============================
-file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS src/*.cpp)
-file(GLOB_RECURSE ENGINE_HEADERS CONFIGURE_DEPENDS src/*.h)
+ file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS src/*.cpp)
+ file(GLOB_RECURSE ENGINE_HEADERS CONFIGURE_DEPENDS src/*.h)
 # Add ImGuizmo core + timeline editors
 set(EXTERNAL_SOURCES
     external/ImGuizmo/ImGuizmo.cpp

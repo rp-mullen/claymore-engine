@@ -1,4 +1,7 @@
 #include "animation/AnimatorRuntime.h"
+#include "animation/AnimatorController.h"
+#include "animation/AnimationSerializer.h"
+#include "animation/AnimationAsset.h"
 
 namespace cm {
 namespace animation {
@@ -85,6 +88,14 @@ void Animator::Update(float deltaTime, float clipDuration) {
         m_Playback.StateNormalized = fmod(m_Playback.StateTime, clipDuration) / clipDuration;
     else
         m_Playback.StateNormalized = 0.0f;
+}
+
+void Animator::BeginCrossfade(int toStateId, float durationSeconds)
+{
+    m_Playback.NextStateId = toStateId;
+    m_Playback.CrossfadeDuration = std::max(0.0f, durationSeconds);
+    m_Playback.CrossfadeTime = 0.0f;
+    m_Playback.NextStateTime = 0.0f;
 }
 
 } // namespace animation

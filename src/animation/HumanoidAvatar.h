@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <optional>
 
+struct SkeletonComponent; // forward
+
 namespace cm {
 namespace animation {
 
@@ -71,6 +73,9 @@ struct HumanoidAvatar {
         if (it != BoneMapping.end()) return it->second;
         return std::nullopt;
     }
+
+    // Map canonical human bone id to skeleton bone index using name resolution
+    int HumanToSkeleton(int humanBoneId, const ::SkeletonComponent& skeleton) const;
 };
 
 } // namespace animation

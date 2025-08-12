@@ -7,6 +7,7 @@
 #include "VertexTypes.h"
 #include "ecs/ParticleEmitterSystem.h"
 #include <bx/math.h>
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/transform.hpp>
 #include <cstring>
 #include "ecs/Components.h"
@@ -251,6 +252,12 @@ void Renderer::RenderScene(Scene& scene) {
     memcpy(m_proj, glm::value_ptr(proj), sizeof(float) * 16);
     bgfx::setViewTransform(0, m_view, m_proj);
     bgfx::setViewTransform(1, m_view, m_proj);  // Set camera matrices for view 1 too!
+    // Also update the preview view (210) when used by offscreen renders
+    bgfx::setViewTransform(210, m_view, m_proj);
+    // Ensure views are touched so other view state changes don't clear them unexpectedly
+    bgfx::touch(0);
+    bgfx::touch(1);
+    bgfx::touch(210);
 
     glm::vec4 camPos(activeCamera->GetPosition(), 1.0f);
     bgfx::setUniform(u_cameraPos, &camPos);
@@ -435,6 +442,51 @@ void Renderer::RenderScene(Scene& scene) {
 
 }
 
+void Renderer::RenderScene(Scene& scene, uint16_t viewId)
+{
+    // Prepare camera matrices (use current camera already set via SetCamera)
+    Camera* activeCamera = GetCamera();
+    glm::mat4 view = activeCamera->GetViewMatrix();
+    glm::mat4 proj = activeCamera->GetProjectionMatrix();
+    bgfx::setViewTransform(viewId, glm::value_ptr(view), glm::value_ptr(proj));
+    bgfx::touch(viewId);
+
+    glm::vec4 camPos(activeCamera->GetPosition(), 1.0f);
+    bgfx::setUniform(u_cameraPos, &camPos);
+
+    UploadEnvironmentToShader(scene.GetEnvironment());
+
+    std::vector<LightData> lights;
+    lights.reserve(4);
+    for (auto& entity : scene.GetEntities()) {
+        auto* data = scene.GetEntityData(entity.GetID());
+        if (!data || !data->Light || !data->Visible) continue;
+        LightData ld; ld.type = data->Light->Type; ld.color = data->Light->Color * data->Light->Intensity; ld.position = data->Transform.Position;
+        if (data->Light->Type == LightType::Directional) {
+            float yaw = glm::radians(data->Transform.Rotation.y);
+            float pitch = glm::radians(data->Transform.Rotation.x);
+            ld.direction = glm::normalize(glm::vec3(cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw)));
+            ld.range = 0.0f; ld.constant = 1.0f; ld.linear = 0.0f; ld.quadratic = 0.0f;
+        } else { ld.direction = glm::vec3(0.0f); ld.range = 50.0f; ld.constant = 1.0f; ld.linear = 0.09f; ld.quadratic = 0.032f; }
+        lights.push_back(ld); if (lights.size() == 4) break;
+    }
+    DrawGrid(viewId);
+    UploadLightsToShader(lights);
+
+    std::vector<EntityID> entityIds; entityIds.reserve(scene.GetEntities().size());
+    for (const auto& eSnap : scene.GetEntities()) entityIds.push_back(eSnap.GetID());
+    for (EntityID eid : entityIds) {
+        auto* data = scene.GetEntityData(eid);
+        if (!data || !data->Visible || !data->Mesh || !data->Mesh->mesh) continue;
+        std::shared_ptr<Mesh> meshPtr = data->Mesh->mesh; if (!meshPtr) continue;
+        bool meshValid = meshPtr->Dynamic ? bgfx::isValid(meshPtr->dvbh) : bgfx::isValid(meshPtr->vbh);
+        if (!meshValid || !bgfx::isValid(meshPtr->ibh)) continue;
+        float transform[16]; memcpy(transform, glm::value_ptr(data->Transform.WorldMatrix), sizeof(float) * 16);
+        // Submit to the requested view
+        DrawMesh(*meshPtr.get(), transform, *data->Mesh->material, viewId, &data->Mesh->PropertyBlock);
+    }
+}
+
 
 // ---------------- Mesh Submission ----------------
 #include "rendering/MaterialPropertyBlock.h"
@@ -487,6 +539,25 @@ void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material
     }
 
     bgfx::submit(1, materialProgram);
+}
+
+void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material& material, uint16_t viewId, const MaterialPropertyBlock* propertyBlock) {
+    bgfx::setTransform(transform);
+    if (mesh.Dynamic) {
+        if (bgfx::isValid(mesh.dvbh)) bgfx::setVertexBuffer(0, mesh.dvbh, 0, mesh.numVertices); else { std::cerr << "[Renderer] Invalid dynamic VBO" << std::endl; return; }
+    } else {
+        bgfx::setVertexBuffer(0, mesh.vbh);
+    }
+    bgfx::setIndexBuffer(mesh.ibh);
+    if (propertyBlock && !propertyBlock->Empty()) material.ApplyPropertyBlock(*propertyBlock);
+    glm::mat4 modelMtx = glm::make_mat4(transform);
+    glm::mat3 n3 = glm::transpose(glm::inverse(glm::mat3(modelMtx)));
+    glm::mat4 normalMat4(1.0f); normalMat4[0] = glm::vec4(n3[0], 0.0f); normalMat4[1] = glm::vec4(n3[1], 0.0f); normalMat4[2] = glm::vec4(n3[2], 0.0f);
+    bgfx::setUniform(u_normalMat, glm::value_ptr(normalMat4));
+    material.BindUniforms();
+    bgfx::setState(material.GetStateFlags());
+    if (!bgfx::isValid(material.GetProgram())) { std::cerr << "Invalid material program" << std::endl; return; }
+    bgfx::submit(viewId, material.GetProgram());
 }
 
 #if 0
@@ -663,6 +734,35 @@ void Renderer::DrawGrid() {
         BGFX_STATE_BLEND_ALPHA
     );
     bgfx::submit(0, debugMat->GetProgram());
+    bgfx::destroy(vbh);
+}
+
+void Renderer::DrawGrid(uint16_t viewId) {
+    if (!bgfx::isValid(m_GridVB)) return;
+    // Build a small static grid (reuse existing dynamic path later)
+    // Here we reuse dynamic submission similarly to DrawGrid()
+    Camera* cam = GetCamera(); if (!cam) return;
+    glm::vec3 camPos = cam->GetPosition();
+    glm::vec2 groundCenter = { camPos.x, camPos.z };
+    float height = std::max(0.001f, fabs(camPos.y));
+    float extent = std::clamp(height * 8.0f, 10.0f, 400.0f);
+    float minX = groundCenter.x - extent; float maxX = groundCenter.x + extent;
+    float minZ = groundCenter.y - extent; float maxZ = groundCenter.y + extent;
+    const float step = 1.0f;
+    auto floorTo = [&](float v){ return std::floor(v / step) * step; };
+    auto ceilTo  = [&](float v){ return std::ceil (v / step) * step; };
+    minX = floorTo(minX); maxX = ceilTo(maxX); minZ = floorTo(minZ); maxZ = ceilTo(maxZ);
+    std::vector<GridVertex> vertices;
+    for (float x = minX; x <= maxX + 1e-4f; x += step) { vertices.push_back({ x, 0.0f, minZ }); vertices.push_back({ x, 0.0f, maxZ }); }
+    for (float z = minZ; z <= maxZ + 1e-4f; z += step) { vertices.push_back({ minX, 0.0f, z }); vertices.push_back({ maxX, 0.0f, z }); }
+    if (vertices.empty()) return;
+    const bgfx::Memory* mem = bgfx::copy(vertices.data(), (uint32_t)(vertices.size() * sizeof(GridVertex)));
+    bgfx::VertexBufferHandle vbh = bgfx::createVertexBuffer(mem, GridVertex::layout);
+    float identity[16]; bx::mtxIdentity(identity); bgfx::setTransform(identity);
+    bgfx::setVertexBuffer(0, vbh);
+    auto debugMat = MaterialManager::Instance().CreateDefaultDebugMaterial(); debugMat->BindUniforms();
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_PT_LINES | BGFX_STATE_BLEND_ALPHA);
+    bgfx::submit(viewId, debugMat->GetProgram());
     bgfx::destroy(vbh);
 }
 

@@ -26,6 +26,13 @@ public:
    void LoadProject(const std::string& projectPath);
 
     const std::string& GetSelectedItemName() const { return m_SelectedItemName; }
+    const std::string& GetSelectedItemPath() const { return m_SelectedItemPath; }
+    std::string GetSelectedItemExtension() const {
+        if (m_SelectedItemPath.empty()) return std::string();
+        std::string ext = std::filesystem::path(m_SelectedItemPath).extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        return ext;
+    }
 
    // Scene and prefab operations
    void LoadSceneFile(const std::string& filepath);
@@ -48,6 +55,7 @@ private:
    std::string m_CurrentFolder;
    std::string m_SearchQuery;
     std::string m_SelectedItemName;
+    std::string m_SelectedItemPath;
 
    ImTextureID m_FolderIcon;
    ImTextureID m_FileIcon;

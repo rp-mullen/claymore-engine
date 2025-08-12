@@ -6,6 +6,8 @@
 #include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include "animation/AnimationAsset.h"
+#include "animation/AnimationSerializer.h"
 
 namespace cm {
 namespace animation {
@@ -89,6 +91,56 @@ std::vector<AnimationClip> AnimationImporter::ImportFromModel(const std::string&
     }
 
     return clips;
+}
+
+// New unified output: produce an .anim (unified) with BoneTracks from raw node channels
+static AnimationAsset BuildUnifiedFromAssimp(const aiScene* scene, unsigned int animIndex)
+{
+    AnimationAsset asset; asset.meta.version = 1; asset.meta.fps = 30.0f; asset.meta.length = 0.0f;
+    const aiAnimation* aiAnim = scene->mAnimations[animIndex];
+    asset.name = aiAnim->mName.C_Str(); if (asset.name.empty()) asset.name = std::string("Anim_") + std::to_string(animIndex);
+    const float tps = aiAnim->mTicksPerSecond != 0.0 ? (float)aiAnim->mTicksPerSecond : 25.0f;
+    const float duration = (float)(aiAnim->mDuration / tps);
+    asset.meta.length = duration;
+    for (unsigned int c = 0; c < aiAnim->mNumChannels; ++c) {
+        const aiNodeAnim* channel = aiAnim->mChannels[c];
+        auto bt = std::make_unique<cm::animation::AssetBoneTrack>();
+        bt->name = channel->mNodeName.C_Str();
+        // Position
+        for (unsigned int k = 0; k < channel->mNumPositionKeys; ++k) {
+            const aiVectorKey& key = channel->mPositionKeys[k];
+            cm::animation::KeyVec3 kf; kf.id = 0; kf.t = (float)(key.mTime / tps); kf.v = glm::vec3(key.mValue.x, key.mValue.y, key.mValue.z);
+            bt->t.keys.push_back(kf);
+        }
+        // Rotation
+        for (unsigned int k = 0; k < channel->mNumRotationKeys; ++k) {
+            const aiQuatKey& key = channel->mRotationKeys[k];
+            cm::animation::KeyQuat kf; kf.id = 0; kf.t = (float)(key.mTime / tps); kf.v = glm::quat(key.mValue.w, key.mValue.x, key.mValue.y, key.mValue.z);
+            bt->r.keys.push_back(kf);
+        }
+        // Scale
+        for (unsigned int k = 0; k < channel->mNumScalingKeys; ++k) {
+            const aiVectorKey& key = channel->mScalingKeys[k];
+            cm::animation::KeyVec3 kf; kf.id = 0; kf.t = (float)(key.mTime / tps); kf.v = glm::vec3(key.mValue.x, key.mValue.y, key.mValue.z);
+            bt->s.keys.push_back(kf);
+        }
+        asset.tracks.push_back(std::move(bt));
+    }
+    return asset;
+}
+
+// Convenience: import a model and immediately save unified .anim next to it
+bool AnimationImporter::ImportUnifiedAnimationFromFBX(const std::string& filepath, const std::string& outAnimPath)
+{
+    Assimp::Importer importer;
+    importer.SetPropertyInteger(AI_CONFIG_IMPORT_FBX_OPTIMIZE_EMPTY_ANIMATION_CURVES, 1);
+    importer.SetPropertyInteger(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, 0);
+    const aiScene* scene = importer.ReadFile(filepath,
+        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_LimitBoneWeights | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality | aiProcess_FlipUVs);
+    if (!scene || !scene->mRootNode || scene->mNumAnimations == 0) return false;
+
+    cm::animation::AnimationAsset asset = BuildUnifiedFromAssimp(scene, 0);
+    return cm::animation::SaveAnimationAsset(asset, outAnimPath);
 }
 
 } // namespace animation

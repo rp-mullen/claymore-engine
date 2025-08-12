@@ -1,6 +1,7 @@
 #include "animation/AnimationSerializer.h"
 #include <fstream>
 #include "animation/PropertyTrack.h"
+#include "animation/AnimationAsset.h"
 #include <iostream>
 namespace cm {
 namespace animation {
@@ -182,6 +183,8 @@ namespace {
     }
 }
 
+// Backward-compat loader: if file looks like legacy skeletal .anim (our JSON shape), allow wrapping to unified asset if requested elsewhere.
+
 json SerializeTimelineClip(const TimelineClip& clip)
 {
     json j;
@@ -234,6 +237,146 @@ TimelineClip LoadTimelineClip(const std::string& path)
     std::ifstream file(path);
     json j; file >> j;
     return DeserializeTimelineClip(j);
+}
+
+// ---------------- Unified AnimationAsset (v1) ----------------
+json SerializeAnimationAsset(const AnimationAsset& asset)
+{
+    json j;
+    j["meta"] = { {"version", asset.meta.version}, {"length", asset.meta.length}, {"fps", asset.meta.fps} };
+    j["name"] = asset.name;
+    j["tracks"] = json::array();
+    for (const auto& t : asset.tracks) {
+        if (!t) continue;
+        json jt; jt["id"] = t->id; jt["name"] = t->name; jt["muted"] = t->muted;
+        switch (t->type) {
+            case TrackType::Bone: {
+                jt["type"] = "Bone";
+                const auto* bt = static_cast<const AssetBoneTrack*>(t.get());
+                jt["boneId"] = bt->boneId;
+                auto dumpCurveVec3 = [](CurveVec3 const& c){ json a = json::array(); for (auto const& k : c.keys) a.push_back({{"id", k.id}, {"t", k.t}, {"v", {k.v.x, k.v.y, k.v.z}}}); return a; };
+                auto dumpCurveQuat = [](CurveQuat const& c){ json a = json::array(); for (auto const& k : c.keys) a.push_back({{"id", k.id}, {"t", k.t}, {"v", {k.v.x, k.v.y, k.v.z, k.v.w}}}); return a; };
+                jt["t"] = dumpCurveVec3(bt->t);
+                jt["r"] = dumpCurveQuat(bt->r);
+                jt["s"] = dumpCurveVec3(bt->s);
+            } break;
+            case TrackType::Avatar: {
+                jt["type"] = "Avatar";
+                const auto* at = static_cast<const AssetAvatarTrack*>(t.get());
+                jt["humanBoneId"] = at->humanBoneId;
+                auto dumpCurveVec3 = [](CurveVec3 const& c){ json a = json::array(); for (auto const& k : c.keys) a.push_back({{"id", k.id}, {"t", k.t}, {"v", {k.v.x, k.v.y, k.v.z}}}); return a; };
+                auto dumpCurveQuat = [](CurveQuat const& c){ json a = json::array(); for (auto const& k : c.keys) a.push_back({{"id", k.id}, {"t", k.t}, {"v", {k.v.x, k.v.y, k.v.z, k.v.w}}}); return a; };
+                jt["t"] = dumpCurveVec3(at->t);
+                jt["r"] = dumpCurveQuat(at->r);
+                jt["s"] = dumpCurveVec3(at->s);
+            } break;
+            case TrackType::Property: {
+                jt["type"] = "Property";
+                const auto* pt = static_cast<const AssetPropertyTrack*>(t.get());
+                jt["binding"] = { {"path", pt->binding.path}, {"resolvedId", pt->binding.resolvedId}, {"ptype", (int)pt->binding.type} };
+                switch (pt->binding.type) {
+                    case PropertyType::Float: { json a = json::array(); for (auto const& k : std::get<CurveFloat>(pt->curve).keys) a.push_back({{"id", k.id},{"t",k.t},{"v",k.v}}); jt["curve"] = a; } break;
+                    case PropertyType::Vec2:  { json a = json::array(); for (auto const& k : std::get<CurveVec2>(pt->curve).keys)  a.push_back({{"id", k.id},{"t",k.t},{"v", {k.v.x, k.v.y}}}); jt["curve"] = a; } break;
+                    case PropertyType::Vec3:  { json a = json::array(); for (auto const& k : std::get<CurveVec3>(pt->curve).keys)  a.push_back({{"id", k.id},{"t",k.t},{"v", {k.v.x, k.v.y, k.v.z}}}); jt["curve"] = a; } break;
+                    case PropertyType::Quat:  { json a = json::array(); for (auto const& k : std::get<CurveQuat>(pt->curve).keys)  a.push_back({{"id", k.id},{"t",k.t},{"v", {k.v.x, k.v.y, k.v.z, k.v.w}}}); jt["curve"] = a; } break;
+                    case PropertyType::Color: { json a = json::array(); for (auto const& k : std::get<CurveColor>(pt->curve).keys) a.push_back({{"id", k.id},{"t",k.t},{"v", {k.v.x, k.v.y, k.v.z, k.v.w}}}); jt["curve"] = a; } break;
+                }
+            } break;
+            case TrackType::ScriptEvent: {
+                jt["type"] = "ScriptEvent";
+                const auto* st = static_cast<const AssetScriptEventTrack*>(t.get());
+                json arr = json::array();
+                for (const auto& e : st->events) arr.push_back({{"id", e.id}, {"t", e.time}, {"class", e.className}, {"method", e.method}, {"payload", e.payload}});
+                jt["events"] = std::move(arr);
+            } break;
+        }
+        j["tracks"].push_back(std::move(jt));
+    }
+    return j;
+}
+
+static void readCurve(json const& arr, CurveFloat& c){ for (auto const& k : arr) c.keys.push_back({k.value("id",0ull), k.value("t",0.f), k.value("v",0.f)}); }
+static void readCurve(const json& arr, CurveVec2& c){ for (const auto& k : arr) c.keys.push_back({k.value("id",0ull), k.value("t",0.f), glm::vec2(k["v"][0].get<float>(), k["v"][1].get<float>())}); }
+static void readCurve(const json& arr, CurveVec3& c){ for (const auto& k : arr) c.keys.push_back({k.value("id",0ull), k.value("t",0.f), glm::vec3(k["v"][0].get<float>(), k["v"][1].get<float>(), k["v"][2].get<float>())}); }
+static void readCurve(const json& arr, CurveQuat& c){ for (const auto& k : arr) c.keys.push_back({k.value("id",0ull), k.value("t",0.f), glm::quat(k["v"][3].get<float>(), k["v"][0].get<float>(), k["v"][1].get<float>(), k["v"][2].get<float>())}); }
+static void readCurve(const json& arr, CurveColor& c){ for (const auto& k : arr) c.keys.push_back({k.value("id",0ull), k.value("t",0.f), glm::vec4(k["v"][0].get<float>(), k["v"][1].get<float>(), k["v"][2].get<float>(), k["v"][3].get<float>())}); }
+
+AnimationAsset DeserializeAnimationAsset(const json& j)
+{
+    AnimationAsset a; a.name = j.value("name", "");
+    if (j.contains("meta")) { a.meta.version = j["meta"].value("version", 1); a.meta.length = j["meta"].value("length", 0.0f); a.meta.fps = j["meta"].value("fps", 30.0f); }
+    if (j.contains("tracks")) {
+        for (const auto& jt : j["tracks"]) {
+            const std::string tt = jt.value("type", "");
+            if (tt == "Bone") {
+                auto t = std::make_unique<AssetBoneTrack>();
+                t->type = TrackType::Bone; t->id = jt.value("id", 0ull); t->name = jt.value("name", ""); t->muted = jt.value("muted", false); t->boneId = jt.value("boneId", -1);
+                if (jt.contains("t")) readCurve(jt["t"], t->t);
+                if (jt.contains("r")) readCurve(jt["r"], t->r);
+                if (jt.contains("s")) readCurve(jt["s"], t->s);
+                a.tracks.push_back(std::move(t));
+            } else if (tt == "Avatar") {
+                auto t = std::make_unique<AssetAvatarTrack>();
+                t->type = TrackType::Avatar; t->id = jt.value("id", 0ull); t->name = jt.value("name", ""); t->muted = jt.value("muted", false); t->humanBoneId = jt.value("humanBoneId", -1);
+                if (jt.contains("t")) readCurve(jt["t"], t->t);
+                if (jt.contains("r")) readCurve(jt["r"], t->r);
+                if (jt.contains("s")) readCurve(jt["s"], t->s);
+                a.tracks.push_back(std::move(t));
+            } else if (tt == "Property") {
+                auto t = std::make_unique<AssetPropertyTrack>();
+                t->type = TrackType::Property; t->id = jt.value("id", 0ull); t->name = jt.value("name", ""); t->muted = jt.value("muted", false);
+                if (jt.contains("binding")) { t->binding.path = jt["binding"].value("path", ""); t->binding.resolvedId = jt["binding"].value("resolvedId", 0ull); t->binding.type = static_cast<PropertyType>(jt["binding"].value("ptype", 0)); }
+                if (jt.contains("curve")) {
+                    switch (t->binding.type) {
+                        case PropertyType::Float: { CurveFloat c; readCurve(jt["curve"], c); t->curve = std::move(c); } break;
+                        case PropertyType::Vec2:  { CurveVec2  c; readCurve(jt["curve"], c); t->curve = std::move(c); } break;
+                        case PropertyType::Vec3:  { CurveVec3  c; readCurve(jt["curve"], c); t->curve = std::move(c); } break;
+                        case PropertyType::Quat:  { CurveQuat  c; readCurve(jt["curve"], c); t->curve = std::move(c); } break;
+                        case PropertyType::Color: { CurveColor c; readCurve(jt["curve"], c); t->curve = std::move(c); } break;
+                    }
+                }
+                a.tracks.push_back(std::move(t));
+            } else if (tt == "ScriptEvent") {
+                auto t = std::make_unique<AssetScriptEventTrack>();
+                t->type = TrackType::ScriptEvent; t->id = jt.value("id", 0ull); t->name = jt.value("name", ""); t->muted = jt.value("muted", false);
+                if (jt.contains("events")) {
+                    for (const auto& ej : jt["events"]) {
+                        AssetScriptEvent e; e.id = ej.value("id", 0ull); e.time = ej.value("t", 0.0f); e.className = ej.value("class", ""); e.method = ej.value("method", ""); e.payload = ej.value("payload", json{});
+                        t->events.push_back(std::move(e));
+                    }
+                }
+                a.tracks.push_back(std::move(t));
+            }
+        }
+    }
+    return a;
+}
+
+bool SaveAnimationAsset(const AnimationAsset& asset, const std::string& path)
+{
+    std::ofstream f(path); if (!f.is_open()) return false; f << SerializeAnimationAsset(asset).dump(4); return true;
+}
+
+AnimationAsset LoadAnimationAsset(const std::string& path)
+{
+    std::ifstream f(path); if (!f.is_open()) return AnimationAsset{}; json j; f >> j; return DeserializeAnimationAsset(j);
+}
+
+AnimationAsset WrapLegacyClipAsAsset(const AnimationClip& clip)
+{
+    AnimationAsset a; a.name = clip.Name; a.meta.version = 1; a.meta.fps = (clip.TicksPerSecond > 0.0f) ? clip.TicksPerSecond : 30.0f; a.meta.length = clip.Duration;
+    for (const auto& kv : clip.BoneTracks) {
+        const std::string& boneName = kv.first;
+        const BoneTrack& bt = kv.second;
+        auto t = std::make_unique<AssetBoneTrack>();
+        t->name = boneName;
+        for (const auto& k : bt.PositionKeys) t->t.keys.push_back({0ull, k.Time, k.Value});
+        for (const auto& k : bt.RotationKeys) t->r.keys.push_back({0ull, k.Time, k.Value});
+        for (const auto& k : bt.ScaleKeys)    t->s.keys.push_back({0ull, k.Time, k.Value});
+        a.tracks.push_back(std::move(t));
+    }
+    // Optionally include humanoid tracks by mapping to AvatarTrack later
+    return a;
 }
 
 } // namespace animation

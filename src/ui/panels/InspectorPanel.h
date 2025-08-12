@@ -4,7 +4,7 @@
 #include <vector>
 #include "ecs/Scene.h"
 #include "EditorPanel.h"
-#include "ui/panels/AnimationTimelinePanel.h"
+// Legacy timeline panel removed
 #include "scripting/ScriptReflection.h"
 
 class AvatarBuilderPanel; // forward decl
@@ -20,9 +20,7 @@ public:
 
 
    void OnImGuiRender();
-   void SetTimelinePanel(AnimationTimelinePanel* panel) { m_TimelinePanel = panel; }
    void SetAvatarBuilderPanel(AvatarBuilderPanel* panel) { m_AvatarBuilder = panel; }
-    void DrawTimelineKeyInspector();
    // Animator node selection bridge
    void ShowAnimatorStateProperties(const std::string& stateName,
                                     std::string& clipPath,
@@ -36,6 +34,7 @@ public:
    struct AnimatorStateBinding {
        std::string* Name = nullptr;
        std::string* ClipPath = nullptr;
+       std::string* AssetPath = nullptr;
        float* Speed = nullptr;
        bool* Loop = nullptr;
        bool IsDefault = false;
@@ -53,8 +52,7 @@ private:
 private:
    EntityID* m_SelectedEntity = nullptr;
    bool m_ShowAddComponentPopup = false;
-   bool m_HasAnimatorBinding = false;
-   AnimatorStateBinding m_AnimatorBinding;
-   AnimationTimelinePanel* m_TimelinePanel = nullptr;
+    bool m_HasAnimatorBinding = false;
+    AnimatorStateBinding m_AnimatorBinding;
    AvatarBuilderPanel* m_AvatarBuilder = nullptr;
    };

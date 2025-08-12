@@ -13,6 +13,11 @@
 #include <filesystem>
 #include <algorithm>
 #include <particles/ParticleSystem.h>
+#include "animation/AnimationPlayerComponent.h"
+// Needed for LoadAnimationAsset and AnimationAsset serialization IO
+#include "animation/AnimationSerializer.h"
+#include <cstring>
+#include <editor/Project.h>
 
 inline void RegisterComponentDrawers() {
     auto& registry = ComponentDrawerRegistry::Instance();
@@ -288,6 +293,67 @@ inline void RegisterComponentDrawers() {
         if (ImGui::IsItemDeactivatedAfterEdit()) {
             float aspectRatio = (float)Renderer::Get().GetWidth() / (float)Renderer::Get().GetHeight();
             c.UpdateProjection(aspectRatio);
+        }
+    });
+
+    // AnimationPlayer (Animator) drawer: registered animation dropdown + basic playback controls
+    registry.Register<cm::animation::AnimationPlayerComponent>("Animator", [](cm::animation::AnimationPlayerComponent& ap) {
+        // Ensure at least one state exists
+        if (ap.ActiveStates.empty()) ap.ActiveStates.push_back({});
+
+        ImGui::DragFloat("Playback Speed", &ap.PlaybackSpeed, 0.01f, 0.0f, 5.0f);
+        bool loop = ap.ActiveStates.front().Loop;
+        if (ImGui::Checkbox("Loop", &loop)) {
+            ap.ActiveStates.front().Loop = loop;
+        }
+
+        // Registered animations dropdown (from project assets)
+        ImGui::Separator();
+        ImGui::Text("Registered Animations:");
+        static int selectedIndex = -1;
+        struct AnimOption { std::string name; std::string path; };
+        static std::vector<AnimOption> s_options;
+        s_options.clear();
+        // Scan asset registry for .anim files under the project asset directory
+        auto root = Project::GetAssetDirectory();
+        if (root.empty()) root = std::filesystem::path("assets");
+        if (std::filesystem::exists(root)) {
+            for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
+                if (!p.is_regular_file()) continue;
+                auto ext = p.path().extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                if (ext == ".anim") {
+                    AnimOption opt{ p.path().stem().string(), p.path().string() };
+                    s_options.push_back(std::move(opt));
+                }
+            }
+        }
+        if (selectedIndex >= (int)s_options.size()) selectedIndex = -1;
+        const char* currentLabel = (selectedIndex >= 0 ? s_options[selectedIndex].name.c_str() : "<None>");
+        if (ImGui::BeginCombo("##AnimDropdown", currentLabel)) {
+            for (int i = 0; i < (int)s_options.size(); ++i) {
+                bool isSelected = (i == selectedIndex);
+                if (ImGui::Selectable(s_options[i].name.c_str(), isSelected)) {
+                    selectedIndex = i;
+                    // Load and bind (prefer unified asset; fallback to legacy clip wrapped as asset)
+                    cm::animation::AnimationAsset asset = cm::animation::LoadAnimationAsset(s_options[i].path);
+                    // Fallback: if parsed asset has no tracks, try legacy skeletal clip and wrap
+                    if (asset.tracks.empty()) {
+                        cm::animation::AnimationClip legacy = cm::animation::LoadAnimationClip(s_options[i].path);
+                        if (!legacy.BoneTracks.empty()) {
+                            asset = cm::animation::WrapLegacyClipAsAsset(legacy);
+                        }
+                    }
+                    auto assetPtr = std::make_shared<cm::animation::AnimationAsset>(std::move(asset));
+                    ap.CachedAssets[0] = assetPtr;
+                    ap.ActiveStates.front().Asset = assetPtr.get();
+                    ap.ActiveStates.front().LegacyClip = nullptr;
+                    ap.CurrentStateId = -1;
+                    ap.Controller.reset();
+                }
+                if (isSelected) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
         }
     });
 

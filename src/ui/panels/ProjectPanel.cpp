@@ -208,6 +208,7 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
             } else {
                std::cout << "[Open] File clicked: " << fullPath << "\n";
             }
+            m_SelectedItemPath = fullPath;
          }
       }
 
