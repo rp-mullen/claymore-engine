@@ -40,12 +40,29 @@ using System.Numerics;
 public class TestScript : ScriptComponent
 {
     public override void OnCreate()
+   {
+     Console.WriteLine("Made it to the start of OnCreate");
+     Console.WriteLine("[MyTestScript] Referencing Entity" + refEntity.EntityID);     
+     _ = DoAsyncMethod();
+   }
+
+// .NET 8.0 async/await capabilities
+private async Task DoAsyncMethod()
+   {
+   Console.WriteLine("[MyTestScript] Made it to the start of the async function.");
+   await Task.Delay(1000);
+   Console.WriteLine("MyTestScript created successfully after 1 second!");
+   await Task.Delay(5000);
+   Entity newEntity = Entity.Create("MyTestEntity");
+   Console.WriteLine("Created MyTestEntity");
+     LightComponent l = newEntity.AddComponent<LightComponent>();
+   l.Type = LightType.Point;
+   l.Color = new Vector3(1, 0, 0);
+   }
+
+    public override void Update(float dt)
     {
-        
-    }
-    public override void Update(float dT)
-    {
-        transform.position += new Vector3(0, 0, 1) * dT; // Move forward
+        transform.position += new Vector3(0, 0, 1) * dt; // Move forward
     }
 }
 ```
