@@ -15,6 +15,19 @@
 namespace cm {
 namespace animation {
 
+    void decomposeTRS(const glm::mat4& m, glm::vec3& T, glm::quat& R, glm::vec3& S) {
+        T = glm::vec3(m[3]);
+        glm::vec3 X = glm::vec3(m[0]);
+        glm::vec3 Y = glm::vec3(m[1]);
+        glm::vec3 Z = glm::vec3(m[2]);
+        S = glm::vec3(glm::length(X), glm::length(Y), glm::length(Z));
+        if (S.x > 1e-6f) X /= S.x;
+        if (S.y > 1e-6f) Y /= S.y;
+        if (S.z > 1e-6f) Z /= S.z;
+        glm::mat3 rotMat(X, Y, Z);
+        R = glm::quat_cast(rotMat);
+    }
+
 void AnimationSystem::Update(::Scene& scene, float deltaTime) {
     for (const auto& ent : scene.GetEntities()) {
         auto* data = scene.GetEntityData(ent.GetID());
@@ -203,6 +216,79 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
             }
         }
 
+        // Humanoid constraint: keep translation/scale only on root/hips; others use bind T/S, animated rotation
+        if (skeleton.Avatar) {
+            int hipsIdx = skeleton.Avatar->GetMappedBoneIndex(cm::animation::HumanoidBone::Hips);
+            int rootIdx = skeleton.Avatar->GetMappedBoneIndex(cm::animation::HumanoidBone::Root);
+            for (int i = 0; i < (int)localTransforms.size(); ++i) {
+                if (i == hipsIdx || i == rootIdx) continue;
+                glm::vec3 Ta, Sa; glm::quat Ra;
+                decomposeTRS(localTransforms[i], Ta, Ra, Sa);
+                glm::mat4 bindLocal = computeLocalBind(i);
+                glm::vec3 Tb, Sb; glm::quat Rb; // Rb unused
+                decomposeTRS(bindLocal, Tb, Rb, Sb);
+                localTransforms[i] = glm::translate(Tb) * glm::mat4_cast(glm::normalize(Ra)) * glm::scale(Sb);
+            }
+        }
+
+        // Root motion handling and in-place playback
+        if (skeleton.Avatar) {
+            // Compose model matrix from locals up the parent chain
+            auto composeModel = [&](int boneIndex) -> glm::mat4 {
+                glm::mat4 model(1.0f);
+                int bi = boneIndex;
+                while (bi >= 0) {
+                    model = localTransforms[bi] * model;
+                    bi = (bi < (int)skeleton.BoneParents.size()) ? skeleton.BoneParents[bi] : -1;
+                }
+                return model;
+            };
+
+            // Replace a bone's local translation with its bind local translation, preserve animated R/S
+            auto zeroLocalTranslationToBind = [&](int boneIndex) {
+                if (boneIndex < 0 || boneIndex >= (int)localTransforms.size()) return;
+                glm::vec3 Ta, Sa; glm::quat Ra;
+                decomposeTRS(localTransforms[boneIndex], Ta, Ra, Sa);
+                glm::vec3 Tb, Sb; glm::quat Rb;
+                decomposeTRS(computeLocalBind(boneIndex), Tb, Rb, Sb);
+                localTransforms[boneIndex] = glm::translate(Tb) * glm::mat4_cast(glm::normalize(Ra)) * glm::scale(Sb);
+            };
+
+            int hipsIdx = skeleton.Avatar->GetMappedBoneIndex(cm::animation::HumanoidBone::Hips);
+            int rootIdx = skeleton.Avatar->GetMappedBoneIndex(cm::animation::HumanoidBone::Root);
+
+            switch (player.RootMotion) {
+                case AnimationPlayerComponent::RootMotionMode::None: {
+                    // Keep rig in-place: zero translation on hips and root back to bind
+                    zeroLocalTranslationToBind(hipsIdx);
+                    zeroLocalTranslationToBind(rootIdx);
+                    player._PrevRootValid = false;
+                } break;
+
+                case AnimationPlayerComponent::RootMotionMode::FromHipsToEntity:
+                case AnimationPlayerComponent::RootMotionMode::FromRootToEntity: {
+                    const int src = (player.RootMotion == AnimationPlayerComponent::RootMotionMode::FromHipsToEntity) ? hipsIdx : rootIdx;
+                    if (src >= 0) {
+                        glm::vec3 curPos = glm::vec3(composeModel(src)[3]);
+                        if (player._PrevRootValid) {
+                            glm::vec3 delta = curPos - player._PrevRootModelPos;
+                            if (auto* rootData = scene.GetEntityData(ent.GetID())) {
+                                rootData->Transform.Position += delta;
+                                rootData->Transform.TransformDirty = true;
+                            }
+                        }
+                        player._PrevRootModelPos = curPos;
+                        player._PrevRootValid = true;
+
+                        // After extracting root motion, keep the animated bone in-place
+                        zeroLocalTranslationToBind(src);
+                    } else {
+                        player._PrevRootValid = false;
+                    }
+                } break;
+            }
+        }
+
         // Write evaluated local pose into bone entities as TRS so transform system recomputes matrices
         auto decomposeTRS = [](const glm::mat4& m, glm::vec3& T, glm::quat& R, glm::vec3& S){
             T = glm::vec3(m[3]);
@@ -221,8 +307,11 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                 glm::vec3 T, S; glm::quat R;
                 decomposeTRS(localTransforms[i], T, R, S);
                 bd->Transform.Position = T;
-                bd->Transform.Rotation = glm::degrees(glm::eulerAngles(glm::normalize(R)));
                 bd->Transform.Scale    = S;
+                bd->Transform.RotationQ = glm::normalize(R);
+                bd->Transform.UseQuatRotation = true;
+                // Keep Euler for inspector display
+                bd->Transform.Rotation = glm::degrees(glm::eulerAngles(bd->Transform.RotationQ));
                 bd->Transform.TransformDirty = true;
             }
         }

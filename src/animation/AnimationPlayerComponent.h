@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <glm/glm.hpp>
 #include "animation/AnimationTypes.h"
 #include "animation/AnimatorRuntime.h"
 #include "animation/AnimationAsset.h"
@@ -31,6 +32,12 @@ struct AnimationPlayerComponent {
     // Cache of loaded assets per state id
     std::unordered_map<int, std::shared_ptr<AnimationClip>> CachedClips; // legacy clips
     std::unordered_map<int, std::shared_ptr<AnimationAsset>> CachedAssets; // unified assets
+
+    // Root motion handling
+    enum class RootMotionMode { None, FromHipsToEntity, FromRootToEntity };
+    RootMotionMode RootMotion = RootMotionMode::None;
+    glm::vec3 _PrevRootModelPos{0.0f};
+    bool _PrevRootValid = false;
 };
 
 } // namespace animation

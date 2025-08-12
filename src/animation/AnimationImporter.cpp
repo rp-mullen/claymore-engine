@@ -28,7 +28,8 @@ std::vector<AnimationClip> AnimationImporter::ImportFromModel(const std::string&
         aiProcess_LimitBoneWeights |
         aiProcess_JoinIdenticalVertices |
         aiProcess_ImproveCacheLocality |
-        aiProcess_FlipUVs);
+        aiProcess_FlipUVs |
+        aiProcess_GlobalScale);
     if (!scene || !scene->mRootNode) {
         std::cerr << "[AnimationImporter] Failed to open file: " << filepath << std::endl;
         return clips;
@@ -136,7 +137,7 @@ bool AnimationImporter::ImportUnifiedAnimationFromFBX(const std::string& filepat
     importer.SetPropertyInteger(AI_CONFIG_IMPORT_FBX_OPTIMIZE_EMPTY_ANIMATION_CURVES, 1);
     importer.SetPropertyInteger(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, 0);
     const aiScene* scene = importer.ReadFile(filepath,
-        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_LimitBoneWeights | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality | aiProcess_FlipUVs);
+        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_LimitBoneWeights | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality | aiProcess_FlipUVs | aiProcess_GlobalScale);
     if (!scene || !scene->mRootNode || scene->mNumAnimations == 0) return false;
 
     cm::animation::AnimationAsset asset = BuildUnifiedFromAssimp(scene, 0);

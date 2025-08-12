@@ -275,6 +275,7 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     // Build map of meshIndex -> transform relative to the FBX root
     //--------------------------------------------------------------------
     std::vector<glm::mat4> meshTransforms(aScene->mNumMeshes, glm::mat4(1.0f));
+    std::vector<std::string> meshEntityNames(aScene->mNumMeshes, std::string());
 
     // Helper: Assimp (row-major) -> GLM (column-major)
     auto AiToGlm = [](const aiMatrix4x4& m) {
@@ -316,11 +317,15 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         // Keep meshes in the model's local space; entity root carries the FBX root transform.
         glm::mat4 relative = invRoot * global;
 
-        // Store relative transform for all meshes referenced by this node
+        // Store relative transform and remember a name for entities from this node
         for (unsigned int i = 0; i < node->mNumMeshes; ++i) {
             unsigned int meshIndex = node->mMeshes[i];
             if (meshIndex < meshTransforms.size())
                 meshTransforms[meshIndex] = relative;
+            if (meshIndex < meshEntityNames.size()) {
+                // Prefer node name for hierarchy clarity; fallback applied later
+                meshEntityNames[meshIndex] = node->mName.C_Str();
+            }
         }
         // Recurse into children
         for (unsigned int c = 0; c < node->mNumChildren; ++c) {
@@ -497,7 +502,17 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         const auto& meshPtr = model.Meshes[i];
         if (!meshPtr) continue;
 
-        Entity meshEntity = CreateEntity("Mesh_" + std::to_string(i));
+        // Pick an entity name derived from FBX content
+        std::string desiredName = (i < meshEntityNames.size()) ? meshEntityNames[i] : std::string();
+        if (desiredName.empty()) {
+            // Fallback to Assimp mesh name if node name was empty
+            if (i < aScene->mNumMeshes) {
+                desiredName = aScene->mMeshes[i]->mName.C_Str();
+            }
+        }
+        if (desiredName.empty()) desiredName = std::string("Mesh_") + std::to_string(i);
+
+        Entity meshEntity = CreateEntity(desiredName);
         EntityID meshID = meshEntity.GetID();
 
         // >>> CHANGE: parent skinned meshes to SkeletonRoot (not ImportedModel root)
@@ -516,12 +531,12 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         meshData->Transform.Position = translation;
         meshData->Transform.Scale = scale;
         // For non-bone entities keep Euler as primary unless needed
-        meshData->Transform.Rotation = glm::degrees(glm::eulerAngles(rotationQuat));
+            meshData->Transform.Rotation = glm::degrees(glm::eulerAngles(rotationQuat));
         meshData->Transform.TransformDirty = true;
 
         auto mat = (i < model.Materials.size() && model.Materials[i]) ? model.Materials[i]
             : MaterialManager::Instance().CreateDefaultPBRMaterial();
-            meshData->Mesh = new MeshComponent(meshPtr, "Mesh_" + std::to_string(i), mat);
+            meshData->Mesh = new MeshComponent(meshPtr, desiredName, mat);
 
             if (isSkinned) {
                 meshData->Skinning = new SkinningComponent();

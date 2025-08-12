@@ -59,6 +59,7 @@ static bool name_matches(const std::string& name, const std::vector<std::string>
 const std::unordered_map<HumanoidBone, std::vector<std::string>>& avatar_builders::DefaultNameSeeds()
 {
     static std::unordered_map<HumanoidBone, std::vector<std::string>> map = {
+        { HumanoidBone::Root, {"Root","Armature","ArmatureRoot","root"} },
         { HumanoidBone::Hips, {"Hips","Pelvis","hip","pelvis","root_pelvis"} },
         { HumanoidBone::Spine, {"Spine","Spine1","spine01","torso"} },
         { HumanoidBone::Chest, {"Chest","Spine2","upperchest","chest"} },
