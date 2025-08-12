@@ -343,30 +343,33 @@ void InspectorPanel::DrawComponents(EntityID entity) {
     }
 
     if (data->AnimationPlayer && ImGui::CollapsingHeader("Animator")) {
-        // Draw standard Animator controls (clip assign, loop, speed, drag-drop)
+        // Draw component UI (includes mode and single-clip controls)
         registry.DrawComponentUI("Animator", data->AnimationPlayer);
 
-        ImGui::Separator();
-        ImGui::TextDisabled("Controller (optional)");
-        ImGui::Text("Controller: %s", data->AnimationPlayer->ControllerPath.c_str());
-        ImGui::SameLine();
-        if (ImGui::Button("Set Path")) {
-            // For MVP, read from clipboard
-            if (const char* clip = ImGui::GetClipboardText()) {
-                data->AnimationPlayer->ControllerPath = clip;
+        // Controller controls visible only when in ControllerAnimated mode
+        if (data->AnimationPlayer->AnimatorMode == cm::animation::AnimationPlayerComponent::Mode::ControllerAnimated) {
+            ImGui::Separator();
+            ImGui::TextDisabled("Controller (optional)");
+            ImGui::Text("Controller: %s", data->AnimationPlayer->ControllerPath.c_str());
+            ImGui::SameLine();
+            if (ImGui::Button("Set Path")) {
+                // For MVP, read from clipboard
+                if (const char* clip = ImGui::GetClipboardText()) {
+                    data->AnimationPlayer->ControllerPath = clip;
+                }
             }
-        }
-        if (ImGui::Button("Load Controller")) {
-            // Load JSON controller file
-            std::ifstream in(data->AnimationPlayer->ControllerPath);
-            if (in) {
-                nlohmann::json j; in >> j;
-                auto ctrl = std::make_shared<cm::animation::AnimatorController>();
-                nlohmann::from_json(j, *ctrl);
-                data->AnimationPlayer->Controller = ctrl;
-                data->AnimationPlayer->AnimatorInstance.SetController(ctrl);
-                data->AnimationPlayer->AnimatorInstance.ResetToDefaults();
-                data->AnimationPlayer->CurrentStateId = ctrl->DefaultState;
+            if (ImGui::Button("Load Controller")) {
+                // Load JSON controller file
+                std::ifstream in(data->AnimationPlayer->ControllerPath);
+                if (in) {
+                    nlohmann::json j; in >> j;
+                    auto ctrl = std::make_shared<cm::animation::AnimatorController>();
+                    nlohmann::from_json(j, *ctrl);
+                    data->AnimationPlayer->Controller = ctrl;
+                    data->AnimationPlayer->AnimatorInstance.SetController(ctrl);
+                    data->AnimationPlayer->AnimatorInstance.ResetToDefaults();
+                    data->AnimationPlayer->CurrentStateId = ctrl->DefaultState;
+                }
             }
         }
     }

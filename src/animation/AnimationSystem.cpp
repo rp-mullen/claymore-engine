@@ -40,8 +40,19 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
         auto& player   = *data->AnimationPlayer;
         auto& skeleton = *data->Skeleton;
 
-        // Animator controller update (if set)
-        if (player.Controller) {
+        // If in Controller mode but no controller is loaded, do not drive animation
+        if (player.AnimatorMode == AnimationPlayerComponent::Mode::ControllerAnimated && !player.Controller) {
+            if (!player.ActiveStates.empty()) {
+                player.ActiveStates.front().Asset = nullptr;
+                player.ActiveStates.front().LegacyClip = nullptr;
+            }
+            player.Debug_CurrentAnimationName.clear();
+            player.Debug_CurrentControllerStateName.clear();
+            continue;
+        }
+
+        // Animator controller update (if set) and in ControllerAnimated mode
+        if (player.AnimatorMode == AnimationPlayerComponent::Mode::ControllerAnimated && player.Controller) {
             // Load default state clip if needed
             if (player.CurrentStateId < 0) {
                 player.AnimatorInstance.SetController(player.Controller);
@@ -99,6 +110,45 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
             // Time from normalized
             float time = player.AnimatorInstance.Playback().StateNormalized * (currentDuration > 0.0f ? currentDuration : 1.0f);
             s0.Time = time;
+
+            // Debug info
+            if (st) player.Debug_CurrentControllerStateName = st->Name;
+            player.Debug_CurrentAnimationName = asset ? asset->name : (clip ? clip->Name : std::string());
+        }
+
+        // Animation Player mode (single clip, no controller)
+        if (player.AnimatorMode == AnimationPlayerComponent::Mode::AnimationPlayerAnimated) {
+            // Ensure ActiveStates[0] is bound to the selected SingleClipPath if provided
+            if (!player.SingleClipPath.empty()) {
+                // Resolve cached asset at key 0
+                std::shared_ptr<cm::animation::AnimationAsset> asset;
+                auto it = player.CachedAssets.find(0);
+                if (it == player.CachedAssets.end()) {
+                    // Attempt to load unified asset first; fallback to legacy wrapped
+                    cm::animation::AnimationAsset a = cm::animation::LoadAnimationAsset(player.SingleClipPath);
+                    if (a.tracks.empty()) {
+                        cm::animation::AnimationClip legacy = cm::animation::LoadAnimationClip(player.SingleClipPath);
+                        if (!legacy.BoneTracks.empty()) a = cm::animation::WrapLegacyClipAsAsset(legacy);
+                    }
+                    asset = std::make_shared<cm::animation::AnimationAsset>(std::move(a));
+                    player.CachedAssets[0] = asset;
+                } else {
+                    asset = it->second;
+                }
+                if (player.ActiveStates.empty()) player.ActiveStates.push_back({});
+                player.ActiveStates.front().Asset = player.CachedAssets[0].get();
+                player.ActiveStates.front().LegacyClip = nullptr;
+                player.Debug_CurrentAnimationName = player.ActiveStates.front().Asset ? player.ActiveStates.front().Asset->name : std::string();
+            }
+
+            // Apply PlayOnStart once
+            if (!player._InitApplied) {
+                player._InitApplied = true;
+                if (player.PlayOnStart) {
+                    player.IsPlaying = true;
+                    if (!player.ActiveStates.empty()) player.ActiveStates.front().Time = 0.0f;
+                }
+            }
         }
 
         if (player.ActiveStates.empty()) continue;
@@ -109,9 +159,21 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
 
         // Advance time
         AnimationState& mutableState = player.ActiveStates.front();
-        mutableState.Time += deltaTime * player.PlaybackSpeed;
+        // In Animation Player mode, advance only if IsPlaying; in Controller mode, always driven
+        bool shouldAdvance = (player.AnimatorMode == AnimationPlayerComponent::Mode::ControllerAnimated) ? (player.Controller != nullptr) : player.IsPlaying;
+        if (shouldAdvance) {
+            mutableState.Time += deltaTime * player.PlaybackSpeed;
+        }
         float clipDuration = state.LegacyClip ? state.LegacyClip->Duration : (state.Asset ? state.Asset->Duration() : 0.0f);
-        if (clipDuration > 0.0f && mutableState.Loop) mutableState.Time = fmod(mutableState.Time, clipDuration);
+        if (clipDuration > 0.0f && mutableState.Loop) {
+            if (shouldAdvance) mutableState.Time = fmod(mutableState.Time, clipDuration);
+        } else if (clipDuration > 0.0f && player.AnimatorMode == AnimationPlayerComponent::Mode::AnimationPlayerAnimated) {
+            // Stop at end in single-clip mode if not looping
+            if (shouldAdvance && mutableState.Time >= clipDuration) {
+                mutableState.Time = clipDuration;
+                player.IsPlaying = false;
+            }
+        }
         if (player.AnimatorInstance.IsCrossfading()) {
             player.AnimatorInstance.AdvanceCrossfade(deltaTime * player.PlaybackSpeed);
         }
@@ -179,13 +241,13 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
         }
          
         // Crossfade blend if active: sample next state and blend matrices linearly (local-space)
-        if (player.AnimatorInstance.IsCrossfading() && player.Controller) {
+        if (player.AnimatorInstance.IsCrossfading() && player.Controller && player.AnimatorMode == AnimationPlayerComponent::Mode::ControllerAnimated) {
             int nextId = player.AnimatorInstance.Playback().NextStateId;
             const auto* nextSt = player.Controller->FindState(nextId);
             if (nextSt) {
                 const AnimationAsset* nextAsset = nullptr;
                 std::shared_ptr<AnimationAsset> nextAssetPtr;
-                if (!nextSt->AnimationAssetPath.empty()) {
+                if (!nextSt->AnimationAssetPath.empty()) { 
                     auto it = player.CachedAssets.find(nextSt->Id);
                     if (it != player.CachedAssets.end()) nextAssetPtr = it->second; else {
                         nextAssetPtr = std::make_shared<AnimationAsset>(LoadAnimationAsset(nextSt->AnimationAssetPath));

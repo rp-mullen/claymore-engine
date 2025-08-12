@@ -10,6 +10,9 @@
 #include "rendering/StandardMeshManager.h"
 
 using json = nlohmann::json;
+
+// Forward declarations to avoid heavy includes
+namespace cm { namespace animation { struct AnimationPlayerComponent; } }
  
 class Serializer {
 public:
@@ -63,6 +66,10 @@ public:
      static void DeserializePanel(const json& data, PanelComponent& panel);
      static json SerializeButton(const ButtonComponent& button);
      static void DeserializeButton(const json& data, ButtonComponent& button);
+
+      // Animator / AnimationPlayerComponent
+      static json SerializeAnimator(const cm::animation::AnimationPlayerComponent& animator);
+      static void DeserializeAnimator(const json& data, cm::animation::AnimationPlayerComponent& animator);
 
     // Script serialization
     static json SerializeScripts(const std::vector<ScriptInstance>& scripts);

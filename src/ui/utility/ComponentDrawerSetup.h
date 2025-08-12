@@ -296,64 +296,111 @@ inline void RegisterComponentDrawers() {
         }
     });
 
-    // AnimationPlayer (Animator) drawer: registered animation dropdown + basic playback controls
+    // AnimationPlayer (Animator) drawer
     registry.Register<cm::animation::AnimationPlayerComponent>("Animator", [](cm::animation::AnimationPlayerComponent& ap) {
         // Ensure at least one state exists
         if (ap.ActiveStates.empty()) ap.ActiveStates.push_back({});
 
+        // Mode
+        int mode = (ap.AnimatorMode == cm::animation::AnimationPlayerComponent::Mode::ControllerAnimated) ? 0 : 1;
+        ImGui::Combo("Mode", &mode, "Controller Animated\0Animation Player Animated\0");
+        ap.AnimatorMode = (mode == 0) ? cm::animation::AnimationPlayerComponent::Mode::ControllerAnimated
+                                      : cm::animation::AnimationPlayerComponent::Mode::AnimationPlayerAnimated;
+
         ImGui::DragFloat("Playback Speed", &ap.PlaybackSpeed, 0.01f, 0.0f, 5.0f);
+
+        // Loop flag applies to the first active state (single-clip)
         bool loop = ap.ActiveStates.front().Loop;
         if (ImGui::Checkbox("Loop", &loop)) {
             ap.ActiveStates.front().Loop = loop;
         }
 
-        // Registered animations dropdown (from project assets)
-        ImGui::Separator();
-        ImGui::Text("Registered Animations:");
-        static int selectedIndex = -1;
-        struct AnimOption { std::string name; std::string path; };
-        static std::vector<AnimOption> s_options;
-        s_options.clear();
-        // Scan asset registry for .anim files under the project asset directory
-        auto root = Project::GetAssetDirectory();
-        if (root.empty()) root = std::filesystem::path("assets");
-        if (std::filesystem::exists(root)) {
-            for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
-                if (!p.is_regular_file()) continue;
-                auto ext = p.path().extension().string();
-                std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-                if (ext == ".anim") {
-                    AnimOption opt{ p.path().stem().string(), p.path().string() };
-                    s_options.push_back(std::move(opt));
+        // Animation Player mode controls
+        if (ap.AnimatorMode == cm::animation::AnimationPlayerComponent::Mode::AnimationPlayerAnimated) {
+            ImGui::Separator();
+            ImGui::TextDisabled("Animation Player");
+            // Single clip path text + choose from registry
+            if (!ap.SingleClipPath.empty()) {
+                ImGui::Text("Clip: %s", ap.SingleClipPath.c_str());
+            } else {
+                ImGui::TextDisabled("Clip: (None)");
+            }
+            ImGui::Checkbox("Play on Start", &ap.PlayOnStart);
+            ImGui::Checkbox("Playing", &ap.IsPlaying);
+
+            // Registered animations dropdown (from project assets)
+            static int selectedIndex = -1;
+            struct AnimOption { std::string name; std::string path; };
+            static std::vector<AnimOption> s_options;
+            s_options.clear();
+            auto root = Project::GetAssetDirectory();
+            if (root.empty()) root = std::filesystem::path("assets");
+            if (std::filesystem::exists(root)) {
+                for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
+                    if (!p.is_regular_file()) continue;
+                    auto ext = p.path().extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext == ".anim") {
+                        AnimOption opt{ p.path().stem().string(), p.path().string() };
+                        s_options.push_back(std::move(opt));
+                    }
                 }
             }
-        }
-        if (selectedIndex >= (int)s_options.size()) selectedIndex = -1;
-        const char* currentLabel = (selectedIndex >= 0 ? s_options[selectedIndex].name.c_str() : "<None>");
-        if (ImGui::BeginCombo("##AnimDropdown", currentLabel)) {
-            for (int i = 0; i < (int)s_options.size(); ++i) {
-                bool isSelected = (i == selectedIndex);
-                if (ImGui::Selectable(s_options[i].name.c_str(), isSelected)) {
-                    selectedIndex = i;
-                    // Load and bind (prefer unified asset; fallback to legacy clip wrapped as asset)
-                    cm::animation::AnimationAsset asset = cm::animation::LoadAnimationAsset(s_options[i].path);
-                    // Fallback: if parsed asset has no tracks, try legacy skeletal clip and wrap
-                    if (asset.tracks.empty()) {
-                        cm::animation::AnimationClip legacy = cm::animation::LoadAnimationClip(s_options[i].path);
-                        if (!legacy.BoneTracks.empty()) {
-                            asset = cm::animation::WrapLegacyClipAsAsset(legacy);
+            if (selectedIndex >= (int)s_options.size()) selectedIndex = -1;
+            const char* currentLabel = (selectedIndex >= 0 ? s_options[selectedIndex].name.c_str() : "<Select Clip>");
+            if (ImGui::BeginCombo("##AnimDropdown", currentLabel)) {
+                for (int i = 0; i < (int)s_options.size(); ++i) {
+                    bool isSelected = (i == selectedIndex);
+                    if (ImGui::Selectable(s_options[i].name.c_str(), isSelected)) {
+                        selectedIndex = i;
+                        // Load to validate this clip has skeletal content; if not, ignore selection
+                        cm::animation::AnimationAsset asset = cm::animation::LoadAnimationAsset(s_options[i].path);
+                        bool hasSkeletal = false;
+                        for (const auto& t : asset.tracks) {
+                            if (!t) continue;
+                            if (t->type == cm::animation::TrackType::Bone || t->type == cm::animation::TrackType::Avatar) { hasSkeletal = true; break; }
+                        }
+                        if (!hasSkeletal) {
+                            // Fallback: legacy skeletal
+                            cm::animation::AnimationClip legacy = cm::animation::LoadAnimationClip(s_options[i].path);
+                            if (!legacy.BoneTracks.empty() || !legacy.HumanoidTracks.empty()) {
+                                asset = cm::animation::WrapLegacyClipAsAsset(legacy);
+                                hasSkeletal = true;
+                            }
+                        }
+                        if (hasSkeletal) {
+                            ap.SingleClipPath = s_options[i].path;
+                            ap._InitApplied = false; // allow PlayOnStart to apply on next run
+                            // Immediately bind/cached like previous behavior
+                            auto assetPtr = std::make_shared<cm::animation::AnimationAsset>(std::move(asset));
+                            ap.CachedAssets[0] = assetPtr;
+                            if (ap.ActiveStates.empty()) ap.ActiveStates.push_back({});
+                            ap.ActiveStates.front().Asset = assetPtr.get();
+                            ap.ActiveStates.front().LegacyClip = nullptr;
+                            ap.AnimatorMode = cm::animation::AnimationPlayerComponent::Mode::AnimationPlayerAnimated;
+                            ap.Controller.reset();
+                            ap.CurrentStateId = -1;
+                            ap.Debug_CurrentAnimationName = s_options[i].name;
+                        } else {
+                            // Keep old selection; surface a hint in-place
+                            ap.Debug_CurrentAnimationName = std::string("(Non-skeletal) ") + s_options[i].name;
                         }
                     }
-                    auto assetPtr = std::make_shared<cm::animation::AnimationAsset>(std::move(asset));
-                    ap.CachedAssets[0] = assetPtr;
-                    ap.ActiveStates.front().Asset = assetPtr.get();
-                    ap.ActiveStates.front().LegacyClip = nullptr;
-                    ap.CurrentStateId = -1;
-                    ap.Controller.reset();
+                    if (isSelected) ImGui::SetItemDefaultFocus();
                 }
-                if (isSelected) ImGui::SetItemDefaultFocus();
+                ImGui::EndCombo();
             }
-            ImGui::EndCombo();
+        }
+
+        // Debug info
+        if (!ap.Debug_CurrentAnimationName.empty()) {
+            ImGui::Text("Now Playing: %s", ap.Debug_CurrentAnimationName.c_str());
+        }
+        if (ap.AnimatorMode == cm::animation::AnimationPlayerComponent::Mode::ControllerAnimated) {
+            if (!ap.Debug_CurrentControllerStateName.empty()) {
+                ImGui::Text("Controller State: %s", ap.Debug_CurrentControllerStateName.c_str());
+            }
+            ImGui::Text("Playing: yes");
         }
     });
 

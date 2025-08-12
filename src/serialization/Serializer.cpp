@@ -8,6 +8,7 @@
 #include "pipeline/AssetLibrary.h"
 #include "rendering/TextureLoader.h"
 #include "ecs/UIComponents.h"
+#include "animation/AnimationPlayerComponent.h"
 
 namespace fs = std::filesystem;
 
@@ -372,6 +373,36 @@ void Serializer::DeserializeButton(const json& data, ButtonComponent& button) {
     if (data.contains("clickSound")) data["clickSound"].get_to(button.ClickSound);
 }
 
+// ---------------- Animator (AnimationPlayerComponent) ----------------
+json Serializer::SerializeAnimator(const cm::animation::AnimationPlayerComponent& a)
+{
+    json j;
+    j["mode"] = (a.AnimatorMode == cm::animation::AnimationPlayerComponent::Mode::ControllerAnimated) ? "controller" : "player";
+    j["playbackSpeed"] = a.PlaybackSpeed;
+    j["rootMotion"] = (int)a.RootMotion;
+    j["controllerPath"] = a.ControllerPath;
+    j["singleClipPath"] = a.SingleClipPath;
+    j["playOnStart"] = a.PlayOnStart;
+    j["loop"] = (!a.ActiveStates.empty() ? a.ActiveStates.front().Loop : true);
+    return j;
+}
+
+void Serializer::DeserializeAnimator(const json& j, cm::animation::AnimationPlayerComponent& a)
+{
+    const std::string mode = j.value("mode", "player");
+    a.AnimatorMode = (mode == "controller") ? cm::animation::AnimationPlayerComponent::Mode::ControllerAnimated
+                                              : cm::animation::AnimationPlayerComponent::Mode::AnimationPlayerAnimated;
+    a.PlaybackSpeed = j.value("playbackSpeed", 1.0f);
+    a.RootMotion = static_cast<cm::animation::AnimationPlayerComponent::RootMotionMode>(j.value("rootMotion", 0));
+    a.ControllerPath = j.value("controllerPath", "");
+    a.SingleClipPath = j.value("singleClipPath", "");
+    a.PlayOnStart = j.value("playOnStart", true);
+    if (a.ActiveStates.empty()) a.ActiveStates.push_back({});
+    a.ActiveStates.front().Loop = j.value("loop", true);
+    a.IsPlaying = false;
+    a._InitApplied = false;
+}
+
 json Serializer::SerializeScripts(const std::vector<ScriptInstance>& scripts) {
     json scriptArray = json::array();
     for (const auto& script : scripts) {
@@ -440,10 +471,15 @@ json Serializer::SerializeEntity(EntityID id, Scene& scene) {
       data["staticbody"] = SerializeStaticBody(*entityData->StaticBody);
       }
 
-   // Serialize scripts
+    // Serialize scripts
    if (!entityData->Scripts.empty()) {
       data["scripts"] = SerializeScripts(entityData->Scripts);
       }
+
+    // Animator
+    if (entityData->AnimationPlayer) {
+        data["animator"] = SerializeAnimator(*entityData->AnimationPlayer);
+    }
 
    if (entityData->Camera) {
        data["camera"] = SerializeCamera(*entityData->Camera);
@@ -553,6 +589,12 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
     // Deserialize scripts
     if (data.contains("scripts")) {
         DeserializeScripts(data["scripts"], entityData->Scripts);
+    }
+
+    // Animator
+    if (data.contains("animator")) {
+        if (!entityData->AnimationPlayer) entityData->AnimationPlayer = new cm::animation::AnimationPlayerComponent();
+        DeserializeAnimator(data["animator"], *entityData->AnimationPlayer);
     }
 
     return id;
@@ -748,6 +790,9 @@ json Serializer::SerializePrefab(const EntityData& entityData, Scene& scene) {
     if (!entityData.Scripts.empty()) {
         entityJson["scripts"] = SerializeScripts(entityData.Scripts);
     }
+    if (entityData.AnimationPlayer) {
+        entityJson["animator"] = SerializeAnimator(*entityData.AnimationPlayer);
+    }
 
     prefabData["entity"] = entityJson;
     return prefabData;
@@ -790,6 +835,10 @@ bool Serializer::DeserializePrefab(const json& data, EntityData& entityData, Sce
     // Deserialize scripts
     if (entityJson.contains("scripts")) {
         DeserializeScripts(entityJson["scripts"], entityData.Scripts);
+    }
+    if (entityJson.contains("animator")) {
+        entityData.AnimationPlayer = new cm::animation::AnimationPlayerComponent();
+        DeserializeAnimator(entityJson["animator"], *entityData.AnimationPlayer);
     }
 
     return true;

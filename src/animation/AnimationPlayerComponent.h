@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <string>
 #include <glm/glm.hpp>
 #include "animation/AnimationTypes.h"
 #include "animation/AnimatorRuntime.h"
@@ -38,6 +39,20 @@ struct AnimationPlayerComponent {
     RootMotionMode RootMotion = RootMotionMode::None;
     glm::vec3 _PrevRootModelPos{0.0f};
     bool _PrevRootValid = false;
+
+    // Bimodal animator behavior
+    enum class Mode { ControllerAnimated, AnimationPlayerAnimated };
+    Mode AnimatorMode = Mode::AnimationPlayerAnimated;
+
+    // Single-clip (Animation Player) mode configuration
+    std::string SingleClipPath;      // Path to a unified .anim (preferred) or legacy clip; resolved to CachedAssets[0]
+    bool PlayOnStart = true;         // If true, auto-begin playback on start
+    bool IsPlaying = false;          // Runtime playing flag for single-clip mode
+    bool _InitApplied = false;       // Internal guard to apply PlayOnStart once
+
+    // Exposed runtime info for UI and scripting
+    std::string Debug_CurrentAnimationName;      // clip/asset name currently bound
+    std::string Debug_CurrentControllerStateName; // controller state name when in controller mode
 };
 
 } // namespace animation

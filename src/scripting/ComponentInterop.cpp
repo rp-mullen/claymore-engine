@@ -291,3 +291,61 @@ void Animator_ResetTrigger(int entityID, const char* name)
         ap->AnimatorInstance.Blackboard().Triggers[name] = false;
     }
 }
+
+// --- AnimationPlayer (single-clip mode) controls ---
+void AnimationPlayer_Play(int entityID)
+{
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        ap->AnimatorMode = cm::animation::AnimationPlayerComponent::Mode::AnimationPlayerAnimated;
+        ap->IsPlaying = true;
+        if (!ap->ActiveStates.empty()) ap->ActiveStates.front().Time = 0.0f;
+    }
+}
+
+void AnimationPlayer_Stop(int entityID)
+{
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        ap->IsPlaying = false;
+    }
+}
+
+bool AnimationPlayer_IsPlaying(int entityID)
+{
+    if (auto* ap = GetAnimatorFor(entityID)) return ap->IsPlaying;
+    return false;
+}
+
+void AnimationPlayer_SetLoop(int entityID, bool loop)
+{
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        if (ap->ActiveStates.empty()) ap->ActiveStates.push_back({});
+        ap->ActiveStates.front().Loop = loop;
+    }
+}
+
+void AnimationPlayer_SetSpeed(int entityID, float speed)
+{
+    if (auto* ap = GetAnimatorFor(entityID)) ap->PlaybackSpeed = speed;
+}
+
+const char* AnimationPlayer_GetCurrentClipName(int entityID)
+{
+    if (auto* ap = GetAnimatorFor(entityID)) return ap->Debug_CurrentAnimationName.c_str();
+    return "";
+}
+
+const char* Animator_GetCurrentStateName(int entityID)
+{
+    if (auto* ap = GetAnimatorFor(entityID)) return ap->Debug_CurrentControllerStateName.c_str();
+    return "";
+}
+
+bool Animator_IsPlaying(int entityID)
+{
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        if (ap->AnimatorMode == cm::animation::AnimationPlayerComponent::Mode::ControllerAnimated)
+            return true; // controller is always advancing
+        return ap->IsPlaying;
+    }
+    return false;
+}

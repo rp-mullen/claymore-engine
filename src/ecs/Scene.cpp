@@ -478,6 +478,8 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
                 skelData->AnimationPlayer->ActiveStates.front().Weight = 1.0f;
                 skelData->AnimationPlayer->Controller.reset();
                 skelData->AnimationPlayer->CurrentStateId = -1;
+                skelData->AnimationPlayer->AnimatorMode = cm::animation::AnimationPlayerComponent::Mode::AnimationPlayerAnimated;
+                skelData->AnimationPlayer->SingleClipPath = chosenAnim;
             }
         }
     }
@@ -674,6 +676,19 @@ std::shared_ptr<Scene> Scene::RuntimeClone() {
 
       // Mark transform as dirty so world matrices are computed
       data.Transform.TransformDirty = true;
+
+      // Ensure animator runtime flags are initialized for play mode
+      if (data.AnimationPlayer) {
+          // Reset one-shot init gate so PlayOnStart will apply in runtime
+          data.AnimationPlayer->_InitApplied = false;
+          // Seed playing state from PlayOnStart for Animation Player mode
+          if (data.AnimationPlayer->AnimatorMode == cm::animation::AnimationPlayerComponent::Mode::AnimationPlayerAnimated) {
+              data.AnimationPlayer->IsPlaying = data.AnimationPlayer->PlayOnStart;
+              if (!data.AnimationPlayer->ActiveStates.empty() && data.AnimationPlayer->PlayOnStart) {
+                  data.AnimationPlayer->ActiveStates.front().Time = 0.0f;
+              }
+          }
+      }
 
       for (auto& script : data.Scripts) {
          if (script.Instance)
