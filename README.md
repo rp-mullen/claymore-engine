@@ -28,6 +28,9 @@ A 3D game engine developed in C++ with .NET 8.0 native interop; built on bgfx, a
   - glm
   - [.NET 8.0.15 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
     
+### Building 
+- First navigate to ./scripts/ClaymoreEngine and run ```dotnet build``` to build the Managed engine binaries.
+- Run CMake in the project root to build the native side, which will copy the managed binaries into the executable folder for interop at runtime.
 
 ## Example Script
 ```csharp
