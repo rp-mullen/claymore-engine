@@ -401,6 +401,67 @@ inline void RegisterComponentDrawers() {
                 ImGui::Text("Controller State: %s", ap.Debug_CurrentControllerStateName.c_str());
             }
             ImGui::Text("Playing: yes");
+            // Live controller parameter view
+            if (ap.Controller) {
+                ImGui::Separator();
+                ImGui::TextDisabled("Parameters");
+                auto& bb = ap.AnimatorInstance.Blackboard();
+                for (const auto& p : ap.Controller->Parameters) {
+                    switch (p.Type) {
+                        case cm::animation::AnimatorParamType::Bool: {
+                            bool v = false; auto it = bb.Bools.find(p.Name); if (it != bb.Bools.end()) v = it->second;
+                            ImGui::Text("%s = %s", p.Name.c_str(), v ? "true" : "false");
+                        } break;
+                        case cm::animation::AnimatorParamType::Int: {
+                            int v = 0; auto it = bb.Ints.find(p.Name); if (it != bb.Ints.end()) v = it->second;
+                            ImGui::Text("%s = %d", p.Name.c_str(), v);
+                        } break;
+                        case cm::animation::AnimatorParamType::Float: {
+                            float v = 0.0f; auto it = bb.Floats.find(p.Name); if (it != bb.Floats.end()) v = it->second;
+                            ImGui::Text("%s = %.3f", p.Name.c_str(), v);
+                        } break;
+                        case cm::animation::AnimatorParamType::Trigger: {
+                            bool v = false; auto it = bb.Triggers.find(p.Name); if (it != bb.Triggers.end()) v = it->second;
+                            ImGui::Text("%s (trigger) = %s", p.Name.c_str(), v ? "set" : "unset");
+                        } break;
+                    }
+                }
+
+                // Live transition diagnostics from current state
+                ImGui::Separator();
+                const int curId = ap.CurrentStateId;
+                const cm::animation::AnimatorState* curSt = ap.Controller->FindState(curId);
+                if (curSt) {
+                    ImGui::TextDisabled("Transitions from '%s' (id=%d)", curSt->Name.c_str(), curId);
+                    auto evalCond = [&](const cm::animation::AnimatorCondition& c)->bool{
+                        using cm::animation::ConditionMode;
+                        switch (c.Mode) {
+                            case ConditionMode::If: { auto it=bb.Bools.find(c.Parameter); return it!=bb.Bools.end() && it->second; }
+                            case ConditionMode::IfNot: { auto it=bb.Bools.find(c.Parameter); return it!=bb.Bools.end() && !it->second; }
+                            case ConditionMode::Greater: {
+                                auto itf=bb.Floats.find(c.Parameter); if(itf!=bb.Floats.end()) return itf->second>c.Threshold;
+                                auto iti=bb.Ints.find(c.Parameter);   if(iti!=bb.Ints.end())   return iti->second>c.IntThreshold; return false; }
+                            case ConditionMode::Less: {
+                                auto itf=bb.Floats.find(c.Parameter); if(itf!=bb.Floats.end()) return itf->second<c.Threshold;
+                                auto iti=bb.Ints.find(c.Parameter);   if(iti!=bb.Ints.end())   return iti->second<c.IntThreshold; return false; }
+                            case ConditionMode::Equals: {
+                                auto itf=bb.Floats.find(c.Parameter); if(itf!=bb.Floats.end()) return itf->second==c.Threshold;
+                                auto iti=bb.Ints.find(c.Parameter);   if(iti!=bb.Ints.end())   return iti->second==c.IntThreshold; return false; }
+                            case ConditionMode::NotEquals: {
+                                auto itf=bb.Floats.find(c.Parameter); if(itf!=bb.Floats.end()) return itf->second!=c.Threshold;
+                                auto iti=bb.Ints.find(c.Parameter);   if(iti!=bb.Ints.end())   return iti->second!=c.IntThreshold; return false; }
+                            case ConditionMode::Trigger: { auto it=bb.Triggers.find(c.Parameter); return it!=bb.Triggers.end() && it->second; }
+                        }
+                        return false;
+                    };
+                    for (const auto& tr : ap.Controller->Transitions) {
+                        if (tr.FromState != curId) continue;
+                        bool ok = true; for (const auto& c : tr.Conditions) { if (!evalCond(c)) { ok=false; break; } }
+                        const auto* toSt = ap.Controller->FindState(tr.ToState);
+                        ImGui::Text("-> %s (id=%d): %s", toSt?toSt->Name.c_str():"?", tr.ToState, ok?"match":"no match");
+                    }
+                }
+            }
         }
     });
 

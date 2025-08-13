@@ -76,6 +76,11 @@ namespace ClaymoreEngine
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void Animator_SetFloatFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name, float value);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void Animator_SetTriggerFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void Animator_ResetTriggerFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name);
+    // Animator getters
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate bool  Animator_GetBoolFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate int   Animator_GetIntFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate float Animator_GetFloatFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate bool  Animator_GetTriggerFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name);
 
 
     internal static unsafe class ComponentInterop
@@ -115,6 +120,10 @@ namespace ClaymoreEngine
         public static Animator_SetFloatFn Animator_SetFloat;
         public static Animator_SetTriggerFn Animator_SetTrigger;
         public static Animator_ResetTriggerFn Animator_ResetTrigger;
+        public static Animator_GetBoolFn Animator_GetBool;
+        public static Animator_GetIntFn Animator_GetInt;
+        public static Animator_GetFloatFn Animator_GetFloat;
+        public static Animator_GetTriggerFn Animator_GetTrigger;
 
         public static string GetBlendShapeName(int entityId, int index)
         {
@@ -124,9 +133,9 @@ namespace ClaymoreEngine
 
         public static void Initialize(void** ptrs, int count)
         {
-            if (count < 26) // Update count for added animator functions
+            if (count < 30) // Update count for added animator functions
             {
-                Console.WriteLine($"[ComponentInterop] Expected at least 26 function pointers, but got {count}.");
+                Console.WriteLine($"[ComponentInterop] Expected at least 30 function pointers, but got {count}.");
                 return;
             }
 
@@ -161,6 +170,10 @@ namespace ClaymoreEngine
             Animator_SetFloat = Marshal.GetDelegateForFunctionPointer<Animator_SetFloatFn>((IntPtr)ptrs[i++]);
             Animator_SetTrigger = Marshal.GetDelegateForFunctionPointer<Animator_SetTriggerFn>((IntPtr)ptrs[i++]);
             Animator_ResetTrigger = Marshal.GetDelegateForFunctionPointer<Animator_ResetTriggerFn>((IntPtr)ptrs[i++]);
+            Animator_GetBool = Marshal.GetDelegateForFunctionPointer<Animator_GetBoolFn>((IntPtr)ptrs[i++]);
+            Animator_GetInt = Marshal.GetDelegateForFunctionPointer<Animator_GetIntFn>((IntPtr)ptrs[i++]);
+            Animator_GetFloat = Marshal.GetDelegateForFunctionPointer<Animator_GetFloatFn>((IntPtr)ptrs[i++]);
+            Animator_GetTrigger = Marshal.GetDelegateForFunctionPointer<Animator_GetTriggerFn>((IntPtr)ptrs[i++]);
         }
     }
 }

@@ -41,6 +41,10 @@ public:
     int ChooseNextState() const; // returns -1 if none
     void ConsumeTriggers();
 
+    // Explicitly set the current state used for transition evaluation and timing.
+    // Optionally reset time accumulators so the new state's playback starts at t=0.
+    void SetCurrentState(int stateId, bool resetTime);
+
     // Crossfade control (MVP): call when a transition with duration is selected
     void BeginCrossfade(int toStateId, float durationSeconds);
     bool IsCrossfading() const { return m_Playback.CrossfadeDuration > 0.0f && m_Playback.CrossfadeTime < m_Playback.CrossfadeDuration; }

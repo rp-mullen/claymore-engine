@@ -99,8 +99,7 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                     player.CachedClips[st->Id] = clip;
                 }
             }
-            if (!asset && !clip) continue;
-            // Advance animator time
+            // Advance animator time even if current state's asset/clip is missing (allows condition-only transitions)
             float currentDuration = asset ? asset->Duration() : (clip ? clip->Duration : 0.0f);
             player.AnimatorInstance.Update(deltaTime * st->Speed * player.PlaybackSpeed, currentDuration);
             // Check transitions
@@ -113,27 +112,52 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                 }
                 if (duration > 0.0f) {
                     player.AnimatorInstance.BeginCrossfade(next, duration);
+                    // Triggers should be consumed when a transition begins
+                    player.AnimatorInstance.ConsumeTriggers();
                 } else {
+                    // Instant transition: synchronize Animator's internal state and player state
+                    player.AnimatorInstance.SetCurrentState(next, /*resetTime*/true);
                     player.CurrentStateId = next;
-                    // Reset time for new state
-                    player.AnimatorInstance.Update(0.0f, 0.0f);
                     player.AnimatorInstance.ConsumeTriggers();
                 }
             }
 
-            // Evaluate current state asset at time – prefer unified asset if present
+            // Evaluate current (possibly updated) state asset at time – prefer unified asset if present
+            const auto* stNow = player.Controller->FindState(player.CurrentStateId);
+            std::shared_ptr<cm::animation::AnimationAsset> assetNow;
+            std::shared_ptr<cm::animation::AnimationClip> clipNow;
+            float durationNow = 0.0f;
+            if (stNow) {
+                if (!stNow->AnimationAssetPath.empty()) {
+                    auto ita = player.CachedAssets.find(stNow->Id);
+                    if (ita != player.CachedAssets.end()) assetNow = ita->second; else {
+                        assetNow = std::make_shared<cm::animation::AnimationAsset>(cm::animation::LoadAnimationAsset(stNow->AnimationAssetPath));
+                        player.CachedAssets[stNow->Id] = assetNow;
+                    }
+                }
+                if (!assetNow && !stNow->ClipPath.empty()) {
+                    auto itc = player.CachedClips.find(stNow->Id);
+                    if (itc != player.CachedClips.end()) clipNow = itc->second; else {
+                        clipNow = std::make_shared<cm::animation::AnimationClip>(cm::animation::LoadAnimationClip(stNow->ClipPath));
+                        player.CachedClips[stNow->Id] = clipNow;
+                    }
+                }
+                durationNow = assetNow ? assetNow->Duration() : (clipNow ? clipNow->Duration : 0.0f);
+            }
+
             if (player.ActiveStates.empty()) player.ActiveStates.push_back({});
             AnimationState& s0 = player.ActiveStates.front();
-            s0.Asset = asset.get();
-            s0.LegacyClip = clip.get();
-            s0.Loop = st->Loop;
-            // Time from normalized
-            float time = player.AnimatorInstance.Playback().StateNormalized * (currentDuration > 0.0f ? currentDuration : 1.0f);
+            s0.Asset = assetNow.get();
+            s0.LegacyClip = clipNow.get();
+            s0.Loop = stNow ? stNow->Loop : true;
+            // Time from normalized (guard against negatives and NaN)
+            float time = player.AnimatorInstance.Playback().StateNormalized * (durationNow > 0.0f ? durationNow : 1.0f);
+            if (!std::isfinite(time) || time < 0.0f) time = 0.0f;
             s0.Time = time;
 
             // Debug info
-            if (st) player.Debug_CurrentControllerStateName = st->Name;
-            player.Debug_CurrentAnimationName = asset ? asset->name : (clip ? clip->Name : std::string());
+            if (stNow) player.Debug_CurrentControllerStateName = stNow->Name;
+            player.Debug_CurrentAnimationName = assetNow ? assetNow->name : (clipNow ? clipNow->Name : std::string());
         }
 
         // Animation Player mode (single clip, no controller)
@@ -257,7 +281,7 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                 if (localTransforms[i] == glm::mat4(1.0f)) {
                     localTransforms[i] = computeLocalBind(i);
                 } 
-            }
+            } 
         }
          
         // Crossfade blend if active: sample next state and blend matrices linearly (local-space)
@@ -321,6 +345,8 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                     }
                 }
                 if (a >= 1.0f) {
+                    // Crossfade complete: ensure Animator's current state is updated as well
+                    player.AnimatorInstance.SetCurrentState(nextId, /*resetTime*/true);
                     player.CurrentStateId = nextId;
                 }
             }

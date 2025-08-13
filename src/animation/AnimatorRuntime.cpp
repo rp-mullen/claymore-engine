@@ -60,18 +60,26 @@ static bool EvaluateCondition(const AnimatorCondition& c, const AnimatorBlackboa
 int Animator::ChooseNextState() const {
     if (!m_Controller) return -1;
     const int current = m_Playback.CurrentStateId;
-    for (const auto& t : m_Controller->Transitions) {
-        if (t.FromState != -1 && t.FromState != current) continue;
+
+    auto transitionMatches = [&](const AnimatorTransition& t) -> bool {
         bool ok = true;
         for (const auto& cond : t.Conditions) {
             if (!EvaluateCondition(cond, m_Blackboard)) { ok = false; break; }
         }
-        if (!ok) continue;
-        // Respect exit time if required
+        if (!ok) return false;
         if (t.HasExitTime) {
-            if (m_Playback.StateNormalized + 1e-4f < t.ExitTime) continue;
+            if (m_Playback.StateNormalized + 1e-4f < t.ExitTime) return false;
         }
-        return t.ToState;
+        return true;
+    };
+
+    // Pass 1: Prefer transitions authored from the current state
+    for (const auto& t : m_Controller->Transitions) {
+        if (t.FromState == current && transitionMatches(t)) return t.ToState;
+    }
+    // Pass 2: Fallback to AnyState transitions
+    for (const auto& t : m_Controller->Transitions) {
+        if (t.FromState == -1 && transitionMatches(t)) return t.ToState;
     }
     return -1;
 }
@@ -96,6 +104,15 @@ void Animator::BeginCrossfade(int toStateId, float durationSeconds)
     m_Playback.CrossfadeDuration = std::max(0.0f, durationSeconds);
     m_Playback.CrossfadeTime = 0.0f;
     m_Playback.NextStateTime = 0.0f;
+}
+
+void Animator::SetCurrentState(int stateId, bool resetTime)
+{
+    m_Playback.CurrentStateId = stateId;
+    if (resetTime) {
+        m_Playback.StateTime = 0.0f;
+        m_Playback.StateNormalized = 0.0f;
+    }
 }
 
 } // namespace animation

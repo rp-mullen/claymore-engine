@@ -222,8 +222,23 @@ struct CameraComponent {
 	}
 
 	void SyncWithTransform(const TransformComponent& transform) {
-		Camera.SetPosition(transform.Position);
-		Camera.SetRotation(transform.Rotation);
+		// Use world-space transform so parenting (e.g. under a moving skeleton) is respected
+		const glm::mat4& world = transform.WorldMatrix;
+		glm::vec3 position = glm::vec3(world[3]);
+
+		// Extract rotation without scale from world matrix
+		glm::vec3 X = glm::vec3(world[0]);
+		glm::vec3 Y = glm::vec3(world[1]);
+		glm::vec3 Z = glm::vec3(world[2]);
+		glm::vec3 S = glm::vec3(glm::length(X), glm::length(Y), glm::length(Z));
+		if (S.x > 1e-6f) X /= S.x;
+		if (S.y > 1e-6f) Y /= S.y;
+		if (S.z > 1e-6f) Z /= S.z;
+		glm::quat rotQ = glm::quat_cast(glm::mat3(X, Y, Z));
+		glm::vec3 eulerDegrees = glm::degrees(glm::eulerAngles(rotQ));
+
+		Camera.SetPosition(position);
+		Camera.SetRotation(eulerDegrees);
 		// Note: SetPosition and SetRotation automatically call RecalculateView()
 	}
 };

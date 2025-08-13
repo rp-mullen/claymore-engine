@@ -26,7 +26,6 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <animation/AvatarSerializer.h>
-#include <animation/HumanoidBone.h>
 
 
 namespace fs = std::filesystem;
@@ -309,7 +308,6 @@ void AssetPipeline::ImportModel(const std::string& path) {
 
         // --------- Extract animations (unified .anim as primary) ---------
         using namespace cm::animation;
-        
         auto clips = AnimationImporter::ImportFromModel(path);
         std::cout << "[AssetPipeline] ImportFromModel found " << clips.size() << " animation(s)." << std::endl;
         if (!clips.empty()) {

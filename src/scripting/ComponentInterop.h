@@ -40,6 +40,11 @@ extern "C" {
     __declspec(dllexport) void Animator_SetFloat(int entityID, const char* name, float value);
     __declspec(dllexport) void Animator_SetTrigger(int entityID, const char* name);
     __declspec(dllexport) void Animator_ResetTrigger(int entityID, const char* name);
+    // Animator parameter getters
+    __declspec(dllexport) bool  Animator_GetBool(int entityID, const char* name);
+    __declspec(dllexport) int   Animator_GetInt(int entityID, const char* name);
+    __declspec(dllexport) float Animator_GetFloat(int entityID, const char* name);
+    __declspec(dllexport) bool  Animator_GetTrigger(int entityID, const char* name);
     // Single-clip controls and queries
     __declspec(dllexport) void AnimationPlayer_Play(int entityID);
     __declspec(dllexport) void AnimationPlayer_Stop(int entityID);

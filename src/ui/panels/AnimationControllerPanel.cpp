@@ -34,6 +34,36 @@ bool AnimationControllerPanel::Load(const std::string& path) {
 
 bool AnimationControllerPanel::Save(const std::string& path) {
     if (!m_Controller) return false;
+    // Sanitize transitions: coerce condition modes to match parameter types before saving
+    {
+        std::unordered_map<std::string, int> ptype; // 0=Bool,1=Int,2=Float,3=Trigger
+        for (const auto& p : m_Controller->Parameters) ptype[p.Name] = (int)p.Type;
+        for (auto& t : m_Controller->Transitions) {
+            for (auto& c : t.Conditions) {
+                auto it = ptype.find(c.Parameter);
+                if (it == ptype.end()) continue;
+                int pt = it->second;
+                switch (pt) {
+                    case 0: { // Bool
+                        if (!(c.Mode == cm::animation::ConditionMode::If || c.Mode == cm::animation::ConditionMode::IfNot))
+                            c.Mode = cm::animation::ConditionMode::If;
+                    } break;
+                    case 1: // Int
+                    case 2: { // Float
+                        if (!(c.Mode == cm::animation::ConditionMode::Greater ||
+                              c.Mode == cm::animation::ConditionMode::Less ||
+                              c.Mode == cm::animation::ConditionMode::Equals ||
+                              c.Mode == cm::animation::ConditionMode::NotEquals))
+                            c.Mode = cm::animation::ConditionMode::Greater;
+                    } break;
+                    case 3: { // Trigger
+                        if (c.Mode != cm::animation::ConditionMode::Trigger)
+                            c.Mode = cm::animation::ConditionMode::Trigger;
+                    } break;
+                }
+            }
+        }
+    }
     json j; nlohmann::to_json(j, *m_Controller);
     std::ofstream out(path);
     if (!out) return false;
@@ -285,7 +315,7 @@ void AnimationControllerPanel::DrawNodeEditor() {
                         for (int k=0;k<allCount;++k) allowed.push_back(k);
                     }
 
-                    // Map current mode to filtered index
+                    // Map current mode to filtered index; coerce to a valid mode if needed
                     int curIdx = 0; int modeRaw = (int)cm::animation::ConditionMode::If;
                     switch (c.Mode) {
                         case cm::animation::ConditionMode::If: modeRaw=0; break;
@@ -295,6 +325,11 @@ void AnimationControllerPanel::DrawNodeEditor() {
                         case cm::animation::ConditionMode::Equals: modeRaw=4; break;
                         case cm::animation::ConditionMode::NotEquals: modeRaw=5; break;
                         case cm::animation::ConditionMode::Trigger: modeRaw=6; break;
+                    }
+                    bool modeAllowed = std::find(allowed.begin(), allowed.end(), modeRaw) != allowed.end();
+                    if (!modeAllowed && !allowed.empty()) {
+                        c.Mode = (cm::animation::ConditionMode)allowed[0];
+                        modeRaw = allowed[0];
                     }
                     for (int k=0;k<(int)allowed.size();++k) if (allowed[k]==modeRaw) { curIdx=k; break; }
 

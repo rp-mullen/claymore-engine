@@ -48,6 +48,8 @@ using DestroyEntity_fn         = void(*)(int entityID);
 // Rotation & Scale
 using GetEntityRotation_fn     = void(*)(int entityID, float* outX, float* outY, float* outZ);
 using SetEntityRotation_fn     = void(*)(int entityID, float x, float y, float z);
+using GetEntityRotationQuat_fn = void(*)(int entityID, float* outX, float* outY, float* outZ, float* outW);
+using SetEntityRotationQuat_fn = void(*)(int entityID, float x, float y, float z, float w);
 using GetEntityScale_fn        = void(*)(int entityID, float* outX, float* outY, float* outZ);
 using SetEntityScale_fn        = void(*)(int entityID, float x, float y, float z);
 // Physics
@@ -95,6 +97,8 @@ extern DestroyEntity_fn       DestroyEntityPtr;
 extern GetEntityByID_fn       GetEntityByIDPtr;
 extern GetEntityRotation_fn   GetEntityRotationPtr;
 extern SetEntityRotation_fn   SetEntityRotationPtr;
+extern GetEntityRotationQuat_fn GetEntityRotationQuatPtr;
+extern SetEntityRotationQuat_fn SetEntityRotationQuatPtr;
 extern GetEntityScale_fn      GetEntityScalePtr;
 extern SetEntityScale_fn      SetEntityScalePtr;
 extern SetLinearVelocity_fn   SetLinearVelocityPtr;

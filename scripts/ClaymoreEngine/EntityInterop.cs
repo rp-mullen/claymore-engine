@@ -27,6 +27,8 @@ namespace ClaymoreEngine
         // Rotation / Scale
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void GetRotationFn(int entityID, out float x, out float y, out float z);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetRotationFn(int entityID, float x, float y, float z);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void GetRotationQuatFn(int entityID, out float x, out float y, out float z, out float w);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetRotationQuatFn(int entityID, float x, float y, float z, float w);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void GetScaleFn(int entityID, out float x, out float y, out float z);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetScaleFn(int entityID, float x, float y, float z);
 
@@ -45,6 +47,8 @@ namespace ClaymoreEngine
 
         public static GetRotationFn        GetEntityRotation;
         public static SetRotationFn        SetEntityRotation;
+        public static GetRotationQuatFn    GetEntityRotationQuat;
+        public static SetRotationQuatFn    SetEntityRotationQuat;
         public static GetScaleFn           GetEntityScale;
         public static SetScaleFn           SetEntityScale;
 
@@ -59,9 +63,9 @@ namespace ClaymoreEngine
 
         public static unsafe void InitializeInterop(IntPtr* ptrs, int count)
         {
-            if (count < 12) // Expect 12 core functions now
+            if (count < 14) // Expect 14 core functions now (added quat rot get/set)
             {
-                Console.WriteLine($"[EntityInterop] Expected >=12 function pointers, received {count}.");
+                Console.WriteLine($"[EntityInterop] Expected >=14 function pointers, received {count}.");
                 return;
             }
 
@@ -76,6 +80,8 @@ namespace ClaymoreEngine
 
             GetEntityRotation  = Marshal.GetDelegateForFunctionPointer<GetRotationFn>       (ptrs[i++]);
             SetEntityRotation  = Marshal.GetDelegateForFunctionPointer<SetRotationFn>       (ptrs[i++]);
+            GetEntityRotationQuat = Marshal.GetDelegateForFunctionPointer<GetRotationQuatFn> (ptrs[i++]);
+            SetEntityRotationQuat = Marshal.GetDelegateForFunctionPointer<SetRotationQuatFn> (ptrs[i++]);
             GetEntityScale     = Marshal.GetDelegateForFunctionPointer<GetScaleFn>          (ptrs[i++]);
             SetEntityScale     = Marshal.GetDelegateForFunctionPointer<SetScaleFn>          (ptrs[i++]);
 
@@ -108,6 +114,15 @@ namespace ClaymoreEngine
         }
 
         public static void SetRotation(int entityID, Vector3 rot) => SetEntityRotation(entityID, rot.X, rot.Y, rot.Z);
+
+        public static Quaternion GetRotationQuat(int entityID)
+        {
+            GetEntityRotationQuat(entityID, out float x, out float y, out float z, out float w);
+            return new Quaternion(x, y, z, w);
+        }
+
+        public static void SetRotationQuat(int entityID, Quaternion q)
+            => SetEntityRotationQuat(entityID, q.X, q.Y, q.Z, q.W);
 
         public static Vector3 GetScale(int entityID)
         {

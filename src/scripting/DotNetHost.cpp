@@ -495,6 +495,8 @@ void SetupEntityInterop(std::filesystem::path fullPath)
            (void*)GetEntityByIDPtr,
            (void*)GetEntityRotationPtr,
            (void*)SetEntityRotationPtr,
+           (void*)GetEntityRotationQuatPtr,
+           (void*)SetEntityRotationQuatPtr,
            (void*)GetEntityScalePtr,
            (void*)SetEntityScalePtr,
            (void*)SetLinearVelocityPtr,
@@ -528,7 +530,11 @@ void SetupEntityInterop(std::filesystem::path fullPath)
             (void*)&Animator_SetInt,
             (void*)&Animator_SetFloat,
             (void*)&Animator_SetTrigger,
-            (void*)&Animator_ResetTrigger
+            (void*)&Animator_ResetTrigger,
+            (void*)&Animator_GetBool,
+            (void*)&Animator_GetInt,
+            (void*)&Animator_GetFloat,
+            (void*)&Animator_GetTrigger
         };
 
         using EntityInteropInitFn = void(*)(void**, int);

@@ -12,8 +12,8 @@
   ],
   "states": [
     {
-      "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\X Bot_mixamo.com.anim",
-      "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\X Bot_mixamo.com.anim",
+      "asset": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
+      "clip": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
       "id": 1,
       "loop": true,
       "name": "Idle",
@@ -22,14 +22,14 @@
       "y": 0.0
     },
     {
-      "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
-      "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+      "asset": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+      "clip": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
       "id": 2,
       "loop": true,
       "name": "Moving",
       "speed": 1.0,
-      "x": 15.0,
-      "y": 175.0
+      "x": -9.0,
+      "y": 232.0
     }
   ],
   "transitions": [
@@ -37,7 +37,7 @@
       "conditions": [
         {
           "iThreshold": 0,
-          "mode": "if",
+          "mode": "greater",
           "param": "Speed",
           "threshold": 0.0
         }
@@ -53,9 +53,9 @@
       "conditions": [
         {
           "iThreshold": 0,
-          "mode": "less",
+          "mode": "equals",
           "param": "Speed",
-          "threshold": 5.0
+          "threshold": 0.0
         }
       ],
       "duration": 0.0,

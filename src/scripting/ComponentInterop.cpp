@@ -298,6 +298,50 @@ void Animator_ResetTrigger(int entityID, const char* name)
     }
 }
 
+bool Animator_GetBool(int entityID, const char* name)
+{
+    if (!name) return false;
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        auto& map = ap->AnimatorInstance.Blackboard().Bools;
+        auto it = map.find(name);
+        if (it != map.end()) return it->second;
+    }
+    return false;
+}
+
+int Animator_GetInt(int entityID, const char* name)
+{
+    if (!name) return 0;
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        auto& map = ap->AnimatorInstance.Blackboard().Ints;
+        auto it = map.find(name);
+        if (it != map.end()) return it->second;
+    }
+    return 0;
+}
+
+float Animator_GetFloat(int entityID, const char* name)
+{
+    if (!name) return 0.0f;
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        auto& map = ap->AnimatorInstance.Blackboard().Floats;
+        auto it = map.find(name);
+        if (it != map.end()) return it->second;
+    }
+    return 0.0f;
+}
+
+bool Animator_GetTrigger(int entityID, const char* name)
+{
+    if (!name) return false;
+    if (auto* ap = GetAnimatorFor(entityID)) {
+        auto& map = ap->AnimatorInstance.Blackboard().Triggers;
+        auto it = map.find(name);
+        if (it != map.end()) return it->second;
+    }
+    return false;
+}
+
 // --- AnimationPlayer (single-clip mode) controls ---
 void AnimationPlayer_Play(int entityID)
 {

@@ -19,6 +19,8 @@ DestroyEntity_fn DestroyEntityPtr = &DestroyEntity;
 GetEntityByID_fn GetEntityByIDPtr = &GetEntityByID;
 GetEntityRotation_fn GetEntityRotationPtr = &GetEntityRotation;
 SetEntityRotation_fn SetEntityRotationPtr = &SetEntityRotation;
+GetEntityRotationQuat_fn GetEntityRotationQuatPtr = &GetEntityRotationQuat;
+SetEntityRotationQuat_fn SetEntityRotationQuatPtr = &SetEntityRotationQuat;
 GetEntityScale_fn    GetEntityScalePtr    = &GetEntityScale;
 SetEntityScale_fn    SetEntityScalePtr    = &SetEntityScale;
 SetLinearVelocity_fn SetLinearVelocityPtr = &SetLinearVelocity;
@@ -92,6 +94,24 @@ extern "C"
         auto* data = Scene::Get().GetEntityData(entityID);
         if(!data) return;
         data->Transform.Rotation = glm::vec3(x, y, z);
+        data->Transform.UseQuatRotation = false;
+        Scene::Get().MarkTransformDirty(entityID);
+    }
+
+    __declspec(dllexport) void GetEntityRotationQuat(int entityID, float* outX, float* outY, float* outZ, float* outW)
+    {
+        auto* data = Scene::Get().GetEntityData(entityID);
+        if(!data){ *outX = *outY = *outZ = 0.0f; if(outW) *outW = 1.0f; return; }
+        auto q = glm::normalize(data->Transform.RotationQ);
+        *outX = q.x; *outY = q.y; *outZ = q.z; if(outW) *outW = q.w;
+    }
+
+    __declspec(dllexport) void SetEntityRotationQuat(int entityID, float x, float y, float z, float w)
+    {
+        auto* data = Scene::Get().GetEntityData(entityID);
+        if(!data) return;
+        data->Transform.RotationQ = glm::normalize(glm::quat(w, x, y, z));
+        data->Transform.UseQuatRotation = true;
         Scene::Get().MarkTransformDirty(entityID);
     }
 
