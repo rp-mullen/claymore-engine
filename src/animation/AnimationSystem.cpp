@@ -6,6 +6,7 @@
 #include <glm/gtx/transform.hpp>
 #include "ecs/EntityData.h"
 #include "animation/AnimationSerializer.h"
+#include "animation/AnimatorController.h"
 #include "animation/AnimationAsset.h"
 #include "animation/AnimationEvaluator.h"
 #include "animation/BindingCache.h"
@@ -15,6 +16,7 @@
 #include "scripting/ManagedScriptComponent.h"
 #include "scripting/DotNetHost.h"
 #include <nlohmann/json.hpp>
+#include <fstream>
 
 namespace cm {
 namespace animation {
@@ -40,7 +42,25 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
         auto& player   = *data->AnimationPlayer;
         auto& skeleton = *data->Skeleton;
 
-        // If in Controller mode but no controller is loaded, do not drive animation
+        // Auto-load controller if path is set but runtime controller not yet created
+        if (player.AnimatorMode == AnimationPlayerComponent::Mode::ControllerAnimated && !player.Controller && !player.ControllerPath.empty()) {
+            try {
+                std::ifstream in(player.ControllerPath);
+                if (in) {
+                    nlohmann::json j; in >> j;
+                    auto ctrl = std::make_shared<cm::animation::AnimatorController>();
+                    nlohmann::from_json(j, *ctrl);
+                    player.Controller = ctrl;
+                    player.AnimatorInstance.SetController(ctrl);
+                    player.AnimatorInstance.ResetToDefaults();
+                    player.CurrentStateId = ctrl->DefaultState;
+                }
+            } catch (...) {
+                // Ignore errors; will remain unloaded
+            }
+        }
+
+        // If in Controller mode but still no controller loaded, do not drive animation
         if (player.AnimatorMode == AnimationPlayerComponent::Mode::ControllerAnimated && !player.Controller) {
             if (!player.ActiveStates.empty()) {
                 player.ActiveStates.front().Asset = nullptr;
@@ -236,7 +256,7 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                 // Identity check: compare to mat4 identity exactly (inputs are exact identity)
                 if (localTransforms[i] == glm::mat4(1.0f)) {
                     localTransforms[i] = computeLocalBind(i);
-                }
+                } 
             }
         }
          

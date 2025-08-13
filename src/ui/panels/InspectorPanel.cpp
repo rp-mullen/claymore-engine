@@ -17,6 +17,9 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include "ui/panels/AvatarBuilderPanel.h"
+// For project asset directory discovery and animation asset helpers
+#include <editor/Project.h>
+#include "animation/AnimationSerializer.h"
 
 bool DrawVec3Control(const char* label, glm::vec3& values, float resetValue = 0.0f) {
     bool changed = false;
@@ -108,7 +111,51 @@ void InspectorPanel::ShowAnimatorStateProperties(const std::string& stateName,
     if (isDefault) ImGui::TextDisabled("(Default Entry)");
     else if (ImGui::Button("Make Default")) { if (onMakeDefault) onMakeDefault(); }
 
-    // Drag-and-drop animation file onto clip path (legacy)
+    // Registered animations dropdown (project-wide .anim files)
+    {
+        static int selectedIndex = -1;
+        struct AnimOption { std::string name; std::string path; };
+        static std::vector<AnimOption> s_options;
+        s_options.clear();
+
+        auto root = Project::GetAssetDirectory();
+        if (root.empty()) root = std::filesystem::path("assets");
+        if (std::filesystem::exists(root)) {
+            for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
+                if (!p.is_regular_file()) continue;
+                auto ext = p.path().extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                if (ext == ".anim") {
+                    s_options.push_back({ p.path().stem().string(), p.path().string() });
+                }
+            }
+        }
+
+        // Try to sync selection with current clip path
+        selectedIndex = -1;
+        for (int i = 0; i < (int)s_options.size(); ++i) {
+            if (s_options[i].path == clipPath) { selectedIndex = i; break; }
+        }
+
+        const char* currentLabel = (selectedIndex >= 0 ? s_options[selectedIndex].name.c_str() : "<Select Clip>");
+        if (ImGui::BeginCombo("Clip", currentLabel)) {
+            for (int i = 0; i < (int)s_options.size(); ++i) {
+                bool isSel = (i == selectedIndex);
+                if (ImGui::Selectable(s_options[i].name.c_str(), isSel)) {
+                    selectedIndex = i;
+                    // Prefer unified .anim asset when available (same file here)
+                    clipPath = s_options[i].path;
+                    if (m_HasAnimatorBinding && m_AnimatorBinding.AssetPath) {
+                        *m_AnimatorBinding.AssetPath = s_options[i].path;
+                    }
+                }
+                if (isSel) ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+    }
+
+    // Drag-and-drop animation file onto clip path (legacy/manual)
     char buf[260];
     strncpy(buf, clipPath.c_str(), sizeof(buf)); buf[sizeof(buf)-1] = 0;
     ImGui::InputText("Clip Path", buf, sizeof(buf));
@@ -351,6 +398,42 @@ void InspectorPanel::DrawComponents(EntityID entity) {
             ImGui::Separator();
             ImGui::TextDisabled("Controller (optional)");
             ImGui::Text("Controller: %s", data->AnimationPlayer->ControllerPath.c_str());
+            // Registered controller dropdown (search .animctrl under assets)
+            {
+                static int selectedCtrl = -1;
+                struct COpt { std::string name; std::string path; };
+                static std::vector<COpt> s_ctrls;
+                s_ctrls.clear();
+                auto root = Project::GetAssetDirectory();
+                if (root.empty()) root = std::filesystem::path("assets");
+                if (std::filesystem::exists(root)) {
+                    for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
+                        if (!p.is_regular_file()) continue;
+                        auto ext = p.path().extension().string();
+                        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                        if (ext == ".animctrl") {
+                            s_ctrls.push_back({ p.path().stem().string(), p.path().string() });
+                        }
+                    }
+                }
+                // Sync selection to current
+                selectedCtrl = -1;
+                for (int i=0;i<(int)s_ctrls.size();++i) {
+                    if (s_ctrls[i].path == data->AnimationPlayer->ControllerPath) { selectedCtrl = i; break; }
+                }
+                const char* cur = (selectedCtrl >= 0 ? s_ctrls[selectedCtrl].name.c_str() : "<Select Controller>");
+                if (ImGui::BeginCombo("##CtrlDropdown", cur)) {
+                    for (int i=0;i<(int)s_ctrls.size();++i) {
+                        bool sel = (i==selectedCtrl);
+                        if (ImGui::Selectable(s_ctrls[i].name.c_str(), sel)) {
+                            selectedCtrl = i;
+                            data->AnimationPlayer->ControllerPath = s_ctrls[i].path;
+                        }
+                        if (sel) ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+            }
             ImGui::SameLine();
             if (ImGui::Button("Set Path")) {
                 // For MVP, read from clipboard

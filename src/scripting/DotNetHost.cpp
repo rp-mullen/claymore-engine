@@ -277,7 +277,7 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
       {
          std::cerr << "[Interop] Failed to resolve Script_Invoke (HRESULT=" << std::hex << localRc << ")\n";
       }
-   }
+   } 
 
    // Load FlushSyncContext from managed side
    rc |= load_assembly_and_get_function_pointer(

@@ -8,4 +8,10 @@ public class AnimTrigger : ScriptComponent
       {
       Console.WriteLine("AnimTrigger Triggered");
       }
+
+    public override void OnUpdate(float dt)
+    {
+
+    }
+    
    }

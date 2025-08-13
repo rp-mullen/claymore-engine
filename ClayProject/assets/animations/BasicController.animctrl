@@ -1,0 +1,69 @@
+{
+  "defaultState": 1,
+  "name": "New Controller",
+  "parameters": [
+    {
+      "defaultBool": false,
+      "defaultFloat": 0.0,
+      "defaultInt": 0,
+      "name": "Speed",
+      "type": "float"
+    }
+  ],
+  "states": [
+    {
+      "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\X Bot_mixamo.com.anim",
+      "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\X Bot_mixamo.com.anim",
+      "id": 1,
+      "loop": true,
+      "name": "Idle",
+      "speed": 1.0,
+      "x": 0.0,
+      "y": 0.0
+    },
+    {
+      "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+      "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+      "id": 2,
+      "loop": true,
+      "name": "Moving",
+      "speed": 1.0,
+      "x": 15.0,
+      "y": 175.0
+    }
+  ],
+  "transitions": [
+    {
+      "conditions": [
+        {
+          "iThreshold": 0,
+          "mode": "if",
+          "param": "Speed",
+          "threshold": 0.0
+        }
+      ],
+      "duration": 0.0,
+      "exit": false,
+      "exitTime": 0.0,
+      "from": 1,
+      "id": 3000,
+      "to": 2
+    },
+    {
+      "conditions": [
+        {
+          "iThreshold": 0,
+          "mode": "less",
+          "param": "Speed",
+          "threshold": 5.0
+        }
+      ],
+      "duration": 0.0,
+      "exit": false,
+      "exitTime": 0.0,
+      "from": 2,
+      "id": 4001,
+      "to": 1
+    }
+  ]
+}

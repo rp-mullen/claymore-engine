@@ -3,6 +3,9 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include "animation/AnimatorController.h"
+#include "ui/FileDialogs.h"
+#include <windows.h>
+#include <editor/Project.h>
 
 using nlohmann::json;
 using cm::animation::AnimatorController;
@@ -52,15 +55,31 @@ void AnimationControllerPanel::DrawToolbar() {
     ImGui::InputText("##ctrlPath", ctrlPathBuf, sizeof(ctrlPathBuf));
     ImGui::SameLine();
     if (ImGui::Button("Open")) {
-        if (ctrlPathBuf[0]) Load(ctrlPathBuf);
+        std::string p = ShowOpenFileDialogExt(L"Animation Controllers (*.animctrl)", L"animctrl");
+        if (!p.empty()) { strncpy(ctrlPathBuf, p.c_str(), sizeof(ctrlPathBuf)); ctrlPathBuf[sizeof(ctrlPathBuf)-1]=0; Load(p); }
+        else if (ctrlPathBuf[0]) Load(ctrlPathBuf); // fallback to typed path
     }
     ImGui::SameLine();
     if (ImGui::Button("Save")) {
-        if (!m_OpenPath.empty()) Save(m_OpenPath);
+        if (m_OpenPath.empty()) {
+            std::string p = ShowSaveFileDialogExt(L"NewController.animctrl", L"Animation Controllers (*.animctrl)", L"animctrl");
+            if (!p.empty()) { Save(p); }
+        } else {
+            Save(m_OpenPath);
+        }
     }
     ImGui::SameLine();
     if (ImGui::Button("Save As")) {
-        if (ctrlPathBuf[0]) { m_OpenPath = ctrlPathBuf; Save(m_OpenPath); }
+        std::wstring defNameW;
+        if (ctrlPathBuf[0]) {
+            int requiredW = MultiByteToWideChar(CP_UTF8, 0, ctrlPathBuf, -1, nullptr, 0);
+            defNameW.assign((size_t)(requiredW > 0 ? requiredW - 1 : 0), L'\0');
+            if (requiredW > 0) MultiByteToWideChar(CP_UTF8, 0, ctrlPathBuf, -1, defNameW.data(), requiredW);
+        } else {
+            defNameW = L"NewController.animctrl";
+        }
+        std::string p = ShowSaveFileDialogExt(defNameW.c_str(), L"Animation Controllers (*.animctrl)", L"animctrl");
+        if (!p.empty()) { strncpy(ctrlPathBuf, p.c_str(), sizeof(ctrlPathBuf)); ctrlPathBuf[sizeof(ctrlPathBuf)-1]=0; Save(p); }
     }
 }
 
@@ -117,9 +136,9 @@ void AnimationControllerPanel::DrawNodeEditor() {
         ImGui::EndPopup();
     }
 
-    // Left-side inspectors for selected state/transition
-    static int selectedStateId = -1;
-    static int selectedLinkId = -1;
+    // Left-side inspectors for selected state/transition (persist across panes)
+    int& selectedStateId = m_SelectedStateId;
+    int& selectedLinkId = m_SelectedLinkId;
 
     // Nodes for states
     for (auto& s : m_Controller->States) {
@@ -212,39 +231,91 @@ void AnimationControllerPanel::DrawNodeEditor() {
         m_Inspector->ClearAnimatorBinding();
     }
 
-    // Transition inspector drawn below graph for now
-    ImGui::Separator();
+    // Transition inspector no longer drawn here; moved to properties pane
     if (selectedLinkId >= 0) {
         for (auto& t : m_Controller->Transitions) {
             int lid = (t.Id >= 0 ? t.Id : (t.FromState + 1) * 100000 + t.ToState + 1);
             if (lid == selectedLinkId) {
-                ImGui::Text("Transition Properties");
-                ImGui::Checkbox("Has Exit Time", &t.HasExitTime);
-                ImGui::DragFloat("Exit Time", &t.ExitTime, 0.01f, 0.0f, 1.0f);
-                ImGui::DragFloat("Duration", &t.Duration, 0.01f, 0.0f, 5.0f);
-                ImGui::Separator();
-                ImGui::Text("Conditions");
+                // Cache selection hit for properties pane rendering
+                // Build parameter name list from controller
+                static std::vector<std::string> paramNames;
+                static std::vector<int> paramTypes; // 0=Bool,1=Int,2=Float,3=Trigger
+                paramNames.clear(); paramTypes.clear();
+                if (m_Controller) {
+                    for (const auto& p : m_Controller->Parameters) {
+                        paramNames.push_back(p.Name);
+                        paramTypes.push_back((int)p.Type);
+                    }
+                }
+                auto comboParam = [&](std::string& target){
+                    int sel = -1; for (int i=0;i<(int)paramNames.size();++i) if (paramNames[i]==target) { sel=i; break; }
+                    const char* label = sel>=0? paramNames[sel].c_str(): "<Param>";
+                    if (ImGui::BeginCombo("Parameter", label)) {
+                        for (int i=0;i<(int)paramNames.size();++i) {
+                            bool isSel = (i==sel);
+                            if (ImGui::Selectable(paramNames[i].c_str(), isSel)) { target = paramNames[i]; sel=i; }
+                            if (isSel) ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::EndCombo();
+                    }
+                    return sel;
+                };
+
                 for (size_t i = 0; i < t.Conditions.size(); ++i) {
                     auto& c = t.Conditions[i];
                     ImGui::PushID((int)i);
-                    char pname[128]; strncpy(pname, c.Parameter.c_str(), sizeof(pname)); pname[sizeof(pname)-1]=0;
-                    if (ImGui::InputText("Param", pname, sizeof(pname))) c.Parameter = pname;
-                    const char* modes[] = {"if","if_not","greater","less","equals","not_equals","trigger"};
-                    int mode = (int)cm::animation::ConditionMode::If;
+                    int sel = comboParam(c.Parameter);
+
+                    // Mode options filtered by parameter type
+                    const char* allModes[] = {"if","if_not","greater","less","equals","not_equals","trigger"};
+                    int allCount = 7;
+                    // Determine allowed indices
+                    std::vector<int> allowed;
+                    if (sel >= 0 && sel < (int)paramTypes.size()) {
+                        int tcode = paramTypes[sel];
+                        if (tcode == 0) { // Bool
+                            allowed = {0,1};
+                        } else if (tcode == 1 || tcode == 2) { // Int/Float
+                            allowed = {2,3,4,5};
+                        } else { // Trigger
+                            allowed = {6};
+                        }
+                    } else {
+                        // Fallback allow all
+                        for (int k=0;k<allCount;++k) allowed.push_back(k);
+                    }
+
+                    // Map current mode to filtered index
+                    int curIdx = 0; int modeRaw = (int)cm::animation::ConditionMode::If;
                     switch (c.Mode) {
-                        case cm::animation::ConditionMode::If: mode=0; break;
-                        case cm::animation::ConditionMode::IfNot: mode=1; break;
-                        case cm::animation::ConditionMode::Greater: mode=2; break;
-                        case cm::animation::ConditionMode::Less: mode=3; break;
-                        case cm::animation::ConditionMode::Equals: mode=4; break;
-                        case cm::animation::ConditionMode::NotEquals: mode=5; break;
-                        case cm::animation::ConditionMode::Trigger: mode=6; break;
+                        case cm::animation::ConditionMode::If: modeRaw=0; break;
+                        case cm::animation::ConditionMode::IfNot: modeRaw=1; break;
+                        case cm::animation::ConditionMode::Greater: modeRaw=2; break;
+                        case cm::animation::ConditionMode::Less: modeRaw=3; break;
+                        case cm::animation::ConditionMode::Equals: modeRaw=4; break;
+                        case cm::animation::ConditionMode::NotEquals: modeRaw=5; break;
+                        case cm::animation::ConditionMode::Trigger: modeRaw=6; break;
                     }
-                    if (ImGui::Combo("Mode", &mode, modes, 7)) {
-                        c.Mode = (cm::animation::ConditionMode)mode;
+                    for (int k=0;k<(int)allowed.size();++k) if (allowed[k]==modeRaw) { curIdx=k; break; }
+
+                    // Build filtered labels
+                    std::vector<const char*> labels; labels.reserve(allowed.size());
+                    for (int idx : allowed) labels.push_back(allModes[idx]);
+                    if (ImGui::Combo("Mode", &curIdx, labels.data(), (int)labels.size())) {
+                        c.Mode = (cm::animation::ConditionMode)allowed[curIdx];
                     }
-                    ImGui::DragFloat("Threshold", &c.Threshold, 0.01f);
-                    ImGui::DragInt("Int Threshold", &c.IntThreshold);
+
+                    // Show thresholds based on type
+                    if (sel >= 0 && sel < (int)paramTypes.size()) {
+                        int tcode = paramTypes[sel];
+                        if (tcode == 1) { ImGui::DragInt("Int Threshold", &c.IntThreshold); }
+                        else if (tcode == 2) { ImGui::DragFloat("Threshold", &c.Threshold, 0.01f); }
+                    } else {
+                        // Unknown: show both for safety
+                        ImGui::DragFloat("Threshold", &c.Threshold, 0.01f);
+                        ImGui::DragInt("Int Threshold", &c.IntThreshold);
+                    }
+
                     if (ImGui::Button("Remove")) { t.Conditions.erase(t.Conditions.begin()+i); ImGui::PopID(); break; }
                     ImGui::PopID();
                 }
@@ -266,13 +337,119 @@ void AnimationControllerPanel::OnImGuiRender() {
         return;
     }
 
-    ImGui::Columns(2);
+    ImGui::Columns(3);
+    // Column 1: Parameters list
+    ImGui::SetColumnWidth(0, 240.0f);
     DrawParameterList();
     ImGui::NextColumn();
+    // Column 2: Graph editor
     DrawNodeEditor();
+    ImGui::NextColumn();
+    // Column 3: Properties for selection (state or transition)
+    DrawPropertiesPane();
     ImGui::Columns(1);
 
     ImGui::End();
+}
+
+void AnimationControllerPanel::DrawPropertiesPane() {
+    if (!m_Controller) return;
+    ImGui::BeginChild("Properties", ImVec2(0, 0), true);
+    // State properties
+    if (m_SelectedStateId >= 0) {
+        for (auto& s : m_Controller->States) if (s.Id == m_SelectedStateId) {
+            bool isDefault = (m_Controller->DefaultState == s.Id);
+            ImGui::Text("State Properties");
+            char nameBuf[128]; strncpy(nameBuf, s.Name.c_str(), sizeof(nameBuf)); nameBuf[sizeof(nameBuf)-1]=0;
+            if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf))) s.Name = nameBuf;
+            // Clip selection dropdown identical to Inspector
+            static int selectedIndex = -1;
+            struct AnimOption { std::string name; std::string path; };
+            static std::vector<AnimOption> s_options;
+            s_options.clear();
+            auto root = Project::GetAssetDirectory();
+            if (root.empty()) root = std::filesystem::path("assets");
+            if (std::filesystem::exists(root)) {
+                for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
+                    if (!p.is_regular_file()) continue;
+                    auto ext = p.path().extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext == ".anim") s_options.push_back({ p.path().stem().string(), p.path().string() });
+                }
+            }
+            selectedIndex = -1;
+            for (int i=0;i<(int)s_options.size();++i) if (s_options[i].path == s.ClipPath) { selectedIndex = i; break; }
+            const char* currentLabel = (selectedIndex >= 0 ? s_options[selectedIndex].name.c_str() : "<Select Clip>");
+            if (ImGui::BeginCombo("Clip", currentLabel)) {
+                for (int i = 0; i < (int)s_options.size(); ++i) {
+                    bool isSelected = (i == selectedIndex);
+                    if (ImGui::Selectable(s_options[i].name.c_str(), isSelected)) {
+                        selectedIndex = i;
+                        s.ClipPath = s_options[i].path;
+                        s.AnimationAssetPath = s_options[i].path; // mirror
+                    }
+                    if (isSelected) ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::DragFloat("Speed", &s.Speed, 0.01f, 0.0f, 10.0f);
+            ImGui::Checkbox("Loop", &s.Loop);
+            if (isDefault) ImGui::TextDisabled("(Default Entry)"); else if (ImGui::Button("Make Default")) m_Controller->DefaultState = s.Id;
+            ImGui::EndChild();
+            return;
+        }
+    }
+    // Transition properties
+    if (m_SelectedLinkId >= 0) {
+        for (auto& t : m_Controller->Transitions) {
+            int lid = (t.Id >= 0 ? t.Id : (t.FromState + 1) * 100000 + t.ToState + 1);
+            if (lid == m_SelectedLinkId) {
+                ImGui::Text("Transition Properties");
+                ImGui::Checkbox("Has Exit Time", &t.HasExitTime);
+                ImGui::DragFloat("Exit Time", &t.ExitTime, 0.01f, 0.0f, 1.0f);
+                ImGui::DragFloat("Duration", &t.Duration, 0.01f, 0.0f, 5.0f);
+                ImGui::Separator();
+                ImGui::Text("Conditions");
+                // Parameter lists
+                std::vector<std::string> paramNames; std::vector<int> paramTypes;
+                if (m_Controller) {
+                    for (const auto& p : m_Controller->Parameters) { paramNames.push_back(p.Name); paramTypes.push_back((int)p.Type); }
+                }
+                auto comboParam = [&](std::string& target){
+                    int sel=-1; for (int i=0;i<(int)paramNames.size();++i) if (paramNames[i]==target) { sel=i; break; }
+                    const char* label = sel>=0? paramNames[sel].c_str(): "<Param>";
+                    if (ImGui::BeginCombo("Parameter", label)) {
+                        for (int i=0;i<(int)paramNames.size();++i) { bool isSel=(i==sel); if (ImGui::Selectable(paramNames[i].c_str(), isSel)) { target=paramNames[i]; sel=i; } if (isSel) ImGui::SetItemDefaultFocus(); }
+                        ImGui::EndCombo();
+                    }
+                    return sel;
+                };
+                for (size_t i = 0; i < t.Conditions.size(); ++i) {
+                    auto& c = t.Conditions[i];
+                    ImGui::PushID((int)i);
+                    int sel = comboParam(c.Parameter);
+                    const char* allModes[] = {"if","if_not","greater","less","equals","not_equals","trigger"};
+                    std::vector<int> allowed;
+                    if (sel>=0 && sel<(int)paramTypes.size()) {
+                        int tc=paramTypes[sel];
+                        if (tc==0) allowed={0,1}; else if (tc==1||tc==2) allowed={2,3,4,5}; else allowed={6};
+                    } else { allowed={0,1,2,3,4,5,6}; }
+                    int modeRaw=(int)c.Mode; int curIdx=0; for (int k=0;k<(int)allowed.size();++k) if (allowed[k]==modeRaw) { curIdx=k; break; }
+                    std::vector<const char*> labels; for (int idx:allowed) labels.push_back(allModes[idx]);
+                    if (ImGui::Combo("Mode", &curIdx, labels.data(), (int)labels.size())) c.Mode=(cm::animation::ConditionMode)allowed[curIdx];
+                    if (sel>=0 && sel<(int)paramTypes.size()) { int tc=paramTypes[sel]; if (tc==1) ImGui::DragInt("Int Threshold", &c.IntThreshold); else if (tc==2) ImGui::DragFloat("Threshold", &c.Threshold, 0.01f); }
+                    else { ImGui::DragFloat("Threshold", &c.Threshold, 0.01f); ImGui::DragInt("Int Threshold", &c.IntThreshold); }
+                    if (ImGui::Button("Remove")) { t.Conditions.erase(t.Conditions.begin()+i); ImGui::PopID(); break; }
+                    ImGui::PopID();
+                }
+                if (ImGui::Button("+ Add Condition")) t.Conditions.push_back({"", cm::animation::ConditionMode::If, 0.0f, 0});
+                ImGui::EndChild();
+                return;
+            }
+        }
+    }
+    ImGui::TextDisabled("Select a state or transition to edit.");
+    ImGui::EndChild();
 }
 
 

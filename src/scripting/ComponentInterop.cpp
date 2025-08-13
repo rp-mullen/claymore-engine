@@ -45,6 +45,7 @@ bool HasComponent(int entityID, const char* componentName) {
     if (strcmp(componentName, "LightComponent") == 0) return data->Light != nullptr;
     if (strcmp(componentName, "RigidBodyComponent") == 0) return data->RigidBody != nullptr;
     if (strcmp(componentName, "MeshComponent") == 0) return data->Mesh != nullptr;
+    if (strcmp(componentName, "Animator") == 0 || strcmp(componentName, "AnimationPlayerComponent") == 0) return data->AnimationPlayer != nullptr;
     // Add other components here...
 
     return false;
@@ -63,6 +64,8 @@ void AddComponent(int entityID, const char* componentName) {
         {
             Scene::Get().CreatePhysicsBody(entityID, data->Transform, *data->Collider);
         }
+    } else if ((strcmp(componentName, "Animator") == 0 || strcmp(componentName, "AnimationPlayerComponent") == 0) && !data->AnimationPlayer) {
+        data->AnimationPlayer = new cm::animation::AnimationPlayerComponent();
     }
     // Add other components here...
 }
@@ -78,6 +81,9 @@ void RemoveComponent(int entityID, const char* componentName) {
         Scene::Get().DestroyPhysicsBody(entityID);
         delete data->RigidBody;
         data->RigidBody = nullptr;
+    } else if (strcmp(componentName, "Animator") == 0 || strcmp(componentName, "AnimationPlayerComponent") == 0) {
+        delete data->AnimationPlayer;
+        data->AnimationPlayer = nullptr;
     }
     // Add other components here...
 }

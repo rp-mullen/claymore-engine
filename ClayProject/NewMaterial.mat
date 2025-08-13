@@ -1,0 +1,9 @@
+{
+    "albedo": "",
+    "metallicRoughness": "",
+    "name": "NewMaterial",
+    "normal": "",
+    "shaderFS": "fs_pbr",
+    "shaderVS": "vs_pbr",
+    "uniforms": {}
+}
