@@ -128,7 +128,7 @@ void InspectorPanel::DrawInspectorContents() {
         if (data && data->Skeleton && !data->AnimationPlayer) {
             ImGui::Separator();
             if (ImGui::Button("Add Animator to Entity")) {
-                data->AnimationPlayer = new cm::animation::AnimationPlayerComponent();
+                data->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>();
             }
         }
     }
@@ -284,7 +284,7 @@ void InspectorPanel::DrawComponents(EntityID entity) {
     }
 
     if (data->Mesh && ImGui::CollapsingHeader("Mesh")) {
-        registry.DrawComponentUI("Mesh", data->Mesh);
+        registry.DrawComponentUI("Mesh", data->Mesh.get());
 
         // Unique material toggle
                 bool unique = data->Mesh->UniqueMaterial;
@@ -356,106 +356,104 @@ void InspectorPanel::DrawComponents(EntityID entity) {
                 // Only release references; do not attempt to destroy shared GPU buffers here
                 data->Mesh->mesh = nullptr;
                 data->Mesh->material.reset();
-                delete data->Mesh;
-                data->Mesh = nullptr;
+                data->Mesh.reset();
             }
         }
         ImGui::PopStyleColor(3);
     }
 
     if (data->Light && ImGui::CollapsingHeader("Light")) {
-        registry.DrawComponentUI("Light", data->Light);
+        registry.DrawComponentUI("Light", data->Light.get());
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
         if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
-            delete data->Light;
-            data->Light = nullptr;
+            data->Light.reset();
         }
         ImGui::PopStyleColor(3);
     }
 
     if (data->Collider && ImGui::CollapsingHeader("Collider")) {
-        registry.DrawComponentUI("Collider", data->Collider);
+        registry.DrawComponentUI("Collider", data->Collider.get());
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
         if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
-            delete data->Collider;
-            data->Collider = nullptr;
+            data->Collider.reset();
         }
         ImGui::PopStyleColor(3);
     }
 
     if (data->Camera && ImGui::CollapsingHeader("Camera")) {
-        registry.DrawComponentUI("Camera", data->Camera);
+        registry.DrawComponentUI("Camera", data->Camera.get());
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
         if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
-            delete data->Camera;
-            data->Camera = nullptr;
+            data->Camera.reset();
         }
         ImGui::PopStyleColor(3);
     }
 
     if (data->RigidBody && ImGui::CollapsingHeader("RigidBody")) {
-        registry.DrawComponentUI("RigidBody", data->RigidBody);
+        registry.DrawComponentUI("RigidBody", data->RigidBody.get());
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
         if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
-            delete data->RigidBody;
-            data->RigidBody = nullptr;
+            data->RigidBody.reset();
         }
         ImGui::PopStyleColor(3);
     }
 
     if (data->StaticBody && ImGui::CollapsingHeader("StaticBody")) {
-        registry.DrawComponentUI("StaticBody", data->StaticBody);
+        registry.DrawComponentUI("StaticBody", data->StaticBody.get());
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
         if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
-            delete data->StaticBody;
-            data->StaticBody = nullptr;
+            data->StaticBody.reset();
         }
         ImGui::PopStyleColor(3);
     }
 
     if (data->Terrain && ImGui::CollapsingHeader("Terrain")) {
-        registry.DrawComponentUI("Terrain", data->Terrain);
+        registry.DrawComponentUI("Terrain", data->Terrain.get());
     }
 
     // Particle System
     if (data->Emitter && ImGui::CollapsingHeader("Particle Emitter")) {
-        registry.DrawComponentUI("ParticleEmitter", data->Emitter);
+        registry.DrawComponentUI("ParticleEmitter", data->Emitter.get());
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
         if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
-            delete data->Emitter;
-            data->Emitter = nullptr;
+            if (ps::isValid(data->Emitter->Handle)) {
+                ps::destroyEmitter(data->Emitter->Handle);
+                data->Emitter->Handle = { uint16_t{UINT16_MAX} };
+            }
+            data->Emitter->Uniforms.reset();
+            data->Emitter->Enabled = false;
+            data->Emitter.reset();
         }
         ImGui::PopStyleColor(3);
     }
 
     // Text Renderer
     if (data->Text && ImGui::CollapsingHeader("TextRenderer")) {
-        registry.DrawComponentUI("TextRenderer", data->Text);
+        registry.DrawComponentUI("TextRenderer", data->Text.get());
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
         if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
-            delete data->Text;
-            data->Text = nullptr;
+            data->Text.reset();
         }
         ImGui::PopStyleColor(3);
     }
@@ -475,7 +473,7 @@ void InspectorPanel::DrawComponents(EntityID entity) {
 
     if (data->AnimationPlayer && ImGui::CollapsingHeader("Animator")) {
         // Draw component UI (includes mode and single-clip controls)
-        registry.DrawComponentUI("Animator", data->AnimationPlayer);
+        registry.DrawComponentUI("Animator", data->AnimationPlayer.get());
 
         // Controller controls visible only when in ControllerAnimated mode
         if (data->AnimationPlayer->AnimatorMode == cm::animation::AnimationPlayerComponent::Mode::ControllerAnimated) {
@@ -567,24 +565,24 @@ void InspectorPanel::DrawAddComponentButton(EntityID entity) {
 
         // Native components
         if (!data->Mesh && ImGui::MenuItem("Mesh Component")) {
-            data->Mesh = new MeshComponent();
+            data->Mesh = std::make_unique<MeshComponent>();
         }
 
         if (!data->Light && ImGui::MenuItem("Light Component")) {
-            data->Light = new LightComponent();
+            data->Light = std::make_unique<LightComponent>();
         }
 
         if (!data->Collider && ImGui::MenuItem("Collider Component")) {
-            data->Collider = new ColliderComponent();
+            data->Collider = std::make_unique<ColliderComponent>();
         }
 
         if (!data->Camera && ImGui::MenuItem("Camera Component")) {
-           data->Camera = new CameraComponent();
+           data->Camera = std::make_unique<CameraComponent>();
            }
 
         if (!data->RigidBody && !data->StaticBody && ImGui::MenuItem("RigidBody Component")) {
-            data->RigidBody = new RigidBodyComponent();
-            EnsureCollider(data->RigidBody, data);
+            data->RigidBody = std::make_unique<RigidBodyComponent>();
+            EnsureCollider(data->RigidBody.get(), data);
 
             // If the scene is currently playing, create the physics body immediately
             if (m_Context && m_Context->m_IsPlaying && data->Collider) {
@@ -599,8 +597,8 @@ void InspectorPanel::DrawAddComponentButton(EntityID entity) {
         }
 
         if (!data->RigidBody && !data->StaticBody && ImGui::MenuItem("StaticBody Component")) {
-            data->StaticBody = new StaticBodyComponent();
-            EnsureCollider(data->StaticBody, data);
+            data->StaticBody = std::make_unique<StaticBodyComponent>();
+            EnsureCollider(data->StaticBody.get(), data);
 
             // If the scene is currently playing, create the physics body immediately
             if (m_Context && m_Context->m_IsPlaying && data->Collider) {
@@ -613,11 +611,11 @@ void InspectorPanel::DrawAddComponentButton(EntityID entity) {
         }
 
         if (!data->Emitter && ImGui::MenuItem("Particle Emitter Component")) {
-            data->Emitter = new ParticleEmitterComponent();
+            data->Emitter = std::make_unique<ParticleEmitterComponent>();
         }
 
         if (!data->Text && ImGui::MenuItem("TextRenderer Component")) {
-            data->Text = new TextRendererComponent();
+            data->Text = std::make_unique<TextRendererComponent>();
         }
 
         ImGui::Separator();

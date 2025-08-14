@@ -38,7 +38,7 @@ void PrefabEditorPanel::LoadPrefab(const std::string& path)
     Entity prefabEntity = m_Scene.CreateEntity(prefabData.Name.empty() ? "PrefabEntity" : prefabData.Name);
     EntityData* dstData = m_Scene.GetEntityData(prefabEntity.GetID());
     if (dstData) {
-        *dstData = prefabData; // Shallow copy of component pointers; assumes components allocated during deserialization
+        *dstData = prefabData.DeepCopy(prefabEntity.GetID(), &m_Scene);
     }
 
     m_SelectedEntity = prefabEntity.GetID();

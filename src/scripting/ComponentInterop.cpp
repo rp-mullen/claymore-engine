@@ -57,15 +57,15 @@ void AddComponent(int entityID, const char* componentName) {
 
     if (strcmp(componentName, "LightComponent") == 0 && !data->Light) {
         std::cout << "[Interop] AddComponent Light -> Entity " << entityID << "\n";
-        data->Light = new LightComponent();
+        data->Light = std::make_unique<LightComponent>();
     } else if (strcmp(componentName, "RigidBodyComponent") == 0 && !data->RigidBody) {
-        data->RigidBody = new RigidBodyComponent();
+        data->RigidBody = std::make_unique<RigidBodyComponent>();
         if(data->Collider) // If collider exists, create physics body
         {
             Scene::Get().CreatePhysicsBody(entityID, data->Transform, *data->Collider);
         }
     } else if ((strcmp(componentName, "Animator") == 0 || strcmp(componentName, "AnimationPlayerComponent") == 0) && !data->AnimationPlayer) {
-        data->AnimationPlayer = new cm::animation::AnimationPlayerComponent();
+        data->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>();
     }
     // Add other components here...
 }
@@ -75,15 +75,12 @@ void RemoveComponent(int entityID, const char* componentName) {
     if (!data) return;
 
     if (strcmp(componentName, "LightComponent") == 0) {
-        delete data->Light;
-        data->Light = nullptr;
+        data->Light.reset();
     } else if (strcmp(componentName, "RigidBodyComponent") == 0) {
         Scene::Get().DestroyPhysicsBody(entityID);
-        delete data->RigidBody;
-        data->RigidBody = nullptr;
+        data->RigidBody.reset();
     } else if (strcmp(componentName, "Animator") == 0 || strcmp(componentName, "AnimationPlayerComponent") == 0) {
-        delete data->AnimationPlayer;
-        data->AnimationPlayer = nullptr;
+        data->AnimationPlayer.reset();
     }
     // Add other components here...
 }
@@ -255,7 +252,7 @@ const char* GetBlendShapeName(int entityID, int index)
 static cm::animation::AnimationPlayerComponent* GetAnimatorFor(int entityID)
 {
     EntityData* data = GetEntityDataHelper(entityID);
-    return (data ? data->AnimationPlayer : nullptr);
+    return (data && data->AnimationPlayer ? data->AnimationPlayer.get() : nullptr);
 }
 
 void Animator_SetBool(int entityID, const char* name, bool value)

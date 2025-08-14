@@ -376,7 +376,7 @@ void UILayer::BeginDockspace() {
 void UILayer::CreateDebugCubeEntity() {
     auto cubeEntity = m_Scene.CreateEntity("Debug Cube");
     EntityData* data = m_Scene.GetEntityData(cubeEntity.GetID());
-    data->Mesh = new MeshComponent(
+    data->Mesh = std::make_unique<MeshComponent>(
         StandardMeshManager::Instance().GetCubeMesh(),
         std::string("DebugCube"),
         nullptr);
@@ -387,7 +387,7 @@ void UILayer::CreateDebugCubeEntity() {
 void UILayer::CreateDefaultLight() {
     auto lightEntity = m_Scene.CreateEntity("Default Light");
     EntityData* data = m_Scene.GetEntityData(lightEntity.GetID());
-    data->Light = new LightComponent(LightType::Directional, glm::vec3(1.0f), 1.0f);
+    data->Light = std::make_unique<LightComponent>(LightType::Directional, glm::vec3(1.0f), 1.0f);
 }
 
 // =============================

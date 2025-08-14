@@ -52,7 +52,7 @@ Entity Scene::CreateEntity(const std::string& name) {
        data.Name = name;
    }
 
-   m_Entities[id] = data;
+   m_Entities.emplace(id, std::move(data));
 
    Entity entity(id, this);
    m_EntityList.push_back(entity);
@@ -85,57 +85,45 @@ void Scene::RemoveEntity(EntityID id) {
     // 3. Clean up physics body
     DestroyPhysicsBody(id);
 
-    // 4. Clean up allocated components
+    // 4. Clean up allocated components (unique_ptr handles deletion)
     if (data->Mesh) {
-        // Do not touch underlying GPU buffers here; just drop references and free the component
-        data->Mesh->mesh = nullptr;          // avoid invoking custom/non-owning shared_ptr control blocks
-        data->Mesh->material.reset();        // release material reference if any
-        data->Mesh->BlendShapes = nullptr;   // component owns blendshapes via EntityData, not here
-        delete data->Mesh;
-        data->Mesh = nullptr;
+        data->Mesh->mesh = nullptr;
+        data->Mesh->material.reset();
+        data->Mesh->BlendShapes = nullptr;
+        data->Mesh.reset();
     }
     if (data->Light) {
-        delete data->Light;
-        data->Light = nullptr;
+        data->Light.reset();
     }
     if (data->Collider) {
-        delete data->Collider;
-        data->Collider = nullptr;
+        data->Collider.reset();
     }
     if (data->Camera) {
-        delete data->Camera;
-        data->Camera = nullptr;
+        data->Camera.reset();
     }
     if (data->RigidBody) {
-        delete data->RigidBody;
-        data->RigidBody = nullptr;
+        data->RigidBody.reset();
     }
     if (data->StaticBody) {
-        delete data->StaticBody;
-        data->StaticBody = nullptr;
+        data->StaticBody.reset();
     }
     if (data->Emitter) {
-        // Ensure underlying particle emitter is destroyed before freeing component
         if (ps::isValid(data->Emitter->Handle)) {
             ps::destroyEmitter(data->Emitter->Handle);
             data->Emitter->Handle = { uint16_t{UINT16_MAX} };
         }
         data->Emitter->Uniforms.reset();
         data->Emitter->Enabled = false;
-        delete data->Emitter;
-        data->Emitter = nullptr;
+        data->Emitter.reset();
     }
     if (data->BlendShapes) {
-        delete data->BlendShapes;
-        data->BlendShapes = nullptr;
+        data->BlendShapes.reset();
     }
     if (data->Skeleton) {
-        delete data->Skeleton;
-        data->Skeleton = nullptr;
+        data->Skeleton.reset();
     }
     if (data->Skinning) {
-        delete data->Skinning;
-        data->Skinning = nullptr;
+        data->Skinning.reset();
     }
 
     // 5. Clean up scripts
@@ -158,11 +146,7 @@ void Scene::RemoveEntity(EntityID id) {
 
 EntityData* Scene::GetEntityData(EntityID id) {
     auto it = m_Entities.find(id);
-    EntityData* data = nullptr;
-    if (&it != nullptr) {
-       data = (it != m_Entities.end()) ? &it->second : nullptr;
-    }
-    return data;
+    return (it != m_Entities.end()) ? &it->second : nullptr;
 }
 
 void Scene::QueueRemoveEntity(EntityID id) {
@@ -194,7 +178,7 @@ Entity Scene::FindEntityByID(EntityID id) {
 Entity Scene::CreateLight(const std::string& name, LightType type, const glm::vec3& color, float intensity) {
    Entity entity = CreateEntity(name);
    if (auto* data = GetEntityData(entity.GetID())) {
-      data->Light = new LightComponent{ type, color, intensity };
+      data->Light = std::make_unique<LightComponent>(type, color, intensity);
       }
    return entity;
    }
@@ -217,7 +201,8 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
         Entity entity = CreateEntity(prefabData.Name.empty() ? "Prefab" : prefabData.Name);
         EntityData* dst = GetEntityData(entity.GetID());
         if (!dst) return -1;
-        *dst = prefabData;
+        // Use DeepCopy semantics from prefab data to ensure proper ownership
+        *dst = prefabData.DeepCopy(entity.GetID(), this);
         dst->Transform.Position = position;
         return entity.GetID();
     }
@@ -235,11 +220,11 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
 
       bgfx::TextureHandle tex = TextureLoader::Load2D(path);
 
-      data->Mesh = new MeshComponent();
+        data->Mesh = std::make_unique<MeshComponent>();
       data->Mesh->mesh = quadMesh;
 
       data->Mesh->MeshName = "ImageQuad";
-      data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+        data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
 
       // TODO: if you want to store `tex`, create a TextureComponent or assign it in material.
 
@@ -390,7 +375,7 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         SetParent(skeletonRootID, rootID);
 
         auto* skelData = GetEntityData(skeletonRootID);
-        skelData->Skeleton = new SkeletonComponent();
+        skelData->Skeleton = std::make_unique<SkeletonComponent>();
         skelData->Skeleton->InverseBindPoses = model.InverseBindPoses;
 
         // Fill exact bind-pose globals (no decomposition/round-trips)
@@ -454,7 +439,7 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         const aiScene* fbxForAnims = animImporter.ReadFile(path,
             aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_LimitBoneWeights | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality | aiProcess_FlipUVs);
         if (fbxForAnims && fbxForAnims->mNumAnimations > 0) {
-            if (!skelData->AnimationPlayer) skelData->AnimationPlayer = new cm::animation::AnimationPlayerComponent();
+            if (!skelData->AnimationPlayer) skelData->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>();
             // Look for a unified .anim next to the FBX using the pattern <fbxname>_*.anim; fallback to first .anim
             std::filesystem::path p(path);
             std::filesystem::path dir = p.parent_path();
@@ -553,18 +538,18 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
 
         auto mat = (i < model.Materials.size() && model.Materials[i]) ? model.Materials[i]
             : MaterialManager::Instance().CreateDefaultPBRMaterial();
-            meshData->Mesh = new MeshComponent(meshPtr, desiredName, mat);
+            meshData->Mesh = std::make_unique<MeshComponent>(meshPtr, desiredName, mat);
 
             if (isSkinned) {
-                meshData->Skinning = new SkinningComponent();
+            meshData->Skinning = std::make_unique<SkinningComponent>();
                 meshData->Skinning->SkeletonRoot = skeletonRootID;
                 meshData->Skinning->Palette.resize(model.BoneNames.size(), glm::mat4(1.0f));
             }
 
             if (i < model.BlendShapes.size() && !model.BlendShapes[i].Shapes.empty()) {
-                auto bsPtr = new BlendShapeComponent(model.BlendShapes[i]);
-                meshData->BlendShapes = bsPtr;
-                meshData->Mesh->BlendShapes = bsPtr;
+                auto bsPtr = std::make_unique<BlendShapeComponent>(model.BlendShapes[i]);
+                meshData->Mesh->BlendShapes = bsPtr.get();
+                meshData->BlendShapes = std::move(bsPtr);
             }
     }
 
@@ -685,7 +670,7 @@ std::shared_ptr<Scene> Scene::RuntimeClone() {
       EntityID id = e.GetID();
 
       clone->m_EntityList.emplace_back(id, clone.get());
-      clone->m_Entities[id] = m_Entities.at(id).DeepCopy(id, clone.get());
+      clone->m_Entities.emplace(id, m_Entities.at(id).DeepCopy(id, clone.get()));
       
       auto& data = clone->m_Entities[id];
 

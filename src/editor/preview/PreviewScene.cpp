@@ -59,7 +59,7 @@ SkeletonComponent* PreviewScene::GetSkeleton()
     if (!data) return nullptr;
     // The skeleton root is created under the model root in Scene import
     for (EntityID child : data->Children) {
-        if (auto* cd = m_Scene.GetEntityData(child); cd && cd->Skeleton) return cd->Skeleton;
+        if (auto* cd = m_Scene.GetEntityData(child); cd && cd->Skeleton) return cd->Skeleton.get();
     }
     return nullptr;
 }

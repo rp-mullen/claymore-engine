@@ -535,54 +535,54 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
 
     // Deserialize components
     if (data.contains("mesh")) {
-        entityData->Mesh = new MeshComponent();
+        entityData->Mesh = std::make_unique<MeshComponent>();
         DeserializeMesh(data["mesh"], *entityData->Mesh);
     }
 
     if (data.contains("light")) {
-        entityData->Light = new LightComponent();
+        entityData->Light = std::make_unique<LightComponent>();
         DeserializeLight(data["light"], *entityData->Light);
     }
 
     if (data.contains("collider")) {
-        entityData->Collider = new ColliderComponent();
+        entityData->Collider = std::make_unique<ColliderComponent>();
         DeserializeCollider(data["collider"], *entityData->Collider);
     }
 
     if (data.contains("rigidbody")) {
-        entityData->RigidBody = new RigidBodyComponent();
+        entityData->RigidBody = std::make_unique<RigidBodyComponent>();
         DeserializeRigidBody(data["rigidbody"], *entityData->RigidBody);
     }
 
     if (data.contains("staticbody")) {
-        entityData->StaticBody = new StaticBodyComponent();
+        entityData->StaticBody = std::make_unique<StaticBodyComponent>();
         DeserializeStaticBody(data["staticbody"], *entityData->StaticBody);
     }
 
     if (data.contains("camera")) {
-        entityData->Camera = new CameraComponent();
+        entityData->Camera = std::make_unique<CameraComponent>();
         DeserializeCamera(data["camera"], *entityData->Camera);
     }
     if (data.contains("terrain")) {
-        entityData->Terrain = new TerrainComponent();
+        entityData->Terrain = std::make_unique<TerrainComponent>();
         DeserializeTerrain(data["terrain"], *entityData->Terrain);
     }
     if (data.contains("emitter")) {
-        entityData->Emitter = new ParticleEmitterComponent();
+        entityData->Emitter = std::make_unique<ParticleEmitterComponent>();
         DeserializeParticleEmitter(data["emitter"], *entityData->Emitter);
     }
 
     // UI Components
     if (data.contains("canvas")) {
-        entityData->Canvas = new CanvasComponent();
+        entityData->Canvas = std::make_unique<CanvasComponent>();
         DeserializeCanvas(data["canvas"], *entityData->Canvas);
     }
     if (data.contains("panel")) {
-        entityData->Panel = new PanelComponent();
+        entityData->Panel = std::make_unique<PanelComponent>();
         DeserializePanel(data["panel"], *entityData->Panel);
     }
     if (data.contains("button")) {
-        entityData->Button = new ButtonComponent();
+        entityData->Button = std::make_unique<ButtonComponent>();
         DeserializeButton(data["button"], *entityData->Button);
     }
 
@@ -593,7 +593,7 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
 
     // Animator
     if (data.contains("animator")) {
-        if (!entityData->AnimationPlayer) entityData->AnimationPlayer = new cm::animation::AnimationPlayerComponent();
+        if (!entityData->AnimationPlayer) entityData->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>();
         DeserializeAnimator(data["animator"], *entityData->AnimationPlayer);
     }
 
@@ -658,17 +658,17 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
                 for (const auto& child : copy["children"]) ed->Children.push_back(child.get<EntityID>());
             }
             if (copy.contains("transform")) DeserializeTransform(copy["transform"], ed->Transform);
-            if (copy.contains("mesh")) { ed->Mesh = new MeshComponent(); DeserializeMesh(copy["mesh"], *ed->Mesh); }
-            if (copy.contains("light")) { ed->Light = new LightComponent(); DeserializeLight(copy["light"], *ed->Light); }
-            if (copy.contains("collider")) { ed->Collider = new ColliderComponent(); DeserializeCollider(copy["collider"], *ed->Collider); }
-            if (copy.contains("rigidbody")) { ed->RigidBody = new RigidBodyComponent(); DeserializeRigidBody(copy["rigidbody"], *ed->RigidBody); }
-            if (copy.contains("staticbody")) { ed->StaticBody = new StaticBodyComponent(); DeserializeStaticBody(copy["staticbody"], *ed->StaticBody); }
-            if (copy.contains("camera")) { ed->Camera = new CameraComponent(); DeserializeCamera(copy["camera"], *ed->Camera); }
-            if (copy.contains("terrain")) { ed->Terrain = new TerrainComponent(); DeserializeTerrain(copy["terrain"], *ed->Terrain); }
-            if (copy.contains("emitter")) { ed->Emitter = new ParticleEmitterComponent(); DeserializeParticleEmitter(copy["emitter"], *ed->Emitter); }
-            if (copy.contains("canvas")) { ed->Canvas = new CanvasComponent(); DeserializeCanvas(copy["canvas"], *ed->Canvas); }
-            if (copy.contains("panel")) { ed->Panel = new PanelComponent(); DeserializePanel(copy["panel"], *ed->Panel); }
-            if (copy.contains("button")) { ed->Button = new ButtonComponent(); DeserializeButton(copy["button"], *ed->Button); }
+            if (copy.contains("mesh")) { ed->Mesh = std::make_unique<MeshComponent>(); DeserializeMesh(copy["mesh"], *ed->Mesh); }
+            if (copy.contains("light")) { ed->Light = std::make_unique<LightComponent>(); DeserializeLight(copy["light"], *ed->Light); }
+            if (copy.contains("collider")) { ed->Collider = std::make_unique<ColliderComponent>(); DeserializeCollider(copy["collider"], *ed->Collider); }
+            if (copy.contains("rigidbody")) { ed->RigidBody = std::make_unique<RigidBodyComponent>(); DeserializeRigidBody(copy["rigidbody"], *ed->RigidBody); }
+            if (copy.contains("staticbody")) { ed->StaticBody = std::make_unique<StaticBodyComponent>(); DeserializeStaticBody(copy["staticbody"], *ed->StaticBody); }
+            if (copy.contains("camera")) { ed->Camera = std::make_unique<CameraComponent>(); DeserializeCamera(copy["camera"], *ed->Camera); }
+            if (copy.contains("terrain")) { ed->Terrain = std::make_unique<TerrainComponent>(); DeserializeTerrain(copy["terrain"], *ed->Terrain); }
+            if (copy.contains("emitter")) { ed->Emitter = std::make_unique<ParticleEmitterComponent>(); DeserializeParticleEmitter(copy["emitter"], *ed->Emitter); }
+            if (copy.contains("canvas")) { ed->Canvas = std::make_unique<CanvasComponent>(); DeserializeCanvas(copy["canvas"], *ed->Canvas); }
+            if (copy.contains("panel")) { ed->Panel = std::make_unique<PanelComponent>(); DeserializePanel(copy["panel"], *ed->Panel); }
+            if (copy.contains("button")) { ed->Button = std::make_unique<ButtonComponent>(); DeserializeButton(copy["button"], *ed->Button); }
             if (copy.contains("scripts")) { DeserializeScripts(copy["scripts"], ed->Scripts); }
         } else {
             newId = DeserializeEntity(entityData, scene);
@@ -817,18 +817,18 @@ bool Serializer::DeserializePrefab(const json& data, EntityData& entityData, Sce
     }
 
     // Deserialize components
-    if (entityJson.contains("mesh")) {
-        entityData.Mesh = new MeshComponent();
+            if (entityJson.contains("mesh")) {
+        entityData.Mesh = std::make_unique<MeshComponent>();
         DeserializeMesh(entityJson["mesh"], *entityData.Mesh);
     }
 
     if (entityJson.contains("light")) {
-        entityData.Light = new LightComponent();
+        entityData.Light = std::make_unique<LightComponent>();
         DeserializeLight(entityJson["light"], *entityData.Light);
     }
 
     if (entityJson.contains("collider")) {
-        entityData.Collider = new ColliderComponent();
+        entityData.Collider = std::make_unique<ColliderComponent>();
         DeserializeCollider(entityJson["collider"], *entityData.Collider);
     }
 
@@ -837,7 +837,7 @@ bool Serializer::DeserializePrefab(const json& data, EntityData& entityData, Sce
         DeserializeScripts(entityJson["scripts"], entityData.Scripts);
     }
     if (entityJson.contains("animator")) {
-        entityData.AnimationPlayer = new cm::animation::AnimationPlayerComponent();
+        entityData.AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>();
         DeserializeAnimator(entityJson["animator"], *entityData.AnimationPlayer);
     }
 

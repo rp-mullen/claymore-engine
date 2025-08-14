@@ -32,11 +32,11 @@ void SkinningSystem::Update(Scene& scene)
 
         // Must be skinned
         if (!data->Skinning) continue;
-        auto* skin = data->Skinning;
+        SkinningComponent* skin = data->Skinning.get();
 
         // Resolve skeleton root/entity
         if (skin->SkeletonRoot == (EntityID)-1) continue;
-        auto* skeletonData = scene.GetEntityData(skin->SkeletonRoot);
+        EntityData* skeletonData = scene.GetEntityData(skin->SkeletonRoot);
         if (!skeletonData || !skeletonData->Skeleton) continue;
 
         const SkeletonComponent& skel = *skeletonData->Skeleton;
@@ -60,12 +60,9 @@ void SkinningSystem::Update(Scene& scene)
 
 
         // Build palette in mesh local space (correct bind handling)
-        const bool inBindPose =
+        bool inBindPose =
             (!skeletonData->AnimationPlayer) ||
-            (skeletonData->AnimationPlayer->ActiveStates.empty()) ||
-            std::all_of(skeletonData->AnimationPlayer->ActiveStates.begin(),
-                skeletonData->AnimationPlayer->ActiveStates.end(),
-                [](const auto& s) { return s.Weight <= 0.0f; });
+            (skeletonData->AnimationPlayer->ActiveStates.empty());
 
         for (size_t i = 0; i < boneCount; ++i)
         {

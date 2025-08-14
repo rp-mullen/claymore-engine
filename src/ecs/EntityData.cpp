@@ -3,56 +3,64 @@
 #include "ecs/Scene.h"
 
 EntityData EntityData::DeepCopy(EntityID ID, Scene* newScene) const {
-   EntityData copy = *this;
+   EntityData copy;
+   copy.Name = Name;
+   copy.Transform = Transform;
+   copy.Layer = Layer;
+   copy.Tag = Tag;
+   copy.Groups = Groups;
+   copy.Visible = Visible;
+   copy.Parent = Parent;
+   copy.Children = Children;
 
    // Deep copy MeshComponent
    if (Mesh)
-      copy.Mesh = new MeshComponent(*Mesh);
+      copy.Mesh = std::make_unique<MeshComponent>(*Mesh);
 
    // Deep copy Collider (already being rebuilt, but safe to copy config)
    if (Collider)
-      copy.Collider = new ColliderComponent(*Collider);
+      copy.Collider = std::make_unique<ColliderComponent>(*Collider);
 
    // Deep copy LightComponent
    if (Light)
-      copy.Light = new LightComponent(*Light);
+      copy.Light = std::make_unique<LightComponent>(*Light);
 
    // Deep copy CameraComponent
    if (Camera)
-      copy.Camera = new CameraComponent(*Camera);
+      copy.Camera = std::make_unique<CameraComponent>(*Camera);
 
    // Deep copy RigidBodyComponent
    if (RigidBody)
-      copy.RigidBody = new RigidBodyComponent(*RigidBody);
+      copy.RigidBody = std::make_unique<RigidBodyComponent>(*RigidBody);
 
    // Deep copy StaticBodyComponent
    if (StaticBody)
-      copy.StaticBody = new StaticBodyComponent(*StaticBody);
+      copy.StaticBody = std::make_unique<StaticBodyComponent>(*StaticBody);
 
    // Deep copy TerrainComponent
    if (Terrain)
-      copy.Terrain = new TerrainComponent(*Terrain);
+      copy.Terrain = std::make_unique<TerrainComponent>(*Terrain);
 
    // Deep copy ParticleEmitterComponent
     if (Emitter)
-      copy.Emitter = new ParticleEmitterComponent(*Emitter);
+      copy.Emitter = std::make_unique<ParticleEmitterComponent>(*Emitter);
 
    // Deep copy TextRendererComponent
    if (Text)
-      copy.Text = new TextRendererComponent(*Text);
+      copy.Text = std::make_unique<TextRendererComponent>(*Text);
 
    // Deep copy UI components
    if (Canvas)
-      copy.Canvas = new CanvasComponent(*Canvas);
+      copy.Canvas = std::make_unique<CanvasComponent>(*Canvas);
    if (Panel)
-      copy.Panel = new PanelComponent(*Panel);
+      copy.Panel = std::make_unique<PanelComponent>(*Panel);
    if (Button)
-      copy.Button = new ButtonComponent(*Button);
+      copy.Button = std::make_unique<ButtonComponent>(*Button);
 
    if (BlendShapes)
-      copy.BlendShapes = new BlendShapeComponent(*BlendShapes);
+      copy.BlendShapes = std::make_unique<BlendShapeComponent>(*BlendShapes);
    if (Skeleton) {
-      copy.Skeleton = new SkeletonComponent();
+      copy.Skeleton = std::make_unique<SkeletonComponent>();
       copy.Skeleton->InverseBindPoses = Skeleton->InverseBindPoses;
       copy.Skeleton->BoneEntities     = Skeleton->BoneEntities;
       copy.Skeleton->BoneNameToIndex  = Skeleton->BoneNameToIndex;
@@ -62,11 +70,11 @@ EntityData EntityData::DeepCopy(EntityID ID, Scene* newScene) const {
       }
    }
    if (Skinning)
-      copy.Skinning = new SkinningComponent(*Skinning);
+      copy.Skinning = std::make_unique<SkinningComponent>(*Skinning);
 
    // Deep copy AnimationPlayerComponent to preserve default playback setup
    if (AnimationPlayer) {
-      copy.AnimationPlayer = new cm::animation::AnimationPlayerComponent(*AnimationPlayer);
+      copy.AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(*AnimationPlayer);
    }
 
    // Scripts: clone and rebind context

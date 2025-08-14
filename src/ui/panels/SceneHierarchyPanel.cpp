@@ -52,14 +52,14 @@ void SceneHierarchyPanel::DrawHierarchyContents() {
             if (ImGui::MenuItem("Camera")) {
                 auto e = m_Context->CreateEntity("Camera");
                 if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Camera = new CameraComponent();
+                    ed->Camera = std::make_unique<CameraComponent>();
                 }
                 *m_SelectedEntity = e.GetID();
             }
             if (ImGui::MenuItem("Cube")) {
                 auto e = m_Context->CreateEntity("Cube");
                 if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Mesh = new MeshComponent();
+                    ed->Mesh = std::make_unique<MeshComponent>();
                     ed->Mesh->mesh = StandardMeshManager::Instance().GetCubeMesh();
                     ed->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
                     ed->Mesh->MeshName = "Cube";
@@ -69,7 +69,7 @@ void SceneHierarchyPanel::DrawHierarchyContents() {
             if (ImGui::MenuItem("Sphere")) {
                 auto e = m_Context->CreateEntity("Sphere");
                 if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Mesh = new MeshComponent();
+                    ed->Mesh = std::make_unique<MeshComponent>();
                     ed->Mesh->mesh = StandardMeshManager::Instance().GetSphereMesh();
                     ed->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
                     ed->Mesh->MeshName = "Sphere";
@@ -79,7 +79,7 @@ void SceneHierarchyPanel::DrawHierarchyContents() {
             if (ImGui::MenuItem("Plane")) {
                 auto e = m_Context->CreateEntity("Plane");
                 if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Mesh = new MeshComponent();
+                    ed->Mesh = std::make_unique<MeshComponent>();
                     ed->Mesh->mesh = StandardMeshManager::Instance().GetPlaneMesh();
                     ed->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
                     ed->Mesh->MeshName = "Plane";
@@ -90,14 +90,14 @@ void SceneHierarchyPanel::DrawHierarchyContents() {
                 if (ImGui::MenuItem("Directional")) {
                     auto e = m_Context->CreateEntity("Directional Light");
                     if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                        ed->Light = new LightComponent{ LightType::Directional, {1.0f,1.0f,1.0f}, 1.0f };
+                        ed->Light = std::make_unique<LightComponent>(LightType::Directional, glm::vec3(1.0f), 1.0f);
                     }
                     *m_SelectedEntity = e.GetID();
                 }
                 if (ImGui::MenuItem("Point")) {
                     auto e = m_Context->CreateEntity("Point Light");
                     if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                        ed->Light = new LightComponent{ LightType::Point, {1.0f,1.0f,1.0f}, 1.0f };
+                        ed->Light = std::make_unique<LightComponent>(LightType::Point, glm::vec3(1.0f), 1.0f);
                     }
                     *m_SelectedEntity = e.GetID();
                 }
@@ -106,7 +106,7 @@ void SceneHierarchyPanel::DrawHierarchyContents() {
             if (ImGui::MenuItem("Terrain")) {
                 auto e = m_Context->CreateEntity("Terrain");
                 if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Terrain = new TerrainComponent();
+                    ed->Terrain = std::make_unique<TerrainComponent>();
                     ed->Transform.Position = glm::vec3(-0.5f * ed->Terrain->Size, 0.0f, -0.5f * ed->Terrain->Size);
                 }
                 *m_SelectedEntity = e.GetID();
@@ -114,7 +114,7 @@ void SceneHierarchyPanel::DrawHierarchyContents() {
             if (ImGui::MenuItem("Particle Emitter")) {
                 auto e = m_Context->CreateEntity("Particle Emitter");
                 if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Emitter = new ParticleEmitterComponent();
+                    ed->Emitter = std::make_unique<ParticleEmitterComponent>();
                 }
                 *m_SelectedEntity = e.GetID();
             }

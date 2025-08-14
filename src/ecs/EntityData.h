@@ -7,6 +7,7 @@
 #include "animation/AnimationPlayerComponent.h"
 #include <scripting/ScriptComponent.h>
 #include "UIComponents.h"
+#include <memory>
 
 // Forward declaration
 class Scene;
@@ -14,30 +15,35 @@ class Scene;
 constexpr EntityID INVALID_ENTITY_ID = static_cast<EntityID>(-1);
 
 struct EntityData {
+   EntityData() = default;
+   EntityData(const EntityData&) = delete;
+   EntityData& operator=(const EntityData&) = delete;
+   EntityData(EntityData&&) = default;
+   EntityData& operator=(EntityData&&) = default;
    std::string Name = "Entity";
 
    TransformComponent Transform;
-   MeshComponent* Mesh = nullptr; // Optional Mesh
-   LightComponent* Light = nullptr; // Optional Light
-   BlendShapeComponent* BlendShapes = nullptr; // Optional BlendShapes
-   SkeletonComponent* Skeleton = nullptr; // Optional Skeleton
-   SkinningComponent* Skinning = nullptr; // Optional Skinning
-   ColliderComponent* Collider = nullptr; // Optional Collider
-   CameraComponent* Camera = nullptr; // Optional Camera
-   RigidBodyComponent* RigidBody = nullptr; // Optional RigidBody
-   StaticBodyComponent* StaticBody = nullptr; // Optional StaticBody
-   TerrainComponent* Terrain = nullptr; // Optional Terrain
-   ParticleEmitterComponent* Emitter = nullptr; // Optional particle emitter
+   std::unique_ptr<MeshComponent> Mesh; // Optional Mesh
+   std::unique_ptr<LightComponent> Light; // Optional Light
+   std::unique_ptr<BlendShapeComponent> BlendShapes; // Optional BlendShapes
+   std::unique_ptr<SkeletonComponent> Skeleton; // Optional Skeleton
+   std::unique_ptr<SkinningComponent> Skinning; // Optional Skinning
+   std::unique_ptr<ColliderComponent> Collider; // Optional Collider
+   std::unique_ptr<CameraComponent> Camera; // Optional Camera
+   std::unique_ptr<RigidBodyComponent> RigidBody; // Optional RigidBody
+   std::unique_ptr<StaticBodyComponent> StaticBody; // Optional StaticBody
+   std::unique_ptr<TerrainComponent> Terrain; // Optional Terrain
+   std::unique_ptr<ParticleEmitterComponent> Emitter; // Optional particle emitter
 
    // Text rendering
-   TextRendererComponent* Text = nullptr; // Optional text renderer
+   std::unique_ptr<TextRendererComponent> Text; // Optional text renderer
 
    // UI Components
-   CanvasComponent* Canvas = nullptr; // Optional UI canvas
-   PanelComponent* Panel = nullptr;   // Optional UI panel (textured rect)
-   ButtonComponent* Button = nullptr; // Optional UI button behavior
+   std::unique_ptr<CanvasComponent> Canvas; // Optional UI canvas
+   std::unique_ptr<PanelComponent> Panel;   // Optional UI panel (textured rect)
+   std::unique_ptr<ButtonComponent> Button; // Optional UI button behavior
 
-   cm::animation::AnimationPlayerComponent* AnimationPlayer = nullptr; // Optional animation player
+   std::unique_ptr<cm::animation::AnimationPlayerComponent> AnimationPlayer; // Optional animation player
 
    std::vector<ScriptInstance> Scripts;
 

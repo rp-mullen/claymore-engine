@@ -346,7 +346,7 @@ void MenuBarPanel::OnImGuiRender() {
             if (ImGui::MenuItem("Camera")) {
                 auto entity = m_Context->CreateEntity("Camera");
                 if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-                    data->Camera = new CameraComponent();
+                    data->Camera = std::make_unique<CameraComponent>();
                 }
                 *m_SelectedEntity = entity.GetID();
             }
@@ -354,7 +354,7 @@ void MenuBarPanel::OnImGuiRender() {
 			if (ImGui::MenuItem("Cube")) {
 				auto entity = m_Context->CreateEntity("Cube");
 				if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-					data->Mesh = new MeshComponent();
+					data->Mesh = std::make_unique<MeshComponent>();
 					data->Mesh->mesh = StandardMeshManager::Instance().GetCubeMesh();
 					data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
 					data->Mesh->MeshName = "Cube";
@@ -365,7 +365,7 @@ void MenuBarPanel::OnImGuiRender() {
 			if (ImGui::MenuItem("Plane")) {
 				auto entity = m_Context->CreateEntity("Plane");
 				if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-					data->Mesh = new MeshComponent();
+					data->Mesh = std::make_unique<MeshComponent>();
 					data->Mesh->mesh = StandardMeshManager::Instance().GetPlaneMesh();
 					data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
 					data->Mesh->MeshName = "Plane";
@@ -376,7 +376,7 @@ void MenuBarPanel::OnImGuiRender() {
 							if (ImGui::MenuItem("Sphere")) {
 					auto entity = m_Context->CreateEntity("Sphere");
 					if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-						data->Mesh = new MeshComponent();
+						data->Mesh = std::make_unique<MeshComponent>();
 						data->Mesh->mesh = StandardMeshManager::Instance().GetSphereMesh();
 						data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
 						data->Mesh->MeshName = "Sphere";
@@ -387,7 +387,7 @@ void MenuBarPanel::OnImGuiRender() {
                 if (ImGui::MenuItem("Terrain")) {
                     auto entity = m_Context->CreateEntity("Terrain");
                     if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-                        data->Terrain = new TerrainComponent();
+                        data->Terrain = std::make_unique<TerrainComponent>();
                         // Center terrain by offsetting transform so that terrain lies around origin
                         data->Transform.Position = glm::vec3(-0.5f * data->Terrain->Size, 0.0f, -0.5f * data->Terrain->Size);
                     }
@@ -397,7 +397,7 @@ void MenuBarPanel::OnImGuiRender() {
                 if (ImGui::MenuItem("Particle Emitter")) {
                     auto entity = m_Context->CreateEntity("Particle Emitter");
                     if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-                        data->Emitter = new ParticleEmitterComponent();
+                        data->Emitter = std::make_unique<ParticleEmitterComponent>();
                     }
                     *m_SelectedEntity = entity.GetID();
                 }
@@ -406,14 +406,14 @@ void MenuBarPanel::OnImGuiRender() {
                 if (ImGui::MenuItem("Directional")) {
                     auto entity = m_Context->CreateEntity("Directional Light");
                     if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-                        data->Light = new LightComponent{ LightType::Directional, {1.0f, 1.0f, 1.0f}, 1.0f };
+                        data->Light = std::make_unique<LightComponent>(LightType::Directional, glm::vec3(1.0f), 1.0f);
                     }
                     *m_SelectedEntity = entity.GetID();
                 }
                 if (ImGui::MenuItem("Point")) {
                     auto entity = m_Context->CreateEntity("Point Light");
                     if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-                        data->Light = new LightComponent{ LightType::Point, {1.0f, 1.0f, 1.0f}, 1.0f };
+                        data->Light = std::make_unique<LightComponent>(LightType::Point, glm::vec3(1.0f), 1.0f);
                     }
                     *m_SelectedEntity = entity.GetID();
                 }

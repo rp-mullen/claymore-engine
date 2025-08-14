@@ -4,7 +4,7 @@
 
 void EnsureCollider(RigidBodyComponent* rigidBody, EntityData* entityData) {
 	if (!entityData->Collider) {
-		entityData->Collider = new ColliderComponent();
+        entityData->Collider = std::make_unique<ColliderComponent>();
 		entityData->Collider->ShapeType = ColliderShape::Box;
 		entityData->Collider->Size = glm::vec3(1.0f);
 	}
@@ -12,7 +12,7 @@ void EnsureCollider(RigidBodyComponent* rigidBody, EntityData* entityData) {
 
 void EnsureCollider(StaticBodyComponent* staticBody, EntityData* entityData) {
 	if (!entityData->Collider) {
-		entityData->Collider = new ColliderComponent();
+        entityData->Collider = std::make_unique<ColliderComponent>();
 		entityData->Collider->ShapeType = ColliderShape::Box;
 		entityData->Collider->Size = glm::vec3(1.0f);
 	}

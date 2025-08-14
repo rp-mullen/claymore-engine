@@ -197,7 +197,7 @@ void Application::Run() {
         Time::Tick();
 
         float dt = Time::GetDeltaTime();
-        auto scene = uiLayer->GetScene();
+        Scene& scene = uiLayer->GetScene();
         // --------------------------------------
         // ASSET PIPELINE PROCESSING
         // --------------------------------------
@@ -251,10 +251,10 @@ void Application::Run() {
         // --------------------------------------
         Renderer::Get().BeginFrame(0.1f, 0.1f, 0.1f);
         if (scene.m_RuntimeScene) {
-           Renderer::Get().RenderScene(*scene.m_RuntimeScene);
+            Renderer::Get().RenderScene(*scene.m_RuntimeScene);
         }
         else {
-           Renderer::Get().RenderScene(scene);
+            Renderer::Get().RenderScene(scene);
            // Editor-only: draw outline for selected entity
            Renderer::Get().DrawEntityOutline(scene, uiLayer->GetSelectedEntity());
         }
@@ -262,7 +262,7 @@ void Application::Run() {
         // --------------------------------------
         // ENTITY PICKING
         // --------------------------------------
-        Picking::Process(uiLayer->GetScene(), Renderer::Get().GetCamera());
+        Picking::Process(scene, Renderer::Get().GetCamera());
         int pickedEntity = Picking::GetLastPick();
         if (pickedEntity != -1) {
             std::cout << "[Debug] Picked Entity: " << pickedEntity << std::endl;
