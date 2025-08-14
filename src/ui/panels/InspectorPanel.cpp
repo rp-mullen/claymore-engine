@@ -78,6 +78,43 @@ void InspectorPanel::OnImGuiRender() {
     }
 
     if (m_SelectedEntity && *m_SelectedEntity != -1 && m_Context) {
+        // Entity header with rename-on-click
+        if (auto* data = m_Context->GetEntityData(*m_SelectedEntity)) {
+            ImGui::PushID((int)*m_SelectedEntity);
+            if (!m_RenamingEntityName) {
+                if (ImGui::Selectable(data->Name.c_str(), false)) {
+                    m_RenamingEntityName = true;
+                    strncpy(m_RenameBuffer, data->Name.c_str(), sizeof(m_RenameBuffer));
+                    m_RenameBuffer[sizeof(m_RenameBuffer)-1] = 0;
+                }
+            } else {
+                ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+                ImGui::SetKeyboardFocusHere();
+                if (ImGui::InputText("##rename_entity", m_RenameBuffer, IM_ARRAYSIZE(m_RenameBuffer), ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll)) {
+                    std::string desired = m_RenameBuffer;
+                    if (desired.empty()) desired = "Entity";
+                    // ensure unique within scene
+                    int suffix = 1; std::string finalName = desired; bool unique = false;
+                    while (!unique) {
+                        unique = true;
+                        for (const auto& e : m_Context->GetEntities()) {
+                            if (e.GetID() == *m_SelectedEntity) continue;
+                            auto* ed = m_Context->GetEntityData(e.GetID());
+                            if (ed && ed->Name == finalName) { unique = false; break; }
+                        }
+                        if (!unique) finalName = desired + "_" + std::to_string(suffix++);
+                    }
+                    data->Name = finalName;
+                    m_RenamingEntityName = false;
+                }
+                if (!ImGui::IsItemActive() && ImGui::IsMouseClicked(0)) m_RenamingEntityName = false;
+            }
+            ImGui::PopID();
+        }
+
+        // Grouping (Layer/Tag/Groups)
+        DrawGroupingControls(*m_SelectedEntity);
+
         DrawComponents(*m_SelectedEntity);
         // Offer to add an Animator if a skeleton exists but no AnimationPlayer is attached
         auto* data = m_Context->GetEntityData(*m_SelectedEntity);
@@ -93,6 +130,39 @@ void InspectorPanel::OnImGuiRender() {
     }
 
     ImGui::End();
+}
+void InspectorPanel::DrawGroupingControls(EntityID entity) {
+    auto* data = m_Context->GetEntityData(entity);
+    if (!data) return;
+
+    if (ImGui::CollapsingHeader("Groups", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::InputInt("Layer", &data->Layer);
+        // Tag
+        char tagBuf[128];
+        strncpy(tagBuf, data->Tag.c_str(), sizeof(tagBuf));
+        tagBuf[sizeof(tagBuf)-1] = 0;
+        if (ImGui::InputText("Tag", tagBuf, sizeof(tagBuf))) {
+            data->Tag = tagBuf;
+        }
+        // Groups list with add/remove
+        ImGui::Separator();
+        ImGui::Text("Groups");
+        int removeIndex = -1;
+        for (int i = 0; i < (int)data->Groups.size(); ++i) {
+            ImGui::PushID(i);
+            char buf[128];
+            strncpy(buf, data->Groups[i].c_str(), sizeof(buf));
+            buf[sizeof(buf)-1] = 0;
+            if (ImGui::InputText("##group", buf, sizeof(buf))) {
+                data->Groups[i] = buf;
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Remove")) removeIndex = i;
+            ImGui::PopID();
+        }
+        if (removeIndex >= 0) data->Groups.erase(data->Groups.begin() + removeIndex);
+        if (ImGui::SmallButton("Add Group")) data->Groups.push_back("");
+    }
 }
 
 // Timeline key inspector removed (new animation panel owns it)
@@ -272,9 +342,11 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         }
 
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-        if (ImGui::Button("Remove Mesh Component", ImVec2(-1, 0))) {
+        // Sleeker removal affordance
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
             if (data->Mesh) {
                 // Only release references; do not attempt to destroy shared GPU buffers here
                 data->Mesh->mesh = nullptr;
@@ -283,67 +355,72 @@ void InspectorPanel::DrawComponents(EntityID entity) {
                 data->Mesh = nullptr;
             }
         }
-        ImGui::PopStyleColor(2);
+        ImGui::PopStyleColor(3);
     }
 
     if (data->Light && ImGui::CollapsingHeader("Light")) {
         registry.DrawComponentUI("Light", data->Light);
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-        if (ImGui::Button("Remove Light Component", ImVec2(-1, 0))) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
             delete data->Light;
             data->Light = nullptr;
         }
-        ImGui::PopStyleColor(2);
+        ImGui::PopStyleColor(3);
     }
 
     if (data->Collider && ImGui::CollapsingHeader("Collider")) {
         registry.DrawComponentUI("Collider", data->Collider);
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-        if (ImGui::Button("Remove Collider Component", ImVec2(-1, 0))) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
             delete data->Collider;
             data->Collider = nullptr;
         }
-        ImGui::PopStyleColor(2);
+        ImGui::PopStyleColor(3);
     }
 
     if (data->Camera && ImGui::CollapsingHeader("Camera")) {
         registry.DrawComponentUI("Camera", data->Camera);
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-        if (ImGui::Button("Remove Camera Component", ImVec2(-1, 0))) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
             delete data->Camera;
             data->Camera = nullptr;
         }
-        ImGui::PopStyleColor(2);
+        ImGui::PopStyleColor(3);
     }
 
     if (data->RigidBody && ImGui::CollapsingHeader("RigidBody")) {
         registry.DrawComponentUI("RigidBody", data->RigidBody);
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-        if (ImGui::Button("Remove RigidBody Component", ImVec2(-1, 0))) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
             delete data->RigidBody;
             data->RigidBody = nullptr;
         }
-        ImGui::PopStyleColor(2);
+        ImGui::PopStyleColor(3);
     }
 
     if (data->StaticBody && ImGui::CollapsingHeader("StaticBody")) {
         registry.DrawComponentUI("StaticBody", data->StaticBody);
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-        if (ImGui::Button("Remove StaticBody Component", ImVec2(-1, 0))) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
             delete data->StaticBody;
             data->StaticBody = nullptr;
         }
-        ImGui::PopStyleColor(2);
+        ImGui::PopStyleColor(3);
     }
 
     if (data->Terrain && ImGui::CollapsingHeader("Terrain")) {
@@ -354,26 +431,28 @@ void InspectorPanel::DrawComponents(EntityID entity) {
     if (data->Emitter && ImGui::CollapsingHeader("Particle Emitter")) {
         registry.DrawComponentUI("ParticleEmitter", data->Emitter);
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-        if (ImGui::Button("Remove Particle System Component", ImVec2(-1, 0))) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
             delete data->Emitter;
             data->Emitter = nullptr;
         }
-        ImGui::PopStyleColor(2);
+        ImGui::PopStyleColor(3);
     }
 
     // Text Renderer
     if (data->Text && ImGui::CollapsingHeader("TextRenderer")) {
         registry.DrawComponentUI("TextRenderer", data->Text);
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-        if (ImGui::Button("Remove TextRenderer Component", ImVec2(-1, 0))) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
             delete data->Text;
             data->Text = nullptr;
         }
-        ImGui::PopStyleColor(2);
+        ImGui::PopStyleColor(3);
     }
 
     // Draw script components

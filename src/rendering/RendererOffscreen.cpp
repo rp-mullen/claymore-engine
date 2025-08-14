@@ -8,8 +8,9 @@ struct OffscreenTarget {
     bgfx::TextureHandle     tex = BGFX_INVALID_HANDLE;
 };
 static OffscreenTarget g_PrefabTarget;
+static const uint16_t kPrefabViewId = 220; // Dedicated offscreen view id for prefab editor
 
-bgfx::TextureHandle Renderer::RenderSceneToTexture(Scene* scene, uint32_t width, uint32_t height)
+bgfx::TextureHandle Renderer::RenderSceneToTexture(Scene* scene, uint32_t width, uint32_t height, Camera* camera)
 {
     if (!scene || width == 0 || height == 0)
         return BGFX_INVALID_HANDLE;
@@ -32,33 +33,21 @@ bgfx::TextureHandle Renderer::RenderSceneToTexture(Scene* scene, uint32_t width,
         g_PrefabTarget.height = height;
     }
 
-    // Route our standard views to this offscreen target for the duration of this render
-    // Save main renderer dimensions
-    uint32_t prevW = m_Width;
-    uint32_t prevH = m_Height;
-    bgfx::FrameBufferHandle prevFB = m_SceneFrameBuffer;
-    float prevViewM[16]; memcpy(prevViewM, m_view, sizeof(m_view));
-    float prevProjM[16]; memcpy(prevProjM, m_proj, sizeof(m_proj));
+    // Configure the offscreen view. Do NOT touch views 0/1 used by the main viewport.
+    bgfx::setViewFrameBuffer(kPrefabViewId, g_PrefabTarget.fb);
+    bgfx::setViewRect(kPrefabViewId, 0, 0, (uint16_t)width, (uint16_t)height);
+    bgfx::setViewClear(kPrefabViewId, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x202020ff, 1.0f, 0);
+    bgfx::touch(kPrefabViewId);
 
-    // Quick unblock: redirect view 1 (where RenderScene submits) onto the preview framebuffer
-    bgfx::setViewFrameBuffer(1, g_PrefabTarget.fb);
-    bgfx::setViewRect(1, 0, 0, (uint16_t)width, (uint16_t)height);
-    bgfx::setViewClear(1, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x202020ff, 1.0f, 0);
-    bgfx::touch(1);
+    // Temporarily swap camera for this render only
+    Camera* prevCam = GetCamera();
+    if (camera) SetCamera(camera);
 
-    // Temporarily switch global scene pointer
-    Scene* prev = Scene::CurrentScene;
-    Scene::CurrentScene = scene;
-    RenderScene(*scene);
-    Scene::CurrentScene = prev;
+    // Render the provided scene entirely to the dedicated view id
+    RenderScene(*scene, kPrefabViewId);
 
-    // Restore main framebuffer and leave preview view bound only to offscreen
-    bgfx::setViewFrameBuffer(0, prevFB);
-    bgfx::setViewFrameBuffer(1, prevFB);
-    bgfx::setViewRect(0, 0, 0, prevW, prevH);
-    bgfx::setViewRect(1, 0, 0, prevW, prevH);
-    bgfx::setViewTransform(0, prevViewM, prevProjM);
-    bgfx::setViewTransform(1, prevViewM, prevProjM);
+    // Restore camera
+    if (camera) SetCamera(prevCam);
 
     return g_PrefabTarget.tex;
 }

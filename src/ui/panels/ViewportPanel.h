@@ -15,15 +15,24 @@ class Scene;
 class ViewportPanel : public EditorPanel {
 public:
 
-    ViewportPanel(Scene& scene, EntityID* selectedEntity)
-        : m_SelectedEntity(selectedEntity) {
+    ViewportPanel(Scene& scene, EntityID* selectedEntity, bool useInternalCamera = false)
+        : m_SelectedEntity(selectedEntity), m_UseInternalCamera(useInternalCamera) {
        SetContext(&scene);
+       if (m_UseInternalCamera) {
+           m_Camera = std::make_unique<class Camera>(60.0f, 16.0f/9.0f, 0.1f, 100.0f);
+       }
        // Create toolbar associated with this viewport
        m_Toolbar = std::make_unique<ViewportToolbar>(this);
-       }
+        }
 
-    void OnImGuiRender(bgfx::TextureHandle sceneTexture);
+		void OnImGuiRender(bgfx::TextureHandle sceneTexture);
+		// Render the viewport contents embedded inside the current ImGui window/child
+		// without opening its own window. Useful for panels that host an internal viewport
+		// such as the Prefab Editor.
+		void OnImGuiRenderEmbedded(bgfx::TextureHandle sceneTexture, const char* idLabel = "EmbeddedViewport");
     void HandleCameraControls();
+    // Accessor for embedded camera (nullptr when using global camera)
+    class Camera* GetPanelCamera() const { return m_Camera.get(); }
 
     // Gizmo operation control
     void SetOperation(ImGuizmo::OPERATION op) { m_CurrentOperation = op; }
@@ -73,4 +82,8 @@ private:
 
     // Mini toolbar displayed inside the viewport
     std::unique_ptr<class ViewportToolbar> m_Toolbar;
+
+    // Optional internal camera for fully-isolated embedded viewports
+    bool m_UseInternalCamera = false;
+    std::unique_ptr<class Camera> m_Camera;
 };

@@ -43,6 +43,7 @@ struct EntityData {
 
    int Layer = 0;
    std::string Tag;
+    std::vector<std::string> Groups; // Arbitrary groups for filtering/searching
    // Global visibility toggle for the whole entity (affects rendering and lights)
    bool Visible = true;
 

@@ -9,6 +9,8 @@ public:
    ~SceneHierarchyPanel() = default;
 
    void OnImGuiRender();
+    // Allow switching the selected entity pointer at runtime (to follow active scene)
+    void SetSelectedEntityPtr(EntityID* ptr) { m_SelectedEntity = ptr; }
 
 private:
 
@@ -19,4 +21,7 @@ private:
     bool m_IconsLoaded = false;
     ImTextureID m_VisibleIcon{};
     ImTextureID m_NotVisibleIcon{};
+    // Rename state
+    EntityID m_RenamingEntity = -1;
+    char m_RenameBuffer[128] = {0};
    };

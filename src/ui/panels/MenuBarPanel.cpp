@@ -343,6 +343,14 @@ void MenuBarPanel::OnImGuiRender() {
                 *m_SelectedEntity = entity.GetID();
             }
 
+            if (ImGui::MenuItem("Camera")) {
+                auto entity = m_Context->CreateEntity("Camera");
+                if (auto* data = m_Context->GetEntityData(entity.GetID())) {
+                    data->Camera = new CameraComponent();
+                }
+                *m_SelectedEntity = entity.GetID();
+            }
+
 			if (ImGui::MenuItem("Cube")) {
 				auto entity = m_Context->CreateEntity("Cube");
 				if (auto* data = m_Context->GetEntityData(entity.GetID())) {

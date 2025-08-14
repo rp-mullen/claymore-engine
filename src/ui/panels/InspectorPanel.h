@@ -48,6 +48,7 @@ private:
    void DrawAddComponentButton(EntityID entity);
    void DrawScriptComponent(const ScriptInstance& script, int index, EntityID entity);
    void DrawScriptProperty(PropertyInfo& property, void* scriptHandle);
+    void DrawGroupingControls(EntityID entity);
 
 private:
    EntityID* m_SelectedEntity = nullptr;
@@ -55,4 +56,7 @@ private:
     bool m_HasAnimatorBinding = false;
     AnimatorStateBinding m_AnimatorBinding;
    AvatarBuilderPanel* m_AvatarBuilder = nullptr;
+    // Rename state for entity name in inspector
+    bool m_RenamingEntityName = false;
+    char m_RenameBuffer[128] = {0};
    };

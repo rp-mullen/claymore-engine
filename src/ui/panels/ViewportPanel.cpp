@@ -25,7 +25,15 @@
 // =============================================================
 void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
     ImGui::Begin("Viewport");
-    bool viewportActive = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+    // Reuse the same rendering path as embedded panels so behavior is identical
+    OnImGuiRenderEmbedded(sceneTexture, "MainViewportEmbedded");
+    ImGui::End();
+}
+
+// Render the viewport inside an existing window/child instead of opening its own window
+void ViewportPanel::OnImGuiRenderEmbedded(bgfx::TextureHandle sceneTexture, const char* idLabel) {
+    bool viewportActive = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+                          ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
 
     // Draw mini viewport toolbar (translate / rotate / scale)
     if (m_Toolbar && viewportActive)
@@ -58,6 +66,7 @@ void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
     // Draw scene texture
     if (bgfx::isValid(sceneTexture)) {
         ImTextureID texId = (ImTextureID)(uintptr_t)sceneTexture.idx;
+        ImGui::PushID(idLabel);
         ImGui::Image(texId, drawSize, ImVec2(0, 0), ImVec2(1, 1));
         // Allow gizmo to receive clicks even though the Image is an item
         ImGui::SetItemAllowOverlap();
@@ -74,6 +83,7 @@ void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
         {
             ImGui::ClearActiveID();
         }
+        ImGui::PopID();
     }
     else {
         ImGui::Text("Invalid scene texture!");
@@ -98,19 +108,13 @@ void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
 
 
     DrawGizmo();
-
-
-    ImGui::End();
-    // Draw transform gizmo
-    
-    
-   }
+}
 
 // =============================================================
 // CAMERA CONTROL (Orbit + Zoom)
 // =============================================================
 void ViewportPanel::HandleCameraControls() {
-    Camera* cam = Renderer::Get().GetCamera();
+    Camera* cam = m_UseInternalCamera ? m_Camera.get() : Renderer::Get().GetCamera();
     if (!cam || m_ViewportSize.x <= 0.0f || m_ViewportSize.y <= 0.0f) return;
 
     ImGuiIO& io = ImGui::GetIO();
@@ -266,7 +270,7 @@ void ViewportPanel::UpdateGhostPosition(float mouseX, float mouseY) {
     // Convert screen coords to normalized within letterboxed viewport
     float nx = (mouseX - m_ViewportPos.x) / m_ViewportSize.x;
     float ny = (mouseY - m_ViewportPos.y) / m_ViewportSize.y;
-    Ray ray = Picking::ScreenPointToRay(nx, ny, Renderer::Get().GetCamera());
+    Ray ray = Picking::ScreenPointToRay(nx, ny, m_UseInternalCamera ? m_Camera.get() : Renderer::Get().GetCamera());
 
     if (fabs(ray.Direction.y) > 1e-6f) {
         float t = -ray.Origin.y / ray.Direction.y;

@@ -162,28 +162,12 @@ void UILayer::OnUIRender() {
     // Determine which scene should be considered "active" for editor panels
     Scene* activeScene = m_PlayMode && m_Scene.m_RuntimeScene ? m_Scene.m_RuntimeScene.get() : &m_Scene;
 
-    // Update panel contexts based on whether any prefab editors are open
-    if (!m_PrefabEditors.empty()) {
-        // Detach core panels from the active scene while editing a prefab
-        // Save current selection so it can be restored when returning
-        m_PreviousSelectedEntity = m_SelectedEntity;
+    // Keep core panels always bound to the active scene regardless of prefab editors
+    m_SceneHierarchyPanel.SetContext(activeScene);
+    m_InspectorPanel.SetContext(activeScene);
+    m_ViewportPanel.SetContext(activeScene);
 
-        m_SceneHierarchyPanel.SetContext(nullptr);
-        m_InspectorPanel.SetContext(nullptr);
-        m_ViewportPanel.SetContext(nullptr);
-        m_SelectedEntity = -1;
-    } else {
-        // Re-attach when no prefab editors are open (honour play/edit mode)
-        m_SceneHierarchyPanel.SetContext(activeScene);
-        m_InspectorPanel.SetContext(activeScene);
-        m_ViewportPanel.SetContext(activeScene);
-
-        // Restore previous entity selection if any
-        if (m_PreviousSelectedEntity != -1)
-            m_SelectedEntity = m_PreviousSelectedEntity;
-    }
-
-    // Core panels
+    // Core panels (context may be overridden below when a prefab editor is active/hovered)
     m_SceneHierarchyPanel.OnImGuiRender();
     // Route Inspector to Animation inspector when a .anim is selected in Project panel
     {
@@ -213,15 +197,36 @@ void UILayer::OnUIRender() {
     // Main viewport
     m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());
 
-    // Any open prefab editors
+    // Any open prefab editors. While one is focused/hovered, point the hierarchy/inspector to it.
+    bool hierarchySwapped = false;
     for (auto it = m_PrefabEditors.begin(); it != m_PrefabEditors.end(); ) {
         PrefabEditorPanel* panel = it->get();
+        // Query focus state before rendering the panel content to avoid 1-frame lag
+        bool wantsFocus = false;
+        // Render the panel and return whether it is open
         panel->OnImGuiRender();
+
+        // After rendering, check if its window is focused/hovered via a helper on the panel
+        wantsFocus = panel->IsWindowFocusedOrHovered();
+        if (wantsFocus && !hierarchySwapped) {
+            m_SceneHierarchyPanel.SetContext(panel->GetScene());
+            m_SceneHierarchyPanel.SetSelectedEntityPtr(panel->GetSelectedEntityPtr());
+            m_InspectorPanel.SetContext(panel->GetScene());
+            m_SelectedEntity = *panel->GetSelectedEntityPtr();
+            hierarchySwapped = true;
+        }
+
         if (!panel->IsOpen()) {
             it = m_PrefabEditors.erase(it);
         } else {
             ++it;
         }
+    }
+    if (!hierarchySwapped) {
+        // Ensure the core panels show the main scene when no prefab editor is active
+        m_SceneHierarchyPanel.SetContext(activeScene);
+        m_SceneHierarchyPanel.SetSelectedEntityPtr(&m_SelectedEntity);
+        m_InspectorPanel.SetContext(activeScene);
     }
 
     // Editor-only terrain painting

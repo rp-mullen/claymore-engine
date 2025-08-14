@@ -18,6 +18,11 @@ public:
     void OnImGuiRender();
 
     bool IsOpen() const { return m_IsOpen; }
+    // Query whether this editor window is the active target; used to switch hierarchy context
+    bool IsWindowFocusedOrHovered() const { return m_IsFocusedOrHovered; }
+    // Accessors to expose scene/selection so UILayer can point panels at this editor when active
+    Scene* GetScene() { return &m_Scene; }
+    EntityID* GetSelectedEntityPtr() { return &m_SelectedEntity; }
 private:
     // Helper to load prefab file into the internal scene
     void LoadPrefab(const std::string& path);
@@ -26,6 +31,7 @@ private:
     std::string m_PrefabPath;
     bool m_IsOpen = true;
     bool m_Docked = false;
+    mutable bool m_IsFocusedOrHovered = false;
 
     Scene m_Scene;
     EntityID m_SelectedEntity = -1;

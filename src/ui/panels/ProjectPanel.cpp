@@ -193,8 +193,14 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
       float iconOffsetX = (cellWidth - thumbnailSize) * 0.5f;
       ImGui::SetCursorPosX(cursorPos.x + iconOffsetX);
 
-      // Always render ImageButton (for both click & drag)
+      // Render ImageButton with transparent background (no frame)
+      ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+      ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+      ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1,1,1,0.12f));
+      ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1,1,1,0.20f));
       ImGui::ImageButton(fileName.c_str(), icon, ImVec2(thumbnailSize, thumbnailSize));
+      ImGui::PopStyleColor(3);
+      ImGui::PopStyleVar();
 
       // Click-to-navigate or open
       if (ImGui::IsItemClicked()) {
@@ -232,14 +238,12 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
          ImGui::EndDragDropSource();
          }
 
-      // --- Filename: single-line with ellipsis if overflow ---
-      ImGui::SetCursorPosX(cursorPos.x + 2.0f);
-      ImGui::PushID((fileName + "_label").c_str());
-      ImGui::BeginChild("##label", ImVec2(textWrapWidth, 18.0f), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+      // --- Filename: single-line centered under icon, with ellipsis if overflow ---
       std::string clipped = TruncateWithEllipsis(fileName, textWrapWidth);
+      float textWidth = ImGui::CalcTextSize(clipped.c_str()).x;
+      float textOffsetX = (cellWidth - textWidth) * 0.5f;
+      ImGui::SetCursorPosX(cursorPos.x + textOffsetX);
       ImGui::TextUnformatted(clipped.c_str());
-      ImGui::EndChild();
-      ImGui::PopID();
 
       ImGui::NextColumn();
       ImGui::PopID();

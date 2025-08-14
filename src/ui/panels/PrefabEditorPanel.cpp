@@ -14,7 +14,7 @@ namespace fs = std::filesystem;
 PrefabEditorPanel::PrefabEditorPanel(const std::string& prefabPath, UILayer* uiLayer)
     : m_PrefabPath(prefabPath),
       m_UILayer(uiLayer),
-      m_ViewportPanel(m_Scene, &m_SelectedEntity),
+      m_ViewportPanel(m_Scene, &m_SelectedEntity, true),
       m_HierarchyPanel(&m_Scene, &m_SelectedEntity),
       m_InspectorPanel(&m_Scene, &m_SelectedEntity)
 {
@@ -53,6 +53,9 @@ void PrefabEditorPanel::OnImGuiRender()
         ImGui::End();
         return;
     }
+    // Track whether this window should drive the shared hierarchy/inspector
+    m_IsFocusedOrHovered = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) ||
+                           ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
 
     // Optional: menu bar for future features
     if (ImGui::BeginMenuBar()) {
@@ -104,10 +107,12 @@ void PrefabEditorPanel::OnImGuiRender()
     // Right pane viewport
     ImGui::BeginChild("PrefabViewport", ImVec2(0, fullHeight), true);
     {
-        // For now, reuse main renderer's scene texture. Ideally prefabs should be rendered to their own framebuffer.
-        // Renderer currently renders only the active scene, so we'll just show placeholder.
-        bgfx::TextureHandle tex = Renderer::Get().RenderSceneToTexture(&m_Scene, (uint32_t)ImGui::GetContentRegionAvail().x, (uint32_t)fullHeight);
-        m_ViewportPanel.OnImGuiRender(tex);
+        // Render this panel's private scene to its own offscreen texture
+        bgfx::TextureHandle tex = Renderer::Get().RenderSceneToTexture(&m_Scene,
+            (uint32_t)ImGui::GetContentRegionAvail().x,
+            (uint32_t)fullHeight,
+            m_ViewportPanel.GetPanelCamera());
+        m_ViewportPanel.OnImGuiRenderEmbedded(tex, "PrefabViewportImage");
     }
     ImGui::EndChild();
 
