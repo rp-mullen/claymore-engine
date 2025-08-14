@@ -7,7 +7,7 @@ A 3D game engine developed in C++ with .NET 8.0 native interop; built on bgfx, a
 - **Cross-platform**: Runs on Windows (Linux TBA).
 - **Graphics**: Uses bgfx for rendering, supporting multiple backends.
 - **Physics**: Integrates Jolt Physics for realistic simulations.
-- **Asset Management**: Utilizes Assimp for importing various 3D model formats.
+- **Asset Management**: Creates an asset registry and continuously scans for importable assets in a background thread. Animations are parsed and automatically extracted from FBX and converted to a unified avatar mapping for the case of humanoid animations. 
 - **Scripting**: Supports C# scripting with .NET 8.0 native interop.
   - HostCLR allows for modern LTS .NET SDK use, JIT compiling that makes scripts more performant than the traditional Mono/IL2CPP
 - **Modular Design**: Engine components are designed to be modular and extensible.
