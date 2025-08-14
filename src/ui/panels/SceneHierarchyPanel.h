@@ -27,4 +27,6 @@ private:
     // Rename state
     EntityID m_RenamingEntity = -1;
     char m_RenameBuffer[128] = {0};
+    // Selection handling that ignores drag begin
+    EntityID m_PendingSelect = -1;
    };

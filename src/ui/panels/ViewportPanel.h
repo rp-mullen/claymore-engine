@@ -34,6 +34,9 @@ public:
     // Accessor for embedded camera (nullptr when using global camera)
     class Camera* GetPanelCamera() const { return m_Camera.get(); }
 
+    // Focus/hover state (main viewport window only)
+    bool IsWindowFocusedOrHovered() const { return m_WindowFocusedOrHovered; }
+
     // Gizmo operation control
     void SetOperation(ImGuizmo::OPERATION op) { m_CurrentOperation = op; }
     ImGuizmo::OPERATION GetCurrentOperation() const { return m_CurrentOperation; }
@@ -86,4 +89,6 @@ private:
     // Optional internal camera for fully-isolated embedded viewports
     bool m_UseInternalCamera = false;
     std::unique_ptr<class Camera> m_Camera;
+
+    bool m_WindowFocusedOrHovered = false;
 };

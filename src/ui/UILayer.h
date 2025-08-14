@@ -50,6 +50,7 @@ public:
 
     // Prefab editor management
     void OpenPrefabEditor(const std::string& prefabPath);
+    bool AnyPrefabViewportFocused() const;
     // Access to Project panel
     ProjectPanel& GetProjectPanel() { return m_ProjectPanel; }
     class AnimTimelinePanel& GetTimelinePanel() { return m_AnimTimelinePanel; }
@@ -57,6 +58,7 @@ public:
     // Deferred scene loading
     void DeferSceneLoad(const std::string& filepath);
     void ProcessDeferredSceneLoad();
+    void SetCurrentScenePath(const std::string& path) { m_CurrentScenePath = path; }
     
 public:
     void FocusConsoleNextFrame() { m_FocusConsoleNextFrame = true; }
@@ -104,4 +106,11 @@ private:
     // Deferred scene loading
     std::string m_DeferredScenePath;
     bool m_HasDeferredSceneLoad = false;
+
+    // Scene file path tracking for Ctrl+S
+    std::string m_CurrentScenePath;
+
+    // Sticky routing for shared hierarchy/inspector to the currently active editor source
+    Scene* m_ActiveEditorScene = nullptr;
+    EntityID* m_ActiveSelectedEntityPtr = nullptr;
 };

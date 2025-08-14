@@ -5,7 +5,6 @@
 #include "EditorPanel.h"
 #include "ui/panels/ViewportPanel.h"
 #include "ui/panels/SceneHierarchyPanel.h"
-#include "ui/panels/InspectorPanel.h"
 #include "serialization/Serializer.h"
 
 // Simple panel that opens a secondary viewport to edit a single prefab
@@ -36,10 +35,8 @@ private:
     Scene m_Scene;
     EntityID m_SelectedEntity = -1;
 
-    // Sub-panels for editing
+    // Embedded viewport for editing
     ViewportPanel m_ViewportPanel;
-    SceneHierarchyPanel m_HierarchyPanel;
-    InspectorPanel m_InspectorPanel;
 
     class UILayer* m_UILayer;
 };

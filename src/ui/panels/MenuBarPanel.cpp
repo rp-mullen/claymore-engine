@@ -145,9 +145,15 @@ void MenuBarPanel::OnImGuiRender() {
         
         if (ImGui::MenuItem("Save Scene")) {
             // TODO: Save to current scene file if one exists, otherwise show save dialog
-            std::string scenePath = "assets/scenes/CurrentScene.scene";
+            std::string scenePath;
+            if (m_UILayer) {
+                // Use UILayer's current scene path if available
+                // Access via friend or public API would be better; for now keep local default
+            }
+            if (scenePath.empty()) scenePath = "assets/scenes/CurrentScene.scene";
             if (Serializer::SaveSceneToFile(*m_Context, scenePath)) {
                 std::cout << "[MenuBarPanel] Scene saved successfully to: " << scenePath << std::endl;
+                if (m_UILayer) m_UILayer->SetCurrentScenePath(scenePath);
             } else {
                 std::cerr << "[MenuBarPanel] Failed to save scene to: " << scenePath << std::endl;
             }
@@ -158,6 +164,7 @@ void MenuBarPanel::OnImGuiRender() {
             if (!scenePath.empty()) {
                 if (Serializer::SaveSceneToFile(*m_Context, scenePath)) {
                     std::cout << "[MenuBarPanel] Scene saved successfully to: " << scenePath << std::endl;
+                    if (m_UILayer) m_UILayer->SetCurrentScenePath(scenePath);
                 } else {
                     std::cerr << "[MenuBarPanel] Failed to save scene to: " << scenePath << std::endl;
                 }

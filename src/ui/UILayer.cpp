@@ -25,6 +25,11 @@
 #include "ecs/Components.h"
 #include <memory>
 #include "imnodes.h"
+#include <editor/Input.h>
+#include "serialization/Serializer.h"
+
+// Forward-declare file dialog helper from MenuBarPanel.cpp
+extern std::string ShowSaveFileDialog(const std::string& defaultName);
 namespace fs = std::filesystem;
 std::vector<std::string> g_RegisteredScriptNames;
 
@@ -162,11 +167,18 @@ void UILayer::OnUIRender() {
     // Determine which scene should be considered "active" for editor panels
     Scene* activeScene = m_PlayMode && m_Scene.m_RuntimeScene ? m_Scene.m_RuntimeScene.get() : &m_Scene;
 
-    // Keep core panels bound to the active scene by default
-    m_SceneHierarchyPanel.SetContext(activeScene);
-    m_SceneHierarchyPanel.SetSelectedEntityPtr(&m_SelectedEntity);
-    m_InspectorPanel.SetContext(activeScene);
+    // Sticky routing: prefer last chosen editor source (prefab or main) until another editor window becomes active
+    if (!m_ActiveEditorScene) {
+        m_ActiveEditorScene = activeScene;
+        m_ActiveSelectedEntityPtr = &m_SelectedEntity;
+    }
+    // Always keep main viewport bound to main scene
     m_ViewportPanel.SetContext(activeScene);
+
+    // Prepare default routing to sticky source
+    m_SceneHierarchyPanel.SetContext(m_ActiveEditorScene);
+    m_SceneHierarchyPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr ? m_ActiveSelectedEntityPtr : &m_SelectedEntity);
+    m_InspectorPanel.SetContext(m_ActiveEditorScene);
 
     // Render other panels first
     m_ProjectPanel.OnImGuiRender();
@@ -186,8 +198,35 @@ void UILayer::OnUIRender() {
     // Main viewport
     m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());
 
-    // Any open prefab editors. While one is focused/hovered, point the hierarchy/inspector to it.
-    bool hierarchySwapped = false;
+    // Global shortcuts scoped to active 3D editing surface: main viewport or any prefab viewport
+    {
+        bool viewportFocused = m_ViewportPanel.IsWindowFocusedOrHovered();
+        // If sticky source is prefab editor, consider it active even if hierarchy is focused
+        if (m_ActiveEditorScene && m_ActiveEditorScene != activeScene) viewportFocused = true;
+        if (viewportFocused) {
+            bool ctrl = ImGui::GetIO().KeyCtrl;
+            if (ctrl && Input::WasKeyPressedThisFrame(GLFW_KEY_S)) {
+                if (!m_CurrentScenePath.empty()) {
+                    Serializer::SaveSceneToFile(*activeScene, m_CurrentScenePath);
+                } else {
+                    // Prompt for save location
+                    std::string chosen = ShowSaveFileDialog("NewScene.scene");
+                    if (!chosen.empty() && Serializer::SaveSceneToFile(*activeScene, chosen)) {
+                        m_CurrentScenePath = chosen;
+                    }
+                }
+            }
+        }
+    }
+
+    // Global Delete: remove selected entity when not editing text
+    if (!ImGui::IsAnyItemActive() && m_SelectedEntity != -1 && Input::WasKeyPressedThisFrame(GLFW_KEY_DELETE)) {
+        activeScene->QueueRemoveEntity(m_SelectedEntity);
+        m_SelectedEntity = -1;
+    }
+
+    // Any open prefab editors. If one is focused/hovered, make it the sticky source for hierarchy/inspector.
+    bool madeStickyThisFrame = false;
     for (auto it = m_PrefabEditors.begin(); it != m_PrefabEditors.end(); ) {
         PrefabEditorPanel* panel = it->get();
         // Query focus state before rendering the panel content to avoid 1-frame lag
@@ -197,12 +236,14 @@ void UILayer::OnUIRender() {
 
         // After rendering, check if its window is focused/hovered via a helper on the panel
         wantsFocus = panel->IsWindowFocusedOrHovered();
-        if (wantsFocus && !hierarchySwapped) {
-            m_SceneHierarchyPanel.SetContext(panel->GetScene());
-            m_SceneHierarchyPanel.SetSelectedEntityPtr(panel->GetSelectedEntityPtr());
-            m_InspectorPanel.SetContext(panel->GetScene());
-            m_SelectedEntity = *panel->GetSelectedEntityPtr();
-            hierarchySwapped = true;
+        if (wantsFocus && !madeStickyThisFrame) {
+            m_ActiveEditorScene = panel->GetScene();
+            m_ActiveSelectedEntityPtr = panel->GetSelectedEntityPtr();
+            // Ensure panels point to the sticky source immediately
+            m_SceneHierarchyPanel.SetContext(m_ActiveEditorScene);
+            m_SceneHierarchyPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
+            m_InspectorPanel.SetContext(m_ActiveEditorScene);
+            madeStickyThisFrame = true;
         }
 
         if (!panel->IsOpen()) {
@@ -211,6 +252,16 @@ void UILayer::OnUIRender() {
             ++it;
         }
     }
+    // If the main viewport tab becomes active, switch sticky source back to main scene
+    if (m_ViewportPanel.IsWindowFocusedOrHovered()) {
+        m_ActiveEditorScene = activeScene;
+        m_ActiveSelectedEntityPtr = &m_SelectedEntity;
+        m_SceneHierarchyPanel.SetContext(m_ActiveEditorScene);
+        m_SceneHierarchyPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
+        m_InspectorPanel.SetContext(m_ActiveEditorScene);
+    }
+
+    // If no prefab editor claimed focus this frame, keep whatever sticky source we had
     // Now render the shared Scene Hierarchy and Inspector with the chosen context
     // Route Inspector to Animation inspector when a .anim is selected in Project panel
     m_SceneHierarchyPanel.OnImGuiRender();
@@ -398,7 +449,11 @@ void UILayer::TogglePlayMode() {
     Scene* activeScene = m_PlayMode ? m_Scene.m_RuntimeScene.get() : &m_Scene;
 
     // Update panel contexts
+    // Also reset sticky routing to avoid dangling pointers to the destroyed runtime scene
+    m_ActiveEditorScene = activeScene;
+    m_ActiveSelectedEntityPtr = &m_SelectedEntity;
     m_SceneHierarchyPanel.SetContext(activeScene);
+    m_SceneHierarchyPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
     m_InspectorPanel.SetContext(activeScene);
     m_ViewportPanel.SetContext(activeScene);
 }
@@ -425,6 +480,7 @@ void UILayer::ProcessDeferredSceneLoad() {
     if (Serializer::LoadSceneFromFile(m_DeferredScenePath, m_Scene)) {
         std::cout << "[UILayer] Successfully loaded scene: " << m_DeferredScenePath << std::endl;
         m_SelectedEntity = -1;
+        m_CurrentScenePath = m_DeferredScenePath;
     } else {
         std::cerr << "[UILayer] Failed to load scene: " << m_DeferredScenePath << std::endl;
     }

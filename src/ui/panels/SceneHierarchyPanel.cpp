@@ -5,6 +5,7 @@
 #include <rendering/StandardMeshManager.h>
 #include <rendering/MaterialManager.h>
 #include <cstring>
+#include <editor/Input.h>
 
 SceneHierarchyPanel::SceneHierarchyPanel(Scene* scene, EntityID* selectedEntity)
    : m_SelectedEntity(selectedEntity) {
@@ -42,8 +43,8 @@ void SceneHierarchyPanel::DrawHierarchyContents() {
       std::cout << "Added Entity: " << newEntity.GetName() << std::endl;
       }
 
-    // Background context menu for hierarchy window
-    if (ImGui::BeginPopupContextWindow(nullptr, ImGuiPopupFlags_MouseButtonRight)) {
+    // Background context menu for hierarchy window (only when not over an item)
+    if (ImGui::BeginPopupContextWindow("HierarchyBlankCtx", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
         if (ImGui::BeginMenu("Create")) {
             if (ImGui::MenuItem("Empty")) {
                 auto e = m_Context->CreateEntity("Empty Entity");
@@ -122,6 +123,15 @@ void SceneHierarchyPanel::DrawHierarchyContents() {
         }
         ImGui::EndPopup();
     }
+
+    // Delete key handling when the hierarchy window is focused and no text field is active
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
+        && !ImGui::IsAnyItemActive()
+        && m_SelectedEntity && *m_SelectedEntity != -1
+        && Input::WasKeyPressedThisFrame(GLFW_KEY_DELETE)) {
+        m_Context->QueueRemoveEntity(*m_SelectedEntity);
+        *m_SelectedEntity = -1;
+    }
 }
 
 
@@ -194,10 +204,10 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
         hasTreePush = opened;
     }
 
-   // Selection
-    if (ImGui::IsItemClicked()) {
-      *m_SelectedEntity = id;
-      }
+    // Selection: single click selects, but don't change selection when this click starts a drag
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+        m_PendingSelect = id;
+    }
 
     // Double-click to rename
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
@@ -237,12 +247,20 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
       return;
       }
 
-   // Drag source
-   if (ImGui::BeginDragDropSource()) {
+    // Drag source (keep current selection unchanged while dragging)
+    if (ImGui::BeginDragDropSource()) {
+       // Cancel any pending selection when a drag actually starts
+       if (m_PendingSelect == id) m_PendingSelect = -1;
       ImGui::SetDragDropPayload("ENTITY_ID", &id, sizeof(EntityID));
       ImGui::Text("Drag %s", entity.GetName().c_str());
       ImGui::EndDragDropSource();
       }
+
+    // If a pending select exists and we are not dragging, commit selection on mouse release
+    if (m_PendingSelect == id && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        *m_SelectedEntity = id;
+        m_PendingSelect = -1;
+    }
 
    // Drop target
    if (ImGui::BeginDragDropTarget()) {

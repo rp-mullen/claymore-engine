@@ -14,9 +14,7 @@ namespace fs = std::filesystem;
 PrefabEditorPanel::PrefabEditorPanel(const std::string& prefabPath, UILayer* uiLayer)
     : m_PrefabPath(prefabPath),
       m_UILayer(uiLayer),
-      m_ViewportPanel(m_Scene, &m_SelectedEntity, true),
-      m_HierarchyPanel(&m_Scene, &m_SelectedEntity),
-      m_InspectorPanel(&m_Scene, &m_SelectedEntity)
+      m_ViewportPanel(m_Scene, &m_SelectedEntity, true)
 {
     LoadPrefab(prefabPath);
 }
@@ -71,10 +69,6 @@ void PrefabEditorPanel::OnImGuiRender()
         ImGui::EndMenuBar();
     }
 
-    // Split horizontally: left hierarchy + inspector, right viewport (simple implementation)
-    const float leftPaneWidth = 300.0f;
-    const float splitterSize = 4.0f;
-
     // Compute height available inside the prefab editor window. Clamp to >=1 px to satisfy ImGui.
     float fullHeight = std::max(1.0f, ImGui::GetContentRegionAvail().y);
 
@@ -87,29 +81,7 @@ void PrefabEditorPanel::OnImGuiRender()
         }
     }
 
-    // Left pane child
-    ImGui::BeginChild("HierarchyInspectorPane", ImVec2(leftPaneWidth, fullHeight), true);
-    {
-        ImGui::TextUnformatted("Hierarchy");
-        ImGui::Separator();
-        m_HierarchyPanel.OnImGuiRenderEmbedded();
-        ImGui::Separator();
-        ImGui::TextUnformatted("Inspector");
-        ImGui::Separator();
-        m_InspectorPanel.OnImGuiRenderEmbedded();
-    }
-    ImGui::EndChild();
-
-    ImGui::SameLine();
-    // Splitter invisible
-    ImGui::InvisibleButton("PrefabSplitter", ImVec2(splitterSize, fullHeight));
-    if (ImGui::IsItemActive()) {
-        // Could implement resizable splitter later
-    }
-
-    ImGui::SameLine();
-
-    // Right pane viewport
+    // Single child: embedded viewport only; hierarchy/inspector are shared global panels
     ImGui::BeginChild("PrefabViewport", ImVec2(0, fullHeight), true);
     {
         // Render this panel's private scene to its own offscreen texture

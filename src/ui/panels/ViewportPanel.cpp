@@ -25,6 +25,8 @@
 // =============================================================
 void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
     ImGui::Begin("Viewport");
+    m_WindowFocusedOrHovered = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) ||
+                               ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
     // Reuse the same rendering path as embedded panels so behavior is identical
     OnImGuiRenderEmbedded(sceneTexture, "MainViewportEmbedded");
     ImGui::End();
@@ -314,11 +316,11 @@ void ViewportPanel::DrawGizmo() {
 
     ImGuizmo::SetOrthographic(false);
 
-    Camera* cam = Renderer::Get().GetCamera();
+        Camera* cam = m_UseInternalCamera ? m_Camera.get() : Renderer::Get().GetCamera();
     if (!cam) return;
 
-    const float* view = glm::value_ptr(cam->GetViewMatrix());
-    const float* proj = glm::value_ptr(cam->GetProjectionMatrix());
+        const float* view = glm::value_ptr(cam->GetViewMatrix());
+        const float* proj = glm::value_ptr(cam->GetProjectionMatrix());
 
 
     glm::mat4 transform =
