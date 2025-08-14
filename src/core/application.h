@@ -5,6 +5,7 @@
 #include "ui/UILayer.h"
 #include "pipeline/AssetWatcher.h"
 #include "pipeline/AssetPipeline.h"
+#include "jobs/JobSystem.h"
 
 class Application {
 public:
@@ -13,6 +14,7 @@ public:
 
     static Application& Get();
 
+    JobSystem& Jobs() { return *m_Jobs; }
     AssetWatcher* GetAssetWatcher() const { return m_AssetWatcher.get(); }
 
     void Run();
@@ -24,6 +26,8 @@ public:
     std::filesystem::path defaultProjPath;
 private:
     static Application* s_Instance;
+
+    std::unique_ptr<JobSystem> m_Jobs;
 
     void InitWindow(int width, int height, const std::string& title);
     void InitBgfx();

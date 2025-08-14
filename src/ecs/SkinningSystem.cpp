@@ -7,6 +7,7 @@
 
 #include "jobs/JobSystem.h"   
 #include "jobs/ParallelFor.h"
+#include "jobs/Jobs.h"
 
 // ---------- Palette kernel (assumes pose[i] = boneWorld[i] * invBind[i]) ----------
 struct PaletteArgs {
@@ -21,10 +22,6 @@ static inline void PaletteKernel(const PaletteArgs& a) {
       a.out[i] = a.invMesh * a.pose[i]; // one mul per bone
       }
    }
-
-// At engine init or file static (okay for now):
-static JobSystem gJobs;   // uses hardware_concurrency() threads by default
-
 
 // ---------- Blendshape kernel (adds pre-accumulated deltas to base) ----------
 struct BlendArgs {
@@ -149,7 +146,7 @@ void SkinningSystem::Update(Scene& scene)
 
          // Fill palettes across meshes: palette[i] = invMesh * pose[i]
          // Parallelize per mesh first (bone counts are modest)
-         parallel_for(gJobs, size_t{ 0 }, g.meshes.size(), size_t{ 1 },
+         parallel_for(Jobs(), size_t{ 0 }, g.meshes.size(), size_t{ 1 },
             [&](size_t mStart, size_t mCount) {
             for (size_t m = mStart; m < mStart + mCount; ++m) {
                auto& w = g.meshes[m];

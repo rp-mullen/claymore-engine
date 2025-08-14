@@ -34,6 +34,91 @@ namespace fs = std::filesystem;
 #include "animation/AvatarSerializer.h"
 #include "serialization/Serializer.h"
 
+#include "jobs/JobSystem.h"
+#include "jobs/ParallelFor.h"
+#include <jobs/Jobs.h>
+
+// --- Kernels --------------------------------------------------------------------------------
+
+
+struct RootArgs {
+   Scene* scene;
+   const std::vector<EntityID>* level;   // level 0 (roots)
+   std::vector<uint8_t>* recomputed;     // size >= scene->m_NextID
+   };
+
+static inline void RootsKernel(const RootArgs& a, size_t start, size_t count) {
+   for (size_t i = start; i < start + count; ++i) {
+      EntityID id = (*a.level)[i];
+      auto* d = a.scene->GetEntityData(id);
+      if (!d) continue;
+      const bool wasDirty = d->Transform.TransformDirty;
+      if (wasDirty) d->Transform.CalculateLocalMatrix();
+      d->Transform.WorldMatrix = d->Transform.LocalMatrix; // root: parent = I
+      d->Transform.TransformDirty = false;
+      (*a.recomputed)[id] = wasDirty ? 1u : 0u;
+      }
+   }
+
+struct PropArgs {
+   Scene* scene;
+   const std::vector<EntityID>* level;       // current level
+   std::vector<uint8_t>* recomputed;         // per-entity "updated this frame" flag
+   };
+
+static inline void PropagateKernel(const PropArgs& a, size_t start, size_t count) {
+   for (size_t i = start; i < start + count; ++i) {
+      EntityID id = (*a.level)[i];
+      auto* d = a.scene->GetEntityData(id);
+      if (!d) continue;
+
+      // parent info (guaranteed processed on a previous level)
+      glm::mat4 parentWorld = glm::mat4(1.0f);
+      bool parentUpdated = false;
+      if (d->Parent != -1) {
+         auto* p = a.scene->GetEntityData(d->Parent);
+         parentWorld = p ? p->Transform.WorldMatrix : glm::mat4(1.0f);
+         parentUpdated = p ? ((*a.recomputed)[d->Parent] != 0) : false;
+         }
+
+      const bool wasDirty = d->Transform.TransformDirty;
+      const bool needs = wasDirty || parentUpdated;
+      if (needs) {
+         if (wasDirty) d->Transform.CalculateLocalMatrix(); // local changed
+         d->Transform.WorldMatrix = parentWorld * d->Transform.LocalMatrix;
+         d->Transform.TransformDirty = false;
+         }
+      (*a.recomputed)[id] = needs ? 1u : 0u;
+      }
+   }
+
+// --- Build breadth levels from your existing parent/children lists
+static inline void BuildHierarchyLevels(Scene& scene,
+   std::vector<std::vector<EntityID>>& levels)
+   {
+   levels.clear();
+   std::vector<EntityID> roots;
+   for (const auto& e : scene.GetEntities()) {
+      auto* d = scene.GetEntityData(e.GetID());
+      if (d && d->Parent == -1) roots.push_back(e.GetID());
+      }
+   if (roots.empty()) return;
+   levels.push_back(std::move(roots));
+
+   // BFS: each level is the concatenation of all children from the previous level
+   for (;;) {
+      std::vector<EntityID> next;
+      for (EntityID id : levels.back()) {
+         auto* d = scene.GetEntityData(id);
+         if (!d) continue;
+         next.insert(next.end(), d->Children.begin(), d->Children.end());
+         }
+      if (next.empty()) break;
+      levels.push_back(std::move(next));
+      }
+   }
+// -----------------------------------------------------------------------------------------
+
 Scene* Scene::CurrentScene = nullptr;
 
 Entity Scene::CreateEntity(const std::string& name) {
@@ -579,29 +664,29 @@ void Scene::SetParent(EntityID child, EntityID parent) {
    }
 
 
-void Scene::UpdateTransforms() {
-   std::vector<EntityID> sorted;
-   TopologicalSortEntities(sorted); // Parents before children
+void Scene::UpdateTransforms()
+   {
+   // Build levels (roots -> leaves). Later you can cache this and update when SetParent/RemoveEntity runs.
+   std::vector<std::vector<EntityID>> levels;
+   BuildHierarchyLevels(*this, levels);
 
-   for (EntityID id : sorted) {
-      auto* data = GetEntityData(id);
-      if (!data) continue;
+   if (levels.empty()) return;
 
-      bool parentDirty = false;
-      glm::mat4 parentWorld = glm::mat4(1.0f);
+   // One byte per possible EntityID (IDs are monotonic up to m_NextID)
+   std::vector<uint8_t> recomputed(m_NextID, 0);
 
-      if (data->Parent != -1) {
-         EntityData* parent = GetEntityData(data->Parent);
-         parentDirty = parent->Transform.TransformDirty;
-         parentWorld = parent->Transform.WorldMatrix;
-         }
+   // Level 0: roots
+   {
+   RootArgs args{ this, &levels[0], &recomputed };
+   parallel_for(Jobs(), size_t{0}, levels[0].size(), size_t{1024},
+      [&](size_t s, size_t c) { RootsKernel(args, s, c); });
+   }
 
-      if (data->Transform.TransformDirty || parentDirty) {
-         data->Transform.CalculateLocalMatrix();
-         data->Transform.WorldMatrix = parentWorld * data->Transform.LocalMatrix;
-         data->Transform.TransformDirty = false;
-         
-         }
+   // Levels 1..N: propagate world = parentWorld * local
+   for (size_t L = 1; L < levels.size(); ++L) {
+      PropArgs args{ this, &levels[L], &recomputed };
+      parallel_for(Jobs(), size_t{0}, levels[L].size(), size_t{2048},
+         [&](size_t s, size_t c) { PropagateKernel(args, s, c); });
       }
    }
 

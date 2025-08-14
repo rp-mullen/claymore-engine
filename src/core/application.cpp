@@ -69,6 +69,10 @@ Application::Application(int width, int height, const std::string& title)
     // 5. Input Init
     Input::Init(m_window);
 
+    unsigned hw = std::thread::hardware_concurrency();
+    size_t workers = (hw > 2) ? (hw - 1) : 1;
+    m_Jobs = std::make_unique<JobSystem>(workers);
+
     // Init Dotnet
     std::filesystem::path fullPath = std::filesystem::current_path() / "ClaymoreEngine.dll";
     LoadDotnetRuntime(
@@ -302,6 +306,8 @@ void Application::Shutdown() {
     if (m_AssetWatcher) {
         m_AssetWatcher->Stop();
     }
+
+    m_Jobs.reset();
 
     ImGui_ImplBgfx_Shutdown();
     ImGui_ImplGlfw_Shutdown();
