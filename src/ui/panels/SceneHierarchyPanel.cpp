@@ -13,10 +13,17 @@ SceneHierarchyPanel::SceneHierarchyPanel(Scene* scene, EntityID* selectedEntity)
 
 void SceneHierarchyPanel::OnImGuiRender() {
    ImGui::Begin("Scene Hierarchy");
+   DrawHierarchyContents();
+   ImGui::End();
+   }
 
+void SceneHierarchyPanel::OnImGuiRenderEmbedded() {
+   DrawHierarchyContents();
+}
+
+void SceneHierarchyPanel::DrawHierarchyContents() {
    if (!m_Context) {
       ImGui::Text("No scene loaded.");
-      ImGui::End();
       return;
       }
 
@@ -115,9 +122,7 @@ void SceneHierarchyPanel::OnImGuiRender() {
         }
         ImGui::EndPopup();
     }
-
-   ImGui::End();
-   }
+}
 
 
 void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {

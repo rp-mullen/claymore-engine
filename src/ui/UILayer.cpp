@@ -162,24 +162,13 @@ void UILayer::OnUIRender() {
     // Determine which scene should be considered "active" for editor panels
     Scene* activeScene = m_PlayMode && m_Scene.m_RuntimeScene ? m_Scene.m_RuntimeScene.get() : &m_Scene;
 
-    // Keep core panels always bound to the active scene regardless of prefab editors
+    // Keep core panels bound to the active scene by default
     m_SceneHierarchyPanel.SetContext(activeScene);
+    m_SceneHierarchyPanel.SetSelectedEntityPtr(&m_SelectedEntity);
     m_InspectorPanel.SetContext(activeScene);
     m_ViewportPanel.SetContext(activeScene);
 
-    // Core panels (context may be overridden below when a prefab editor is active/hovered)
-    m_SceneHierarchyPanel.OnImGuiRender();
-    // Route Inspector to Animation inspector when a .anim is selected in Project panel
-    {
-        std::string selExt = m_ProjectPanel.GetSelectedItemExtension();
-        if (selExt == ".anim") {
-            ImGui::Begin("Inspector");
-            if (m_AnimationInspector) m_AnimationInspector->OnImGuiRender();
-            ImGui::End();
-        } else {
-            m_InspectorPanel.OnImGuiRender();
-        }
-    }
+    // Render other panels first
     m_ProjectPanel.OnImGuiRender();
     m_ConsolePanel.OnImGuiRender();
     if (m_FocusConsoleNextFrame) {
@@ -222,11 +211,18 @@ void UILayer::OnUIRender() {
             ++it;
         }
     }
-    if (!hierarchySwapped) {
-        // Ensure the core panels show the main scene when no prefab editor is active
-        m_SceneHierarchyPanel.SetContext(activeScene);
-        m_SceneHierarchyPanel.SetSelectedEntityPtr(&m_SelectedEntity);
-        m_InspectorPanel.SetContext(activeScene);
+    // Now render the shared Scene Hierarchy and Inspector with the chosen context
+    // Route Inspector to Animation inspector when a .anim is selected in Project panel
+    m_SceneHierarchyPanel.OnImGuiRender();
+    {
+        std::string selExt = m_ProjectPanel.GetSelectedItemExtension();
+        if (selExt == ".anim") {
+            ImGui::Begin("Inspector");
+            if (m_AnimationInspector) m_AnimationInspector->OnImGuiRender();
+            ImGui::End();
+        } else {
+            m_InspectorPanel.OnImGuiRender();
+        }
     }
 
     // Editor-only terrain painting

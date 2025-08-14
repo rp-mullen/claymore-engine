@@ -32,6 +32,7 @@ namespace fs = std::filesystem;
 #include <glm/gtx/euler_angles.hpp>
 #include <windows.h>
 #include "animation/AvatarSerializer.h"
+#include "serialization/Serializer.h"
 
 Scene* Scene::CurrentScene = nullptr;
 
@@ -206,6 +207,20 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
     if (ext == ".fbx" || ext == ".obj" || ext == ".gltf") {
        return InstantiateModel(path, position);
        }
+    else if (ext == ".prefab") {
+        EntityData prefabData;
+        if (!Serializer::LoadPrefabFromFile(path, prefabData, *this)) {
+            std::cerr << "[Scene] Failed to load prefab: " << path << std::endl;
+            return -1;
+        }
+        // Create a new entity and copy prefab data into it
+        Entity entity = CreateEntity(prefabData.Name.empty() ? "Prefab" : prefabData.Name);
+        EntityData* dst = GetEntityData(entity.GetID());
+        if (!dst) return -1;
+        *dst = prefabData;
+        dst->Transform.Position = position;
+        return entity.GetID();
+    }
    else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
       // Create a simple textured quad
       Entity entity = CreateEntity("ImageQuad");

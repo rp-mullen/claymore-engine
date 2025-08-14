@@ -90,8 +90,13 @@ void PrefabEditorPanel::OnImGuiRender()
     // Left pane child
     ImGui::BeginChild("HierarchyInspectorPane", ImVec2(leftPaneWidth, fullHeight), true);
     {
-        m_HierarchyPanel.OnImGuiRender();
-        m_InspectorPanel.OnImGuiRender();
+        ImGui::TextUnformatted("Hierarchy");
+        ImGui::Separator();
+        m_HierarchyPanel.OnImGuiRenderEmbedded();
+        ImGui::Separator();
+        ImGui::TextUnformatted("Inspector");
+        ImGui::Separator();
+        m_InspectorPanel.OnImGuiRenderEmbedded();
     }
     ImGui::EndChild();
 

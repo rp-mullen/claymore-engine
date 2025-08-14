@@ -19,7 +19,9 @@ public:
       }
 
 
-   void OnImGuiRender();
+    void OnImGuiRender();
+    // Render inspector UI without opening its own ImGui window
+    void OnImGuiRenderEmbedded();
    void SetAvatarBuilderPanel(AvatarBuilderPanel* panel) { m_AvatarBuilder = panel; }
    // Animator node selection bridge
    void ShowAnimatorStateProperties(const std::string& stateName,
@@ -48,6 +50,7 @@ private:
    void DrawAddComponentButton(EntityID entity);
    void DrawScriptComponent(const ScriptInstance& script, int index, EntityID entity);
    void DrawScriptProperty(PropertyInfo& property, void* scriptHandle);
+    void DrawInspectorContents();
     void DrawGroupingControls(EntityID entity);
 
 private:

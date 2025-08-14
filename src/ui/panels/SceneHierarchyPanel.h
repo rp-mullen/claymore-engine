@@ -9,15 +9,18 @@ public:
    ~SceneHierarchyPanel() = default;
 
    void OnImGuiRender();
+    // Render only the contents without opening a separate window (for embedding)
+    void OnImGuiRenderEmbedded();
     // Allow switching the selected entity pointer at runtime (to follow active scene)
     void SetSelectedEntityPtr(EntityID* ptr) { m_SelectedEntity = ptr; }
 
 private:
 
    void DrawEntityNode(const Entity& entity);
+    void EnsureIconsLoaded();
+    void DrawHierarchyContents();
    EntityID* m_SelectedEntity;
     // Icons for visibility toggles
-    void EnsureIconsLoaded();
     bool m_IconsLoaded = false;
     ImTextureID m_VisibleIcon{};
     ImTextureID m_NotVisibleIcon{};

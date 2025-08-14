@@ -60,7 +60,15 @@ bool DrawVec3Control(const char* label, glm::vec3& values, float resetValue = 0.
 
 void InspectorPanel::OnImGuiRender() {
     ImGui::Begin("Inspector");
+    DrawInspectorContents();
+    ImGui::End();
+}
 
+void InspectorPanel::OnImGuiRenderEmbedded() {
+    DrawInspectorContents();
+}
+
+void InspectorPanel::DrawInspectorContents() {
     // Timeline key inspection removed; the new animation panel owns track/key inspection UI
 
     // Prefer entity selection if available; otherwise, show animator binding when set
@@ -73,7 +81,6 @@ void InspectorPanel::OnImGuiRender() {
                                     *m_AnimatorBinding.Loop,
                                     m_AnimatorBinding.IsDefault,
                                     m_AnimatorBinding.MakeDefault);
-        ImGui::End();
         return;
     }
 
@@ -128,8 +135,6 @@ void InspectorPanel::OnImGuiRender() {
     else {
         ImGui::Text("No entity selected.");
     }
-
-    ImGui::End();
 }
 void InspectorPanel::DrawGroupingControls(EntityID entity) {
     auto* data = m_Context->GetEntityData(entity);
@@ -775,6 +780,23 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property, void* scriptHand
                     property.currentValue = static_cast<int>(dropped);
                     if(property.setter) property.setter(PropertyValue{ static_cast<int>(dropped) });
                     updated = true;
+                }
+                // Support dropping prefab asset to instantiate and assign
+                if(const ImGuiPayload* payload2 = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+                    const char* path = (const char*)payload2->Data;
+                    if (path) {
+                        std::string p = path;
+                        std::string ext = std::filesystem::path(p).extension().string();
+                        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                        if (ext == ".prefab") {
+                            EntityID created = m_Context ? m_Context->InstantiateAsset(p, glm::vec3(0)) : -1;
+                            if (created != -1) {
+                                property.currentValue = static_cast<int>(created);
+                                if(property.setter) property.setter(PropertyValue{ static_cast<int>(created) });
+                                updated = true;
+                            }
+                        }
+                    }
                 }
                 ImGui::EndDragDropTarget();
             }

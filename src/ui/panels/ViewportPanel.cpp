@@ -363,9 +363,12 @@ void ViewportPanel::FinalizeAssetDrop() {
    if (!m_Context || m_DraggedAssetPath.empty()) return;
 
    std::string path = m_DraggedAssetPath;
-   EntityID entityID = m_Context->InstantiateAsset(path, glm::vec3(0.0f));
+   // Use the last computed ghost position for placement when available
+   EntityID entityID = m_Context->InstantiateAsset(path, m_GhostPosition);
    if (entityID == -1) {
        std::cerr << "[ViewportPanel] Failed to instantiate asset: " << path << std::endl;
+   } else {
+       *m_SelectedEntity = entityID;
    }
 
    }
