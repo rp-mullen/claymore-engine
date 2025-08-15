@@ -70,15 +70,37 @@ json Serializer::SerializeMesh(const MeshComponent& mesh) {
     // Serialize both the old name-based system and new asset reference system
     data["meshName"] = mesh.MeshName;
     data["meshReference"] = mesh.meshReference;
-    
+    data["uniqueMaterial"] = mesh.UniqueMaterial;
+
     if (mesh.material) {
         data["materialName"] = mesh.material->GetName();
         // Store material properties if it's a PBR material
         if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(mesh.material)) {
             data["materialType"] = "PBR";
-            // Note: Texture handles are runtime-specific, we'd need to store texture paths instead
-            // This would require extending the Material system to track source paths
+            // Persist texture source paths for unique materials
+            if (mesh.UniqueMaterial) {
+                if (!pbr->GetAlbedoPath().empty()) data["mat_albedoPath"] = pbr->GetAlbedoPath();
+                if (!pbr->GetMetallicRoughnessPath().empty()) data["mat_mrPath"] = pbr->GetMetallicRoughnessPath();
+                if (!pbr->GetNormalPath().empty()) data["mat_normalPath"] = pbr->GetNormalPath();
+            }
         }
+    }
+
+    // Persist PropertyBlock overrides
+    if (!mesh.PropertyBlock.Vec4Uniforms.empty()) {
+        json jvec = json::object();
+        for (const auto& kv : mesh.PropertyBlock.Vec4Uniforms) {
+            jvec[kv.first] = { kv.second.x, kv.second.y, kv.second.z, kv.second.w };
+        }
+        data["propertyBlockVec4"] = std::move(jvec);
+    }
+    if (!mesh.PropertyBlockTexturePaths.empty()) {
+        // store texture override paths by uniform name
+        json jtex = json::object();
+        for (const auto& kv : mesh.PropertyBlockTexturePaths) {
+            jtex[kv.first] = kv.second;
+        }
+        data["propertyBlockTextures"] = std::move(jtex);
     }
     return data;
 }
@@ -117,11 +139,48 @@ void Serializer::DeserializeMesh(const json& data, MeshComponent& mesh) {
     }
     
     if (data.contains("materialName")) {
-        // Load material from MaterialManager
+        // TODO: Load a named material asset when Material assets are formalized
         mesh.material = MaterialManager::Instance().CreateDefaultPBRMaterial();
     } else {
         // Set default material if none specified
         mesh.material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+    }
+
+    // If the material is unique and we have texture source paths, restore them
+    if (mesh.UniqueMaterial) {
+        if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(mesh.material)) {
+            if (data.contains("mat_albedoPath")) pbr->SetAlbedoTextureFromPath(data["mat_albedoPath"].get<std::string>());
+            if (data.contains("mat_mrPath")) pbr->SetMetallicRoughnessTextureFromPath(data["mat_mrPath"].get<std::string>());
+            if (data.contains("mat_normalPath")) pbr->SetNormalTextureFromPath(data["mat_normalPath"].get<std::string>());
+        }
+    }
+
+    // Unique material toggle
+    if (data.contains("uniqueMaterial")) {
+        mesh.UniqueMaterial = data["uniqueMaterial"].get<bool>();
+    }
+
+    // PropertyBlock overrides
+    mesh.PropertyBlock.Clear();
+    if (data.contains("propertyBlockVec4") && data["propertyBlockVec4"].is_object()) {
+        for (auto it = data["propertyBlockVec4"].begin(); it != data["propertyBlockVec4"].end(); ++it) {
+            const auto& arr = it.value();
+            if (arr.is_array() && arr.size() == 4) {
+                mesh.PropertyBlock.Vec4Uniforms[it.key()] = glm::vec4(arr[0], arr[1], arr[2], arr[3]);
+            }
+        }
+    }
+    mesh.PropertyBlockTexturePaths.clear();
+    if (data.contains("propertyBlockTextures") && data["propertyBlockTextures"].is_object()) {
+        for (auto it = data["propertyBlockTextures"].begin(); it != data["propertyBlockTextures"].end(); ++it) {
+            const std::string uniform = it.key();
+            const std::string path = it.value().get<std::string>();
+            mesh.PropertyBlockTexturePaths[uniform] = path;
+            bgfx::TextureHandle tex = TextureLoader::Load2D(path);
+            if (bgfx::isValid(tex)) {
+                mesh.PropertyBlock.Textures[uniform] = tex;
+            }
+        }
     }
 }
 

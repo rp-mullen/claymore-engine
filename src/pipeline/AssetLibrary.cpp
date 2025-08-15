@@ -51,32 +51,32 @@ std::shared_ptr<Mesh> AssetLibrary::LoadMesh(const AssetReference& ref) {
         std::cout << "[AssetLibrary] Warning: Asset not found for GUID: " << ref.guid.ToString() << std::endl;
         return nullptr;
     }
-    
-    // If mesh is already loaded, return it
-    if (entry->mesh) {
-        return entry->mesh;
-    }
-    
-    // Check if it's a primitive
+
+    // Primitives are a special GUID with per-type name
     if (ref.guid == AssetReference::CreatePrimitive("").guid) {
-        // This is a primitive mesh, create it
-        std::string primitiveType = entry->name;
-        entry->mesh = CreatePrimitiveMesh(primitiveType);
+        // Return cached or create primitive mesh by name
+        if (!entry->mesh) entry->mesh = CreatePrimitiveMesh(entry->name);
         return entry->mesh;
     }
-    
-    // Load mesh from file
+
+    // For imported models, support submesh selection via fileID
     if (!entry->path.empty()) {
-        Model model = ModelLoader::LoadModel(entry->path);
-        if (!model.Meshes.empty()) {
-            entry->mesh = model.Meshes[0]; // Use the first mesh from the model
-            std::cout << "[AssetLibrary] Loaded mesh: " << entry->name << std::endl;
-        } else {
-            std::cout << "[AssetLibrary] Failed to load mesh: " << entry->path << std::endl;
+        // Cache per-fileID meshes inside the entry by reusing its mesh pointer for fileID 0
+        // and loading a model once per request; keep a simple cache map local static for now.
+        static std::unordered_map<std::string, std::vector<std::shared_ptr<Mesh>>> s_modelMeshCache;
+        auto& meshList = s_modelMeshCache[entry->path];
+        if (meshList.empty()) {
+            Model model = ModelLoader::LoadModel(entry->path);
+            meshList = model.Meshes;
         }
-        return entry->mesh;
+        int idx = std::max(0, ref.fileID);
+        if (idx < (int)meshList.size()) {
+            return meshList[idx];
+        }
+        std::cout << "[AssetLibrary] Warning: fileID " << ref.fileID << " out of range for model: " << entry->path << std::endl;
+        return meshList.empty() ? nullptr : meshList[0];
     }
-    
+
     return nullptr;
 }
 

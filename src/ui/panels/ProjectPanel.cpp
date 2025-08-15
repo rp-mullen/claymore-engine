@@ -53,7 +53,54 @@ void ProjectPanel::LoadProject(const std::string& projectPath) {
 void ProjectPanel::OnImGuiRender() {
     ImGui::Begin("Project");
 
-    // Handle drag-drop anywhere on the Project panel window\n    if (ImGui::BeginDragDropTarget()) {\n        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {\n            EntityID draggedID = *(EntityID*)payload->Data;\n            // Generate unique prefab path in current folder\n            std::string prefabName = "NewPrefab.prefab";\n            std::string prefabPath = m_CurrentFolder + "/" + prefabName;\n            int counter = 1;\n            while (fs::exists(prefabPath)) {\n                prefabName = "NewPrefab" + std::to_string(counter++) + ".prefab";\n                prefabPath = m_CurrentFolder + "/" + prefabName;\n            }\n            CreatePrefabFromEntity(draggedID, prefabPath);\n        }\n        ImGui::EndDragDropTarget();\n    }\n\n    // --- Navigation Bar ---
+    // Handle drag-drop anywhere on the Project panel window
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
+            EntityID draggedID = *(EntityID*)payload->Data;
+
+            // Prefer filename based on root entity name
+            std::string baseName = "Prefab";
+            if (m_Context) {
+                EntityID rootId = draggedID;
+                if (auto* ed = m_Context->GetEntityData(rootId)) {
+                    while (ed && ed->Parent != -1) {
+                        rootId = ed->Parent;
+                        ed = m_Context->GetEntityData(rootId);
+                    }
+                    if (ed && !ed->Name.empty()) baseName = ed->Name;
+                }
+            }
+
+            // Sanitize filename
+            auto sanitize = [](std::string s) {
+                const std::string invalid = "<>:\"/\\|?*";
+                for (char& c : s) {
+                    if (invalid.find(c) != std::string::npos) c = '_';
+                }
+                // Trim spaces
+                size_t start = s.find_first_not_of(' ');
+                size_t end = s.find_last_not_of(' ');
+                if (start == std::string::npos) return std::string("Prefab");
+                return s.substr(start, end - start + 1);
+            };
+
+            std::string desired = sanitize(baseName);
+            if (desired.empty()) desired = "Prefab";
+
+            // Ensure unique prefab path in current folder
+            std::string prefabName = desired + ".prefab";
+            std::string prefabPath = m_CurrentFolder + "/" + prefabName;
+            int counter = 1;
+            while (fs::exists(prefabPath)) {
+                prefabName = desired + "_" + std::to_string(counter++) + ".prefab";
+                prefabPath = m_CurrentFolder + "/" + prefabName;
+            }
+            CreatePrefabFromEntity(draggedID, prefabPath);
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    // --- Navigation Bar ---
     if (ImGui::Button("< Back") && m_CurrentFolder != m_ProjectPath) {
         m_CurrentFolder = fs::path(m_CurrentFolder).parent_path().string();
     }
@@ -101,11 +148,41 @@ void ProjectPanel::OnImGuiRender() {
     if (ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
             EntityID draggedID = *(EntityID*)payload->Data;
-            std::string prefabName = "NewPrefab.prefab";
+
+            // Prefer filename based on root entity name
+            std::string baseName = "Prefab";
+            if (m_Context) {
+                EntityID rootId = draggedID;
+                if (auto* ed = m_Context->GetEntityData(rootId)) {
+                    while (ed && ed->Parent != -1) {
+                        rootId = ed->Parent;
+                        ed = m_Context->GetEntityData(rootId);
+                    }
+                    if (ed && !ed->Name.empty()) baseName = ed->Name;
+                }
+            }
+
+            // Sanitize filename
+            auto sanitize = [](std::string s) {
+                const std::string invalid = "<>:\"/\\|?*";
+                for (char& c : s) {
+                    if (invalid.find(c) != std::string::npos) c = '_';
+                }
+                size_t start = s.find_first_not_of(' ');
+                size_t end = s.find_last_not_of(' ');
+                if (start == std::string::npos) return std::string("Prefab");
+                return s.substr(start, end - start + 1);
+            };
+
+            std::string desired = sanitize(baseName);
+            if (desired.empty()) desired = "Prefab";
+
+            // Ensure unique prefab path in current folder
+            std::string prefabName = desired + ".prefab";
             std::string prefabPath = m_CurrentFolder + "/" + prefabName;
             int counter = 1;
             while (fs::exists(prefabPath)) {
-                prefabName = "NewPrefab" + std::to_string(counter++) + ".prefab";
+                prefabName = desired + "_" + std::to_string(counter++) + ".prefab";
                 prefabPath = m_CurrentFolder + "/" + prefabName;
             }
             CreatePrefabFromEntity(draggedID, prefabPath);

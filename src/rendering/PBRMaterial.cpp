@@ -1,4 +1,5 @@
 #include "PBRMaterial.h"
+#include "TextureLoader.h"
 
 PBRMaterial::PBRMaterial(const std::string& name, bgfx::ProgramHandle program)
     : Material(name, program,
@@ -28,6 +29,24 @@ PBRMaterial::PBRMaterial(const std::string& name, bgfx::ProgramHandle program, u
 void PBRMaterial::SetAlbedoTexture(bgfx::TextureHandle texture) { m_AlbedoTex = texture; }
 void PBRMaterial::SetMetallicRoughnessTexture(bgfx::TextureHandle texture) { m_MetallicRoughnessTex = texture; }
 void PBRMaterial::SetNormalTexture(bgfx::TextureHandle texture) { m_NormalTex = texture; }
+
+void PBRMaterial::SetAlbedoTextureFromPath(const std::string& path) {
+    m_AlbedoPath = path;
+    bgfx::TextureHandle t = TextureLoader::Load2D(path);
+    if (bgfx::isValid(t)) m_AlbedoTex = t;
+}
+
+void PBRMaterial::SetMetallicRoughnessTextureFromPath(const std::string& path) {
+    m_MetallicRoughnessPath = path;
+    bgfx::TextureHandle t = TextureLoader::Load2D(path);
+    if (bgfx::isValid(t)) m_MetallicRoughnessTex = t;
+}
+
+void PBRMaterial::SetNormalTextureFromPath(const std::string& path) {
+    m_NormalPath = path;
+    bgfx::TextureHandle t = TextureLoader::Load2D(path);
+    if (bgfx::isValid(t)) m_NormalTex = t;
+}
 
 void PBRMaterial::BindUniforms() const
    {

@@ -7,3 +7,4 @@ class UILayer;
 void RenderMaterialInspector(UILayer* uiLayer);
 
 
+

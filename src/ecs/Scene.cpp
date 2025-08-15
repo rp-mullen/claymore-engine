@@ -37,7 +37,7 @@ namespace fs = std::filesystem;
 #include "jobs/JobSystem.h"
 #include "jobs/ParallelFor.h"
 #include <jobs/Jobs.h>
-
+#include "pipeline/AssetLibrary.h"    
 // --- Kernels --------------------------------------------------------------------------------
 
 
@@ -233,7 +233,7 @@ EntityData* Scene::GetEntityData(EntityID id) {
     auto it = m_Entities.find(id);
     return (it != m_Entities.end()) ? &it->second : nullptr;
 }
-
+ 
 void Scene::QueueRemoveEntity(EntityID id) {
     // Allow duplicates; we'll dedupe when processing
     m_PendingRemovals.push_back(id);
@@ -623,7 +623,14 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
 
         auto mat = (i < model.Materials.size() && model.Materials[i]) ? model.Materials[i]
             : MaterialManager::Instance().CreateDefaultPBRMaterial();
-            meshData->Mesh = std::make_unique<MeshComponent>(meshPtr, desiredName, mat);
+        meshData->Mesh = std::make_unique<MeshComponent>(meshPtr, desiredName, mat);
+
+        // Fill an AssetReference for this submesh so it can serialize via GUID, not name
+        // We treat each submesh as (guid of model, fileID = submesh index, type = Mesh)
+        ClaymoreGUID guid = AssetLibrary::Instance().GetGUIDForPath(path);
+        if (guid.high != 0 || guid.low != 0) {
+            meshData->Mesh->meshReference = AssetReference(guid, static_cast<int32_t>(i), static_cast<int32_t>(AssetType::Mesh));
+        }
 
             if (isSkinned) {
             meshData->Skinning = std::make_unique<SkinningComponent>();

@@ -14,6 +14,7 @@
 #include "pipeline/AssetReference.h"
 #include "rendering/MaterialPropertyBlock.h"
 #include <memory>
+#include <unordered_map>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/ext/matrix_transform.hpp>
@@ -74,6 +75,8 @@ struct MeshComponent {
 	    std::shared_ptr<Material> material;
     bool UniqueMaterial = false; // If true, this entity uses its own material instance
     MaterialPropertyBlock PropertyBlock;
+    // Persistable file paths for texture overrides in PropertyBlock
+    std::unordered_map<std::string, std::string> PropertyBlockTexturePaths;
 
 	BlendShapeComponent* BlendShapes = nullptr;
 

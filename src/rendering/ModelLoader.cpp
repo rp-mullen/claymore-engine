@@ -95,18 +95,21 @@ static void ApplyTexturesToMaterial(Material* mat, const std::string& baseDir,
 
     if (!albedo.empty())
     {
-        auto t = TextureLoader::Load2D(resolve(albedo).c_str());
-        if (bgfx::isValid(t)) pbr->SetAlbedoTexture(t);
+        std::string p = resolve(albedo);
+        auto t = TextureLoader::Load2D(p.c_str());
+        if (bgfx::isValid(t)) { pbr->SetAlbedoTexture(t); pbr->SetAlbedoTextureFromPath(p); }
     }
     if (!mr.empty())
     {
-        auto t = TextureLoader::Load2D(resolve(mr).c_str());
-        if (bgfx::isValid(t)) pbr->SetMetallicRoughnessTexture(t);
+        std::string p = resolve(mr);
+        auto t = TextureLoader::Load2D(p.c_str());
+        if (bgfx::isValid(t)) { pbr->SetMetallicRoughnessTexture(t); pbr->SetMetallicRoughnessTextureFromPath(p); }
     }
     if (!normal.empty())
     {
-        auto t = TextureLoader::Load2D(resolve(normal).c_str());
-        if (bgfx::isValid(t)) pbr->SetNormalTexture(t);
+        std::string p = resolve(normal);
+        auto t = TextureLoader::Load2D(p.c_str());
+        if (bgfx::isValid(t)) { pbr->SetNormalTexture(t); pbr->SetNormalTextureFromPath(p); }
     }
 }
 

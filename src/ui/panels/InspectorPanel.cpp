@@ -337,9 +337,12 @@ void InspectorPanel::DrawComponents(EntityID entity) {
             if (ImGui::BeginDragDropTarget()) {
                 if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
                     const char* path = (const char*)payload->Data;
-                    bgfx::TextureHandle tex = TextureLoader::Load2D(path);
-                    if (bgfx::isValid(tex)) {
-                        data->Mesh->PropertyBlock.Textures["u_AlbedoSampler"] = tex;
+                    if (path) {
+                        bgfx::TextureHandle tex = TextureLoader::Load2D(path);
+                        if (bgfx::isValid(tex)) {
+                            data->Mesh->PropertyBlock.Textures["u_AlbedoSampler"] = tex;
+                            data->Mesh->PropertyBlockTexturePaths["u_AlbedoSampler"] = std::string(path);
+                        }
                     }
                 }
                 ImGui::EndDragDropTarget();

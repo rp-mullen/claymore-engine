@@ -361,28 +361,80 @@ void UILayer::BeginDockspace() {
     ImGui::Separator();
     ImGui::BeginChild("ToolbarRow", ImVec2(0, 40), false, ImGuiWindowFlags_NoScrollbar);
 
-    // Play / Stop centered button
-    float buttonWidth = 80.0f;
-    float buttonHeight = 30.0f;
-    float availableWidth = ImGui::GetContentRegionAvail().x;
-    float startX = (availableWidth - buttonWidth) * 0.5f;
-    if (startX > 0)
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + startX);
-
-    // Colorful Play/Stop button
-    bool playMode = m_ToolbarPanel.IsPlayMode();
-    if (playMode) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.20f, 0.24f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.25f, 0.28f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.90f, 0.30f, 0.34f, 1.0f));
-    } else {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.65f, 0.35f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.72f, 0.40f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.28f, 0.78f, 0.45f, 1.0f));
+    // Load toolbar icons once
+    static bool sToolbarIconsLoaded = false;
+    static ImTextureID sPlayIcon;
+    static ImTextureID sPauseIcon;
+    static ImTextureID sStopIcon;
+    if (!sToolbarIconsLoaded) {
+        sPlayIcon  = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/play.svg"));
+        sPauseIcon = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/pause.svg"));
+        sStopIcon  = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/stop.svg"));
+        sToolbarIconsLoaded = true;
     }
-    if (ImGui::Button(playMode ? "Stop" : "Play", ImVec2(buttonWidth, buttonHeight)))
-        m_ToolbarPanel.TogglePlayMode();
-    ImGui::PopStyleColor(3);
+
+    // Button sizing and centering of the 3-icon group
+    ImVec2 iconSize(18, 18);
+    float spacing = ImGui::GetStyle().ItemSpacing.x;
+    float groupWidth = iconSize.x * 3.0f + spacing * 2.0f;
+    float avail = ImGui::GetContentRegionAvail().x;
+    float offsetX = (avail - groupWidth) * 0.5f;
+    if (offsetX > 0) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offsetX);
+
+    bool isPlaying = m_ToolbarPanel.IsPlayMode();
+    bool isPaused = m_ToolbarPanel.IsPaused();
+
+    // Helper lambdas for coloring states
+    auto pushUnavailable = [](){ ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.12f, 0.12f, 0.13f, 0.90f)); ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.14f, 0.14f, 0.16f, 0.90f)); ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.16f, 0.16f, 0.18f, 0.90f)); };
+    auto pushActiveLight = [](){ ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.30f, 0.32f, 0.36f, 0.95f)); ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.33f, 0.35f, 0.39f, 0.95f)); ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.36f, 0.38f, 0.42f, 0.95f)); };
+    auto popColors = [](){ ImGui::PopStyleColor(3); };
+
+    // Play button
+    if (isPlaying) {
+        // Unavailable while playing
+        ImGui::BeginDisabled(true);
+        pushUnavailable();
+        ImGui::ImageButton("##play", sPlayIcon, iconSize);
+        popColors();
+        ImGui::EndDisabled();
+    } else {
+        // Available in edit mode
+        if (ImGui::ImageButton("##play", sPlayIcon, iconSize)) {
+            m_ToolbarPanel.TogglePlayMode();
+        }
+    }
+
+    ImGui::SameLine();
+
+    // Pause button (only available in play mode)
+    if (!isPlaying) {
+        ImGui::BeginDisabled(true);
+        pushUnavailable();
+        ImGui::ImageButton("##pause", sPauseIcon, iconSize);
+        popColors();
+        ImGui::EndDisabled();
+    } else {
+        if (isPaused) pushActiveLight();
+        if (ImGui::ImageButton("##pause", sPauseIcon, iconSize)) {
+            m_ToolbarPanel.TogglePause();
+        }
+        if (isPaused) popColors();
+    }
+
+    ImGui::SameLine();
+
+    // Stop button (only available in play mode)
+    if (!isPlaying) {
+        ImGui::BeginDisabled(true);
+        pushUnavailable();
+        ImGui::ImageButton("##stop", sStopIcon, iconSize);
+        popColors();
+        ImGui::EndDisabled();
+    } else {
+        if (ImGui::ImageButton("##stop", sStopIcon, iconSize)) {
+            m_ToolbarPanel.TogglePlayMode();
+        }
+    }
 
     ImGui::EndChild();
     ImGui::PopStyleVar();

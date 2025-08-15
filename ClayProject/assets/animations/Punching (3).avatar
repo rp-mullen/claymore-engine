@@ -1,0 +1,389 @@
+{
+    "axes": {
+        "forward": 2,
+        "rightHanded": true,
+        "up": 1
+    },
+    "map": [
+        {
+            "bone": 0,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 1,
+            "index": 1,
+            "name": "mixamorig:Hips",
+            "present": true
+        },
+        {
+            "bone": 2,
+            "index": 2,
+            "name": "mixamorig:Spine",
+            "present": true
+        },
+        {
+            "bone": 3,
+            "index": 4,
+            "name": "mixamorig:Spine2",
+            "present": true
+        },
+        {
+            "bone": 4,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 5,
+            "index": 6,
+            "name": "mixamorig:Neck",
+            "present": true
+        },
+        {
+            "bone": 6,
+            "index": 13,
+            "name": "mixamorig:Head",
+            "present": true
+        },
+        {
+            "bone": 7,
+            "index": 3,
+            "name": "mixamorig:LeftShoulder",
+            "present": true
+        },
+        {
+            "bone": 8,
+            "index": 7,
+            "name": "mixamorig:LeftArm",
+            "present": true
+        },
+        {
+            "bone": 9,
+            "index": 8,
+            "name": "mixamorig:LeftForeArm",
+            "present": true
+        },
+        {
+            "bone": 10,
+            "index": 12,
+            "name": "mixamorig:LeftHand",
+            "present": true
+        },
+        {
+            "bone": 11,
+            "index": 31,
+            "name": "mixamorig:RightShoulder",
+            "present": true
+        },
+        {
+            "bone": 12,
+            "index": 32,
+            "name": "mixamorig:RightArm",
+            "present": true
+        },
+        {
+            "bone": 13,
+            "index": 33,
+            "name": "mixamorig:RightForeArm",
+            "present": true
+        },
+        {
+            "bone": 14,
+            "index": 24,
+            "name": "mixamorig:LeftHandRing1",
+            "present": true
+        },
+        {
+            "bone": 15,
+            "index": 0,
+            "name": "mixamorig:LeftUpLeg",
+            "present": true
+        },
+        {
+            "bone": 16,
+            "index": 10,
+            "name": "mixamorig:LeftLeg",
+            "present": true
+        },
+        {
+            "bone": 17,
+            "index": 14,
+            "name": "mixamorig:LeftFoot",
+            "present": true
+        },
+        {
+            "bone": 18,
+            "index": 15,
+            "name": "mixamorig:LeftToeBase",
+            "present": true
+        },
+        {
+            "bone": 19,
+            "index": 9,
+            "name": "mixamorig:RightUpLeg",
+            "present": true
+        },
+        {
+            "bone": 20,
+            "index": 11,
+            "name": "mixamorig:RightLeg",
+            "present": true
+        },
+        {
+            "bone": 21,
+            "index": 35,
+            "name": "mixamorig:RightFoot",
+            "present": true
+        },
+        {
+            "bone": 22,
+            "index": 36,
+            "name": "mixamorig:RightToeBase",
+            "present": true
+        },
+        {
+            "bone": 23,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 24,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 25,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 26,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 27,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 28,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 29,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 30,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 31,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 32,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 33,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 34,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 35,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 36,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 37,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 38,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 39,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 40,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 41,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 42,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 43,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 44,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 45,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 46,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 47,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 48,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 49,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 50,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 51,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 52,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 53,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 54,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 55,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 56,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 57,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 58,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 59,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 60,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 61,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 62,
+            "index": -1,
+            "name": "",
+            "present": false
+        }
+    ],
+    "rig": "Punching (3)",
+    "unitsPerMeter": 1.0
+}

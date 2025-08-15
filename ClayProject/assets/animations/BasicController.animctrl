@@ -12,24 +12,24 @@
   ],
   "states": [
     {
-      "asset": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
-      "clip": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
+      "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
+      "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
       "id": 1,
       "loop": true,
       "name": "Idle",
       "speed": 1.0,
-      "x": 5.0,
-      "y": 6.0
+      "x": 40.0,
+      "y": 29.0
     },
     {
-      "asset": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
-      "clip": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+      "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+      "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
       "id": 2,
       "loop": true,
       "name": "Moving",
       "speed": 1.0,
-      "x": 7.0,
-      "y": 194.0
+      "x": 22.0,
+      "y": 210.0
     }
   ],
   "transitions": [
