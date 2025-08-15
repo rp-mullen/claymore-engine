@@ -12,6 +12,7 @@ public:
    static bool WasKeyPressedThisFrame(int key);
    static bool IsMouseButtonPressed(int button);
    static std::pair<float, float> GetMouseDelta();
+   static std::pair<float, float> GetMousePosition() { return { static_cast<float>(s_LastMouseX), static_cast<float>(s_LastMouseY) }; }
 
    static void OnKey(int key, int action) {
       if (action == GLFW_PRESS) s_Keys[key] = true;

@@ -22,6 +22,8 @@ namespace ClaymoreEngine
             Console.WriteLine("[C#] GameScripts.dll not found at: " + scriptsPath);
          }
 
+         // Pump UI component events (e.g., Button) each frame from the engine loop.
+         // Engine calls EngineSyncContext.Flush() every frame; here we just ensure a lightweight updater exists if needed.
          return 0;
         }
     }

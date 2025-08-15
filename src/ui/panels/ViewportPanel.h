@@ -53,6 +53,7 @@ private:
     void Draw2DGrid();
     void HandleAssetDragDrop(const ImVec2& viewportPos);
     void DrawGizmo();
+    void DrawUIGizmo();
     void UpdateGhostPosition(float mouseX, float mouseY);
     void DrawGhostPreview();
     void DecomposeMatrix(const float* matrix, glm::vec3& pos, glm::vec3& rot, glm::vec3& scale);

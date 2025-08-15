@@ -264,9 +264,11 @@ void Application::Run() {
         }
 
         // --------------------------------------
-        // ENTITY PICKING
+        // ENTITY PICKING (skip if UI consumed input this frame)
         // --------------------------------------
-        Picking::Process(scene, Renderer::Get().GetCamera());
+        if (!Renderer::Get().WasUIInputConsumedThisFrame()) {
+            Picking::Process(scene, Renderer::Get().GetCamera());
+        }
         int pickedEntity = Picking::GetLastPick();
         if (pickedEntity != -1) {
             std::cout << "[Debug] Picked Entity: " << pickedEntity << std::endl;

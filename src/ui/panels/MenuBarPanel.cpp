@@ -409,6 +409,40 @@ void MenuBarPanel::OnImGuiRender() {
                     *m_SelectedEntity = entity.GetID();
                 }
 
+            if (ImGui::BeginMenu("UI")) {
+                if (ImGui::MenuItem("Canvas")) {
+                    auto e = m_Context->CreateEntity("Canvas");
+                    if (auto* d = m_Context->GetEntityData(e.GetID())) {
+                        d->Canvas = std::make_unique<CanvasComponent>();
+                    }
+                    *m_SelectedEntity = e.GetID();
+                }
+                if (ImGui::MenuItem("Panel")) {
+                    auto e = m_Context->CreateEntity("Panel");
+                    if (auto* d = m_Context->GetEntityData(e.GetID())) {
+                        d->Panel = std::make_unique<PanelComponent>();
+                    }
+                    *m_SelectedEntity = e.GetID();
+                }
+                if (ImGui::MenuItem("Button")) {
+                    auto e = m_Context->CreateEntity("Button");
+                    if (auto* d = m_Context->GetEntityData(e.GetID())) {
+                        d->Panel = std::make_unique<PanelComponent>();
+                        d->Button = std::make_unique<ButtonComponent>();
+                    }
+                    *m_SelectedEntity = e.GetID();
+                }
+                if (ImGui::MenuItem("Text")) {
+                    auto e = m_Context->CreateEntity("Text");
+                    if (auto* d = m_Context->GetEntityData(e.GetID())) {
+                        d->Text = std::make_unique<TextRendererComponent>();
+                        d->Text->WorldSpace = false;
+                    }
+                    *m_SelectedEntity = e.GetID();
+                }
+                ImGui::EndMenu();
+            }
+
             if (ImGui::BeginMenu("Light")) {
                 if (ImGui::MenuItem("Directional")) {
                     auto entity = m_Context->CreateEntity("Directional Light");

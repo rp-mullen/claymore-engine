@@ -18,6 +18,7 @@
 #include "animation/AnimationSerializer.h"
 #include <cstring>
 #include <editor/Project.h>
+#include "pipeline/AssetLibrary.h"
 
 inline void RegisterComponentDrawers() {
     auto& registry = ComponentDrawerRegistry::Instance();
@@ -505,5 +506,112 @@ inline void RegisterComponentDrawers() {
         }
 
         ImGui::Checkbox("World Space", &t.WorldSpace);
+        if (!t.WorldSpace) {
+            ImGui::Separator();
+            ImGui::TextDisabled("UI Anchoring");
+            ImGui::Checkbox("Use Anchor", &t.AnchorEnabled);
+            if (t.AnchorEnabled) {
+                const char* anchors[] = { "TopLeft","Top","TopRight","Left","Center","Right","BottomLeft","Bottom","BottomRight" };
+                int a = (int)t.Anchor;
+                if (ImGui::Combo("Anchor", &a, anchors, IM_ARRAYSIZE(anchors))) t.Anchor = (UIAnchorPreset)a;
+                ImGui::DragFloat2("Offset", &t.AnchorOffset.x, 1.0f);
+            } else {
+                ImGui::Text("Screen Position = Transform.Position.xy");
+            }
+        }
+    });
+
+    // Canvas drawer
+    registry.Register<CanvasComponent>("Canvas", [](CanvasComponent& c){
+        int space = (int)c.Space; const char* spaces[] = { "ScreenSpace", "WorldSpace" };
+        ImGui::Combo("Space", &space, spaces, IM_ARRAYSIZE(spaces)); c.Space = (CanvasComponent::RenderSpace)space;
+        ImGui::DragInt("Width", &c.Width, 1, 0, 16384);
+        ImGui::DragInt("Height", &c.Height, 1, 0, 16384);
+        ImGui::DragFloat("DPI Scale", &c.DPIScale, 0.01f, 0.25f, 4.0f);
+        ImGui::DragInt("Sort Order", &c.SortOrder, 1, -1000, 1000);
+        ImGui::Checkbox("Block Scene Input", &c.BlockSceneInput);
+    });
+
+    // Panel drawer
+    registry.Register<PanelComponent>("Panel", [](PanelComponent& p){
+        ImGui::Checkbox("Visible", &p.Visible);
+        ImGui::DragFloat2("Size", &p.Size.x, 1.0f, 0.0f, 10000.0f);
+        ImGui::DragFloat2("Scale", &p.Scale.x, 0.01f, 0.01f, 10.0f);
+        ImGui::DragFloat("Rotation", &p.Rotation, 0.1f, -360.0f, 360.0f);
+        ImGui::DragInt("Z Order", &p.ZOrder, 1, -1000, 1000);
+        ImGui::Separator();
+        ImGui::TextDisabled("Texture");
+        if (p.Texture.IsValid()) {
+            if (auto* entry = AssetLibrary::Instance().GetAsset(p.Texture)) {
+                ImTextureID thumb = (entry->texture && bgfx::isValid(*entry->texture)) ? TextureLoader::ToImGuiTextureID(*entry->texture) : 0;
+                ImGui::Image(thumb, ImVec2(64,64));
+            } else {
+                ImGui::TextDisabled("(No loaded texture)");
+            }
+        } else {
+            ImGui::TextDisabled("(None)");
+        }
+        if (ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+                const char* path = (const char*)payload->Data;
+                if (path) {
+                    std::string ext = std::filesystem::path(path).extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga") {
+                        AssetEntry* entry = AssetLibrary::Instance().GetAsset(std::string(path));
+                        if (!entry) {
+                            ClaymoreGUID guid = AssetLibrary::Instance().GetGUIDForPath(path);
+                            if (guid.high == 0 && guid.low == 0) {
+                                guid = ClaymoreGUID::Generate();
+                            }
+                            AssetLibrary::Instance().RegisterAsset(AssetReference(guid, 0, (int)AssetType::Texture), AssetType::Texture, path, std::filesystem::path(path).filename().string());
+                            entry = AssetLibrary::Instance().GetAsset(path);
+                        }
+                        if (entry) p.Texture = entry->reference;
+                    }
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::Separator();
+        ImGui::TextDisabled("Anchoring");
+        ImGui::Checkbox("Use Anchor", &p.AnchorEnabled);
+        if (p.AnchorEnabled) {
+            const char* anchors[] = { "TopLeft","Top","TopRight","Left","Center","Right","BottomLeft","Bottom","BottomRight" };
+            int a = (int)p.Anchor;
+            if (ImGui::Combo("Anchor", &a, anchors, IM_ARRAYSIZE(anchors))) p.Anchor = (UIAnchorPreset)a;
+            ImGui::DragFloat2("Offset", &p.AnchorOffset.x, 1.0f);
+        } else {
+            ImGui::DragFloat2("Position", &p.Position.x, 1.0f);
+            ImGui::DragFloat2("Pivot", &p.Pivot.x, 0.01f, 0.0f, 1.0f);
+        }
+        ImGui::ColorEdit4("Tint", &p.TintColor.x);
+        ImGui::DragFloat4("UV Rect", &p.UVRect.x, 0.001f, 0.0f, 1.0f);
+        // Fill mode & theming
+        const char* modes[] = { "Stretch", "Tile", "NineSlice" };
+        int m = (int)p.Mode;
+        if (ImGui::Combo("Fill Mode", &m, modes, IM_ARRAYSIZE(modes))) p.Mode = (PanelComponent::FillMode)m;
+        if (p.Mode == PanelComponent::FillMode::Tile) {
+            ImGui::DragFloat2("Tile Repeat", &p.TileRepeat.x, 0.01f, 0.01f, 1000.0f);
+        }
+        if (p.Mode == PanelComponent::FillMode::NineSlice) {
+            ImGui::DragFloat4("Slice UV (L T R B)", &p.SliceUV.x, 0.001f, 0.0f, 0.5f);
+        }
+    });
+
+    // Button drawer
+    registry.Register<ButtonComponent>("Button", [](ButtonComponent& b){
+        ImGui::Checkbox("Interactable", &b.Interactable);
+        ImGui::Checkbox("Toggle", &b.Toggle);
+        ImGui::Checkbox("Toggled", &b.Toggled);
+        ImGui::ColorEdit4("Normal Tint", &b.NormalTint.x);
+        ImGui::ColorEdit4("Hover Tint", &b.HoverTint.x);
+        ImGui::ColorEdit4("Pressed Tint", &b.PressedTint.x);
+        // Live state read-only
+        ImGui::Separator();
+        ImGui::TextDisabled("Runtime State (read-only)");
+        ImGui::Text("Hovered: %s", b.Hovered ? "true" : "false");
+        ImGui::Text("Pressed: %s", b.Pressed ? "true" : "false");
+        ImGui::Text("Clicked: %s", b.Clicked ? "true" : "false");
     });
 }

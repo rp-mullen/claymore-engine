@@ -26,21 +26,49 @@ struct CanvasComponent {
     bool BlockSceneInput = true;
 };
 
+// Common UI anchoring presets used by panels and text
+enum class UIAnchorPreset : int {
+    TopLeft = 0,
+    Top,
+    TopRight,
+    Left,
+    Center,
+    Right,
+    BottomLeft,
+    Bottom,
+    BottomRight
+};
+
 struct PanelComponent {
     // Top-left anchored position in canvas pixels
     glm::vec2 Position = {0.0f, 0.0f};
     // Size in pixels
     glm::vec2 Size = {100.0f, 100.0f};
+    // Additional scaling factor (applied after Size)
+    glm::vec2 Scale = {1.0f, 1.0f};
     // Pivot inside the panel rect (0..1)
     glm::vec2 Pivot = {0.5f, 0.5f};
     // Rotation in degrees (around pivot)
     float Rotation = 0.0f;
+
+    // Anchor-based placement (optional)
+    bool AnchorEnabled = false;
+    UIAnchorPreset Anchor = UIAnchorPreset::TopLeft;
+    glm::vec2 AnchorOffset = {0.0f, 0.0f};
 
     // Visuals
     AssetReference Texture; // type should be texture (e.g. type = 2)
     glm::vec4 UVRect = {0.0f, 0.0f, 1.0f, 1.0f}; // {u0, v0, u1, v1}
     glm::vec4 TintColor = {1.0f, 1.0f, 1.0f, 1.0f};
     float Opacity = 1.0f;
+
+    // Fill mode
+    enum class FillMode { Stretch = 0, Tile = 1, NineSlice = 2 };
+    FillMode Mode = FillMode::Stretch;
+    // For Tile mode: how many repeats over the panel area
+    glm::vec2 TileRepeat = {1.0f, 1.0f};
+    // For NineSlice: normalized margins in UV (left, top, right, bottom)
+    glm::vec4 SliceUV = {0.1f, 0.1f, 0.1f, 0.1f};
     bool Visible = true;
     int ZOrder = 0; // sorting within a canvas (lower renders first)
 };

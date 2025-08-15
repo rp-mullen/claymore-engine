@@ -82,6 +82,11 @@ namespace ClaymoreEngine
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate float Animator_GetFloatFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate bool  Animator_GetTriggerFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name);
 
+    // UI Buttons
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate bool UI_ButtonIsHoveredFn(int entityId);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate bool UI_ButtonIsPressedFn(int entityId);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate bool UI_ButtonWasClickedFn(int entityId);
+
 
     internal static unsafe class ComponentInterop
     {
@@ -125,6 +130,11 @@ namespace ClaymoreEngine
         public static Animator_GetFloatFn Animator_GetFloat;
         public static Animator_GetTriggerFn Animator_GetTrigger;
 
+        // UI Buttons
+        public static UI_ButtonIsHoveredFn UI_ButtonIsHovered;
+        public static UI_ButtonIsPressedFn UI_ButtonIsPressed;
+        public static UI_ButtonWasClickedFn UI_ButtonWasClicked;
+
         public static string GetBlendShapeName(int entityId, int index)
         {
             IntPtr ptr = GetBlendShapeNameInternal(entityId, index);
@@ -133,9 +143,9 @@ namespace ClaymoreEngine
 
         public static void Initialize(void** ptrs, int count)
         {
-            if (count < 30) // Update count for added animator functions
+            if (count < 33) // Update count for added animator functions + UI button
             {
-                Console.WriteLine($"[ComponentInterop] Expected at least 30 function pointers, but got {count}.");
+                Console.WriteLine($"[ComponentInterop] Expected at least 33 function pointers, but got {count}.");
                 return;
             }
 
@@ -174,6 +184,11 @@ namespace ClaymoreEngine
             Animator_GetInt = Marshal.GetDelegateForFunctionPointer<Animator_GetIntFn>((IntPtr)ptrs[i++]);
             Animator_GetFloat = Marshal.GetDelegateForFunctionPointer<Animator_GetFloatFn>((IntPtr)ptrs[i++]);
             Animator_GetTrigger = Marshal.GetDelegateForFunctionPointer<Animator_GetTriggerFn>((IntPtr)ptrs[i++]);
+
+            // UI Buttons
+            UI_ButtonIsHovered = Marshal.GetDelegateForFunctionPointer<UI_ButtonIsHoveredFn>((IntPtr)ptrs[i++]);
+            UI_ButtonIsPressed = Marshal.GetDelegateForFunctionPointer<UI_ButtonIsPressedFn>((IntPtr)ptrs[i++]);
+            UI_ButtonWasClicked = Marshal.GetDelegateForFunctionPointer<UI_ButtonWasClickedFn>((IntPtr)ptrs[i++]);
         }
     }
 }

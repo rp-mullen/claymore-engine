@@ -429,6 +429,43 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         registry.DrawComponentUI("Terrain", data->Terrain.get());
     }
 
+    // UI Components
+    if (data->Canvas && ImGui::CollapsingHeader("Canvas")) {
+        registry.DrawComponentUI("Canvas", data->Canvas.get());
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
+            data->Canvas.reset();
+        }
+        ImGui::PopStyleColor(3);
+    }
+
+    if (data->Panel && ImGui::CollapsingHeader("Panel")) {
+        registry.DrawComponentUI("Panel", data->Panel.get());
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
+            data->Panel.reset();
+        }
+        ImGui::PopStyleColor(3);
+    }
+
+    if (data->Button && ImGui::CollapsingHeader("Button")) {
+        registry.DrawComponentUI("Button", data->Button.get());
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
+            data->Button.reset();
+        }
+        ImGui::PopStyleColor(3);
+    }
+
     // Particle System
     if (data->Emitter && ImGui::CollapsingHeader("Particle Emitter")) {
         registry.DrawComponentUI("ParticleEmitter", data->Emitter.get());
@@ -619,6 +656,17 @@ void InspectorPanel::DrawAddComponentButton(EntityID entity) {
 
         if (!data->Text && ImGui::MenuItem("TextRenderer Component")) {
             data->Text = std::make_unique<TextRendererComponent>();
+        }
+
+        // UI components
+        if (!data->Canvas && ImGui::MenuItem("Canvas Component")) {
+            data->Canvas = std::make_unique<CanvasComponent>();
+        }
+        if (!data->Panel && ImGui::MenuItem("Panel Component")) {
+            data->Panel = std::make_unique<PanelComponent>();
+        }
+        if (!data->Button && ImGui::MenuItem("Button Component")) {
+            data->Button = std::make_unique<ButtonComponent>();
         }
 
         ImGui::Separator();

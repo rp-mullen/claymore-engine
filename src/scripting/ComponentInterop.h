@@ -55,6 +55,11 @@ extern "C" {
     __declspec(dllexport) const char* Animator_GetCurrentStateName(int entityID);
     __declspec(dllexport) bool Animator_IsPlaying(int entityID);
 
+    // --- UI Button state ---
+    __declspec(dllexport) bool UI_ButtonIsHovered(int entityID);
+    __declspec(dllexport) bool UI_ButtonIsPressed(int entityID);
+    __declspec(dllexport) bool UI_ButtonWasClicked(int entityID);
+
 #ifdef __cplusplus
 }
 #endif

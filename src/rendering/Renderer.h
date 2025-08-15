@@ -127,5 +127,23 @@ private:
     // Text rendering state
     std::unique_ptr<TextRenderer> m_TextRenderer;
 
+    // UI rendering
+    struct UIVertex { float x,y,z; float u,v; uint32_t abgr; static bgfx::VertexLayout layout; static void Init(){ if(layout.getStride()==0){ layout.begin().add(bgfx::Attrib::Position,3,bgfx::AttribType::Float).add(bgfx::Attrib::TexCoord0,2,bgfx::AttribType::Float).add(bgfx::Attrib::Color0,4,bgfx::AttribType::Uint8,true).end(); } } };
+    bgfx::UniformHandle m_UISampler = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle m_UIProgram = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle m_UIWhiteTex = BGFX_INVALID_HANDLE;
+    bool m_ShowUIOverlay = true;
+    bool m_UIInputConsumed = false;
+    // Viewport-reported mouse position in scene framebuffer space (pixels)
+    float m_UIMouseX = 0.0f;
+    float m_UIMouseY = 0.0f;
+    bool  m_UIMouseValid = false;
+
+public:
+    void SetShowUIOverlay(bool v){ m_ShowUIOverlay = v; }
+    bool WasUIInputConsumedThisFrame() const { return m_UIInputConsumed; }
+    void SetUIMode(bool enabled){ m_ShowUIOverlay = enabled; }
+    void SetUIMousePosition(float x, float y, bool valid){ m_UIMouseX = x; m_UIMouseY = y; m_UIMouseValid = valid; }
+
  
 };

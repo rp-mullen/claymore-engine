@@ -14,6 +14,8 @@
 #include "Environment.h"
 
 #include "TextRenderer.h"
+#include "pipeline/AssetLibrary.h"
+#include "editor/Input.h"
 
 // ---------------- Particle Vertex ----------------
 struct ParticleVertex {
@@ -29,6 +31,7 @@ struct ParticleVertex {
     }
 };
 bgfx::VertexLayout ParticleVertex::layout;
+bgfx::VertexLayout Renderer::UIVertex::layout;
 
 // ---------------- Terrain Support ----------------
 static void BuildTerrainMesh(TerrainComponent& terrain)
@@ -189,9 +192,16 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
 
     // Initialize text renderer (self-contained, stb-based)
     m_TextRenderer = std::make_unique<TextRenderer>();
-    // Create a simple program from existing debug shaders (2D textured quads)
-    bgfx::ProgramHandle fontProgram = ShaderManager::Instance().LoadProgram("vs_debug", "fs_debug");
+    // Use dedicated text shaders that sample the atlas alpha
+    bgfx::ProgramHandle fontProgram = ShaderManager::Instance().LoadProgram("vs_text", "fs_text");
     m_TextRenderer->Init("assets/fonts/Roboto-Regular.ttf", fontProgram, 512, 512, 48.0f);
+
+    // UI rendering init
+    UIVertex::Init();
+    m_UIProgram = ShaderManager::Instance().LoadProgram("vs_ui", "fs_ui");
+    if (!bgfx::isValid(m_UISampler)) m_UISampler = bgfx::createUniform("s_uiTex", bgfx::UniformType::Sampler);
+    // Fallback white texture for panels without texture
+    m_UIWhiteTex = TextureLoader::Load2D("assets/debug/white.png");
 }
 Renderer::~Renderer() {
     m_TextRenderer.reset();
@@ -217,6 +227,11 @@ void Renderer::BeginFrame(float r, float g, float b) {
    bgfx::setViewTransform(1, m_view, m_proj);
    bgfx::setViewFrameBuffer(1, m_SceneFrameBuffer);  // ← this was missing!
    bgfx::touch(1);
+
+   // Screen-space UI/Text view (2) on the same framebuffer, rendered after 0/1
+   bgfx::setViewRect(2, 0, 0, m_Width, m_Height);
+   bgfx::setViewFrameBuffer(2, m_SceneFrameBuffer);
+   bgfx::touch(2);
    }
 
 
@@ -258,6 +273,7 @@ void Renderer::RenderScene(Scene& scene) {
     bgfx::touch(0);
     bgfx::touch(1);
     bgfx::touch(210);
+    bgfx::touch(2);
 
     glm::vec4 camPos(activeCamera->GetPosition(), 1.0f);
     bgfx::setUniform(u_cameraPos, &camPos);
@@ -437,7 +453,180 @@ void Renderer::RenderScene(Scene& scene) {
     // Draw text components (world or screen space)
     // --------------------------------------
     if (m_TextRenderer) {
-        m_TextRenderer->RenderTexts(scene, m_view, m_proj, m_Width, m_Height, 1, 0);
+        // worldViewId=1, screenViewId=2 to layer correctly
+        m_TextRenderer->RenderTexts(scene, m_view, m_proj, m_Width, m_Height, 1, 2);
+    }
+
+    // --------------------------------------
+    // UI Rendering (Canvas/Panel/Button)
+    // --------------------------------------
+    if (m_ShowUIOverlay && bgfx::isValid(m_UIProgram)) {
+        // Setup orthographic projection for view 2 (top-left origin)
+        const bgfx::Caps* caps = bgfx::getCaps();
+        float ortho[16];
+        bx::mtxOrtho(ortho, 0.0f, float(m_Width), float(m_Height), 0.0f, 0.0f, 100.0f, 0.0f, caps->homogeneousDepth);
+        float viewIdMat[16]; bx::mtxIdentity(viewIdMat);
+        bgfx::setViewTransform(2, viewIdMat, ortho);
+        bgfx::setViewRect(2, 0, 0, (uint16_t)m_Width, (uint16_t)m_Height);
+
+        // Mouse for hit-testing (prefer viewport-reported framebuffer coords)
+        float mx = 0.0f, my = 0.0f;
+        if (m_UIMouseValid) {
+            mx = m_UIMouseX;
+            my = m_UIMouseY;
+        } else {
+            auto mp = Input::GetMousePosition();
+            mx = mp.first; my = mp.second;
+        }
+        bool mouseDown = Input::IsMouseButtonPressed(0);
+        m_UIInputConsumed = false;
+
+        // Simple per-entity pass: draw panels; drive buttons; text already handled by TextRenderer screen path
+        for (auto& e : scene.GetEntities()) {
+            auto* d = scene.GetEntityData(e.GetID());
+            if (!d || !d->Visible) continue;
+
+            // If entity has a Canvas and is screen space, it just acts as a scope for children; we currently use global backbuffer size
+            // Draw Panel
+            if (d->Panel && d->Panel->Visible) {
+                PanelComponent& p = *d->Panel;
+                // Compute anchor-based top-left position
+                float ax = 0.0f, ay = 0.0f;
+                if (p.AnchorEnabled) {
+                    switch (p.Anchor) {
+                        case UIAnchorPreset::TopLeft:    ax = 0;              ay = 0;               break;
+                        case UIAnchorPreset::Top:        ax = m_Width*0.5f;   ay = 0;               break;
+                        case UIAnchorPreset::TopRight:   ax = (float)m_Width;  ay = 0;               break;
+                        case UIAnchorPreset::Left:       ax = 0;              ay = m_Height*0.5f;  break;
+                        case UIAnchorPreset::Center:     ax = m_Width*0.5f;   ay = m_Height*0.5f;  break;
+                        case UIAnchorPreset::Right:      ax = (float)m_Width; ay = m_Height*0.5f;  break;
+                        case UIAnchorPreset::BottomLeft: ax = 0;              ay = (float)m_Height;break;
+                        case UIAnchorPreset::Bottom:     ax = m_Width*0.5f;   ay = (float)m_Height;break;
+                        case UIAnchorPreset::BottomRight:ax = (float)m_Width; ay = (float)m_Height;break;
+                    }
+                    ax += p.AnchorOffset.x;
+                    ay += p.AnchorOffset.y;
+                } else {
+                    ax = p.Position.x;
+                    ay = p.Position.y;
+                }
+                float x0 = ax;
+                float y0 = ay;
+                float x1 = x0 + p.Size.x * p.Scale.x;
+                float y1 = y0 + p.Size.y * p.Scale.y;
+
+                // Base tint: panel tint
+                uint32_t abgr = 0xffffffffu;
+                // Pack tint including opacity
+                auto clamp01 = [](float v){ return std::max(0.0f, std::min(1.0f, v)); };
+                glm::vec4 tint = p.TintColor;
+                // Apply button state tint if present
+                if (d->Button) {
+                    if (d->Button->Pressed)      tint *= d->Button->PressedTint;
+                    else if (d->Button->Hovered) tint *= d->Button->HoverTint;
+                    else                          tint *= d->Button->NormalTint;
+                }
+                uint8_t r = (uint8_t)(clamp01(tint.r) * 255.0f);
+                uint8_t g = (uint8_t)(clamp01(tint.g) * 255.0f);
+                uint8_t b = (uint8_t)(clamp01(tint.b) * 255.0f);
+                uint8_t a = (uint8_t)(clamp01(tint.a * p.Opacity) * 255.0f);
+                abgr = (a<<24) | (b<<16) | (g<<8) | (r);
+
+                UIVertex verts[4];
+                uint16_t idx[6] = { 0,1,2, 0,2,3 };
+                if (p.Mode == PanelComponent::FillMode::NineSlice && p.Texture.IsValid()) {
+                    float L = x0, T = y0, R = x1, B = y1;
+                    float w = (x1 - x0), h = (y1 - y0);
+                    float lpx = w * p.SliceUV.x, tpx = h * p.SliceUV.y, rpx = w * p.SliceUV.z, bpx = h * p.SliceUV.w;
+                    float xL = L, xM = L + lpx, xR = R - rpx;
+                    float yT = T, yM = T + tpx, yB = B - bpx;
+                    float uL = p.UVRect.x, vT = p.UVRect.y, uR = p.UVRect.z, vB = p.UVRect.w;
+                    float du = (uR - uL), dv = (vB - vT);
+                    float uL2 = uL + du * p.SliceUV.x, uR2 = uR - du * p.SliceUV.z;
+                    float vT2 = vT + dv * p.SliceUV.y, vB2 = vB - dv * p.SliceUV.w;
+
+                    auto submitQuad = [&](float xa, float ya, float xb, float yb, float ua, float va, float ub, float vb){
+                        UIVertex vv[4] = {
+                            { xa, ya, 0.0f, ua, va, abgr },
+                            { xb, ya, 0.0f, ub, va, abgr },
+                            { xb, yb, 0.0f, ub, vb, abgr },
+                            { xa, yb, 0.0f, ua, vb, abgr }
+                        };
+                        uint16_t ii[6] = {0,1,2, 0,2,3};
+                        const bgfx::Memory* vmem2 = bgfx::copy(vv, sizeof(vv));
+                        const bgfx::Memory* imem2 = bgfx::copy(ii, sizeof(ii));
+                        bgfx::VertexBufferHandle vbh2 = bgfx::createVertexBuffer(vmem2, UIVertex::layout);
+                        bgfx::IndexBufferHandle  ibh2 = bgfx::createIndexBuffer(imem2);
+                        float id2[16]; bx::mtxIdentity(id2); bgfx::setTransform(id2);
+                        bgfx::setVertexBuffer(0, vbh2);
+                        bgfx::setIndexBuffer(ibh2);
+                        bgfx::TextureHandle th2 = m_UIWhiteTex;
+                        if (p.Texture.IsValid()) {
+                            if (auto* entry = AssetLibrary::Instance().GetAsset(p.Texture)) {
+                                if (entry->texture && bgfx::isValid(*entry->texture)) th2 = *entry->texture;
+                            }
+                        }
+                        bgfx::setTexture(0, m_UISampler, th2);
+                        bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_BLEND_ALPHA);
+                        bgfx::submit(2, m_UIProgram);
+                        bgfx::destroy(vbh2);
+                        bgfx::destroy(ibh2);
+                    };
+
+                    submitQuad(xL,yT, xM,yM, uL ,vT , uL2,vT2);
+                    submitQuad(xM,yT, xR,yM, uL2,vT , uR2,vT2);
+                    submitQuad(xR,yT, R ,yM, uR2,vT , uR ,vT2);
+                    submitQuad(xL,yM, xM,yB, uL ,vT2, uL2,vB2);
+                    submitQuad(xM,yM, xR,yB, uL2,vT2, uR2,vB2);
+                    submitQuad(xR,yM, R ,yB, uR2,vT2, uR ,vB2);
+                    submitQuad(xL,yB, xM,B , uL ,vB2, uL2,vB );
+                    submitQuad(xM,yB, xR,B , uL2,vB2, uR2,vB );
+                    submitQuad(xR,yB, R ,B , uR2,vB2, uR ,vB );
+                    continue;
+                } else if (p.Mode == PanelComponent::FillMode::Tile) {
+                    float u0 = p.UVRect.x, v0 = p.UVRect.y;
+                    float u1 = p.UVRect.z * p.TileRepeat.x, v1 = p.UVRect.w * p.TileRepeat.y;
+                    verts[0] = { x0, y0, 0.0f, u0, v0, abgr };
+                    verts[1] = { x1, y0, 0.0f, u1, v0, abgr };
+                    verts[2] = { x1, y1, 0.0f, u1, v1, abgr };
+                    verts[3] = { x0, y1, 0.0f, u0, v1, abgr };
+                } else {
+                    verts[0] = { x0, y0, 0.0f, p.UVRect.x, p.UVRect.y, abgr };
+                    verts[1] = { x1, y0, 0.0f, p.UVRect.z, p.UVRect.y, abgr };
+                    verts[2] = { x1, y1, 0.0f, p.UVRect.z, p.UVRect.w, abgr };
+                    verts[3] = { x0, y1, 0.0f, p.UVRect.x, p.UVRect.w, abgr };
+                }
+                const bgfx::Memory* vmem = bgfx::copy(verts, sizeof(verts));
+                const bgfx::Memory* imem = bgfx::copy(idx, sizeof(idx));
+                bgfx::VertexBufferHandle vbh = bgfx::createVertexBuffer(vmem, UIVertex::layout);
+                bgfx::IndexBufferHandle ibh = bgfx::createIndexBuffer(imem);
+                float id[16]; bx::mtxIdentity(id); bgfx::setTransform(id);
+                bgfx::setVertexBuffer(0, vbh);
+                bgfx::setIndexBuffer(ibh);
+                bgfx::TextureHandle th = m_UIWhiteTex;
+                if (p.Texture.IsValid()) {
+                    if (auto* entry = AssetLibrary::Instance().GetAsset(p.Texture)) {
+                        if (entry->texture && bgfx::isValid(*entry->texture)) th = *entry->texture;
+                    }
+                }
+                bgfx::setTexture(0, m_UISampler, th);
+                bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_BLEND_ALPHA);
+                bgfx::submit(2, m_UIProgram);
+                bgfx::destroy(vbh);
+                bgfx::destroy(ibh);
+
+                // Button hit-testing overlay
+                if (d->Button && d->Button->Interactable) {
+                    bool inside = (mx >= x0 && mx <= x1 && my >= y0 && my <= y1);
+                    d->Button->Hovered = inside;
+                    if (inside) m_UIInputConsumed = true;
+                    bool wasPressed = d->Button->Pressed;
+                    d->Button->Pressed = inside && mouseDown;
+                    d->Button->Clicked = (!mouseDown && wasPressed && inside);
+                    if (d->Button->Toggle && d->Button->Clicked) d->Button->Toggled = !d->Button->Toggled;
+                }
+            }
+        }
     }
 
 }

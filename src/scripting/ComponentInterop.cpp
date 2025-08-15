@@ -396,3 +396,30 @@ bool Animator_IsPlaying(int entityID)
     }
     return false;
 }
+
+// --- UI Button state exports ---
+bool UI_ButtonIsHovered(int entityID)
+{
+    if (auto* data = GetEntityDataHelper(entityID)) {
+        return (data->Button ? data->Button->Hovered : false);
+    }
+    return false;
+}
+
+bool UI_ButtonIsPressed(int entityID)
+{
+    if (auto* data = GetEntityDataHelper(entityID)) {
+        return (data->Button ? data->Button->Pressed : false);
+    }
+    return false;
+}
+
+bool UI_ButtonWasClicked(int entityID)
+{
+    if (auto* data = GetEntityDataHelper(entityID)) {
+        bool clicked = (data->Button ? data->Button->Clicked : false);
+        if (data->Button && data->Button->Clicked) data->Button->Clicked = false; // consume click
+        return clicked;
+    }
+    return false;
+}

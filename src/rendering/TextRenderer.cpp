@@ -10,7 +10,7 @@ bgfx::VertexLayout TextRenderer::Vertex::Layout;
 void TextRenderer::Vertex::InitLayout() {
     if (Layout.getStride() == 0) {
         Layout.begin()
-            .add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
             .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
             .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
             .end();
@@ -60,27 +60,31 @@ void TextRenderer::SubmitStringWorld(const TextRendererComponent& tc, const glm:
     indices.reserve(strlen(text) * 6);
 
     uint32_t color = tc.ColorAbgr;
+    const float pixelScale = (m_Baked.basePixelSize > 0.0f) ? (tc.PixelSize / m_Baked.basePixelSize) : 1.0f;
+    const float unitScale = 0.01f; // Map 100 pixels to 1 world unit to avoid huge glyphs
+    const float scale = pixelScale * unitScale;
     for (const char* c = text; *c; ++c) {
         if (*c < 32 || *c >= 128) continue;
         const stbtt_bakedchar* b = ((const stbtt_bakedchar*)m_Baked.chars.data()) + (*c - 32);
-        float x0 = x + b->xoff;
-        float y0 = y + b->yoff;
-        float x1 = x0 + (b->x1 - b->x0);
-        float y1 = y0 + (b->y1 - b->y0);
+        float x0 = x + b->xoff * scale;
+        float y0 = y + b->yoff * scale;
+        float x1 = x0 + (b->x1 - b->x0) * scale;
+        float y1 = y0 + (b->y1 - b->y0) * scale;
         float u0 = b->x0 / float(m_Baked.width);
         float v0 = b->y0 / float(m_Baked.height);
         float u1 = b->x1 / float(m_Baked.width);
         float v1 = b->y1 / float(m_Baked.height);
 
         uint16_t base = (uint16_t)vertices.size();
-        vertices.push_back({ x0, y0, u0, v0, color });
-        vertices.push_back({ x1, y0, u1, v0, color });
-        vertices.push_back({ x1, y1, u1, v1, color });
-        vertices.push_back({ x0, y1, u0, v1, color });
+        // Flip Y for world space (Y-up world vs baked-down metrics)
+        vertices.push_back({ x0, -y0, 0.0f, u0, v0, color });
+        vertices.push_back({ x1, -y0, 0.0f, u1, v0, color });
+        vertices.push_back({ x1, -y1, 0.0f, u1, v1, color });
+        vertices.push_back({ x0, -y1, 0.0f, u0, v1, color });
         indices.push_back(base + 0); indices.push_back(base + 1); indices.push_back(base + 2);
         indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 3);
 
-        x += b->xadvance;
+        x += b->xadvance * scale;
     }
 
     if (vertices.empty()) return;
@@ -106,6 +110,7 @@ void TextRenderer::SubmitStringScreen(const TextRendererComponent& tc,
                                       uint32_t backbufferHeight,
                                       bgfx::ViewId viewId) {
     const char* text = tc.Text.c_str();
+    const float scale = (m_Baked.basePixelSize > 0.0f) ? (tc.PixelSize / m_Baked.basePixelSize) : 1.0f;
     float penx = x, peny = y;
     std::vector<Vertex> vertices;
     std::vector<uint16_t> indices;
@@ -116,32 +121,30 @@ void TextRenderer::SubmitStringScreen(const TextRendererComponent& tc,
     for (const char* c = text; *c; ++c) {
         if (*c < 32 || *c >= 128) continue;
         const stbtt_bakedchar* b = ((const stbtt_bakedchar*)m_Baked.chars.data()) + (*c - 32);
-        float x0 = penx + b->xoff;
-        float y0 = peny + b->yoff;
-        float x1 = x0 + (b->x1 - b->x0);
-        float y1 = y0 + (b->y1 - b->y0);
+        float x0 = penx + b->xoff * scale;
+        float y0 = peny + b->yoff * scale;
+        float x1 = x0 + (b->x1 - b->x0) * scale;
+        float y1 = y0 + (b->y1 - b->y0) * scale;
         float u0 = b->x0 / float(m_Baked.width);
         float v0 = b->y0 / float(m_Baked.height);
         float u1 = b->x1 / float(m_Baked.width);
         float v1 = b->y1 / float(m_Baked.height);
 
         uint16_t base = (uint16_t)vertices.size();
-        vertices.push_back({ x0, y0, u0, v0, color });
-        vertices.push_back({ x1, y0, u1, v0, color });
-        vertices.push_back({ x1, y1, u1, v1, color });
-        vertices.push_back({ x0, y1, u0, v1, color });
+        vertices.push_back({ x0, y0, 0.0f, u0, v0, color });
+        vertices.push_back({ x1, y0, 0.0f, u1, v0, color });
+        vertices.push_back({ x1, y1, 0.0f, u1, v1, color });
+        vertices.push_back({ x0, y1, 0.0f, u0, v1, color });
         indices.push_back(base + 0); indices.push_back(base + 1); indices.push_back(base + 2);
         indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 3);
 
-        penx += b->xadvance;
+        penx += b->xadvance * scale;
     }
 
     if (vertices.empty()) return;
 
-    // Ortho transform for screen space is handled by renderer before calling this
-    float id[16];
-    id[0]=1; id[1]=0; id[2]=0; id[3]=0; id[4]=0; id[5]=1; id[6]=0; id[7]=0; id[8]=0; id[9]=0; id[10]=1; id[11]=0; id[12]=0; id[13]=0; id[14]=0; id[15]=1;
-    bgfx::setTransform(id);
+    // Model is identity; view/proj are set by caller for screen view
+    float id[16]; bx::mtxIdentity(id); bgfx::setTransform(id);
     bgfx::setTexture(0, m_Sampler, m_Atlas);
     const bgfx::Memory* vmem = bgfx::copy(vertices.data(), (uint32_t)(vertices.size() * sizeof(Vertex)));
     const bgfx::Memory* imem = bgfx::copy(indices.data(), (uint32_t)(indices.size() * sizeof(uint16_t)));
@@ -171,7 +174,19 @@ void TextRenderer::RenderTexts(Scene& scene,
         auto& tc = *data->Text;
         if (tc.Text.empty()) continue;
 
-        if (tc.WorldSpace) {
+        // If this entity is under a screen-space canvas, render in screen space regardless of Text.WorldSpace
+        bool underScreenCanvas = false;
+        {
+            EntityID cur = e.GetID();
+            while (cur != INVALID_ENTITY_ID) {
+                auto* d2 = scene.GetEntityData(cur);
+                if (!d2) break;
+                if (d2->Canvas && d2->Canvas->Space == CanvasComponent::RenderSpace::ScreenSpace) { underScreenCanvas = true; break; }
+                cur = d2->Parent;
+            }
+        }
+
+        if (!underScreenCanvas && tc.WorldSpace) {
             SubmitStringWorld(tc, data->Transform.WorldMatrix, worldViewId);
         } else {
             // Set orthographic view for screen texts
@@ -181,7 +196,25 @@ void TextRenderer::RenderTexts(Scene& scene,
             float viewIdMat[16]; bx::mtxIdentity(viewIdMat);
             bgfx::setViewTransform(screenViewId, viewIdMat, ortho);
             bgfx::setViewRect(screenViewId, 0, 0, uint16_t(backbufferWidth), uint16_t(backbufferHeight));
-            SubmitStringScreen(tc, data->Transform.Position.x, data->Transform.Position.y, backbufferWidth, backbufferHeight, screenViewId);
+            // Apply text anchoring if enabled
+            float sx = data->Transform.Position.x;
+            float sy = data->Transform.Position.y;
+            if (tc.AnchorEnabled) {
+                switch (tc.Anchor) {
+                    case UIAnchorPreset::TopLeft: break;
+                    case UIAnchorPreset::Top:        sx = backbufferWidth * 0.5f; break;
+                    case UIAnchorPreset::TopRight:   sx = (float)backbufferWidth; break;
+                    case UIAnchorPreset::Left:       sy = backbufferHeight * 0.5f; break;
+                    case UIAnchorPreset::Center:     sx = backbufferWidth * 0.5f; sy = backbufferHeight * 0.5f; break;
+                    case UIAnchorPreset::Right:      sx = (float)backbufferWidth; sy = backbufferHeight * 0.5f; break;
+                    case UIAnchorPreset::BottomLeft: sy = (float)backbufferHeight; break;
+                    case UIAnchorPreset::Bottom:     sx = backbufferWidth * 0.5f; sy = (float)backbufferHeight; break;
+                    case UIAnchorPreset::BottomRight:sx = (float)backbufferWidth; sy = (float)backbufferHeight; break;
+                }
+                sx += tc.AnchorOffset.x;
+                sy += tc.AnchorOffset.y;
+            }
+            SubmitStringScreen(tc, sx, sy, backbufferWidth, backbufferHeight, screenViewId);
         }
     }
 }

@@ -358,6 +358,9 @@ json Serializer::SerializePanel(const PanelComponent& panel) {
     data["opacity"] = panel.Opacity;
     data["visible"] = panel.Visible;
     data["zOrder"] = panel.ZOrder;
+    data["anchorEnabled"] = panel.AnchorEnabled;
+    data["anchor"] = (int)panel.Anchor;
+    data["anchorOffset"] = { panel.AnchorOffset.x, panel.AnchorOffset.y };
     return data;
 }
 
@@ -391,6 +394,12 @@ void Serializer::DeserializePanel(const json& data, PanelComponent& panel) {
     if (data.contains("opacity")) panel.Opacity = data["opacity"];
     if (data.contains("visible")) panel.Visible = data["visible"];
     if (data.contains("zOrder")) panel.ZOrder = data["zOrder"];
+    if (data.contains("anchorEnabled")) panel.AnchorEnabled = data["anchorEnabled"];
+    if (data.contains("anchor")) panel.Anchor = (UIAnchorPreset)((int)data["anchor"]);
+    if (data.contains("anchorOffset") && data["anchorOffset"].is_array() && data["anchorOffset"].size() == 2) {
+        panel.AnchorOffset.x = data["anchorOffset"][0];
+        panel.AnchorOffset.y = data["anchorOffset"][1];
+    }
 }
 
 json Serializer::SerializeButton(const ButtonComponent& button) {

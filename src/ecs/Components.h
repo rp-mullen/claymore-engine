@@ -15,6 +15,7 @@
 #include "rendering/MaterialPropertyBlock.h"
 #include <memory>
 #include <unordered_map>
+#include "UIComponents.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/ext/matrix_transform.hpp>
@@ -320,4 +321,9 @@ struct TextRendererComponent
     // If true, text is rendered in world space using the entity transform.
     // If false, text is rendered in screen space (top-left origin) at the entity's Position.xy
     bool WorldSpace = true;
+
+    // UI anchoring when used under a Canvas in screen space
+    bool AnchorEnabled = false;
+    UIAnchorPreset Anchor = UIAnchorPreset::TopLeft;
+    glm::vec2 AnchorOffset = {0.0f, 0.0f};
 };

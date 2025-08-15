@@ -36,6 +36,16 @@ namespace ClaymoreEngine
 
             var component = new T { entity = entity };
             _componentCache[key] = component;
+            // If this is a UI Button, hook an updater so events fire each frame
+            if (component is Button btn)
+            {
+                void Pump(object _)
+                {
+                    btn.Update();
+                    System.Threading.SynchronizationContext.Current?.Post(Pump, null);
+                }
+                System.Threading.SynchronizationContext.Current?.Post(Pump, null);
+            }
             return component;
         }
 

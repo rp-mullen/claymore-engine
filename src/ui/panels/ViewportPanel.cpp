@@ -110,6 +110,7 @@ void ViewportPanel::OnImGuiRenderEmbedded(bgfx::TextureHandle sceneTexture, cons
 
 
     DrawGizmo();
+    DrawUIGizmo();
 }
 
 // =============================================================
@@ -141,6 +142,21 @@ void ViewportPanel::HandleCameraControls() {
 
        Picking::QueuePick(nx, ny);
        }
+
+    // Report UI mouse position (in framebuffer pixel coords) to renderer every frame
+    {
+        ImVec2 mouse = ImGui::GetMousePos();
+        float mx = (mouse.x - m_ViewportPos.x);
+        float my = (mouse.y - m_ViewportPos.y);
+        bool inside = (mx >= 0 && my >= 0 && mx <= m_ViewportSize.x && my <= m_ViewportSize.y);
+        if (inside) {
+            float fbX = mx * (Renderer::Get().GetWidth() / m_ViewportSize.x);
+            float fbY = my * (Renderer::Get().GetHeight() / m_ViewportSize.y);
+            Renderer::Get().SetUIMousePosition(fbX, fbY, true);
+        } else {
+            Renderer::Get().SetUIMousePosition(0, 0, false);
+        }
+    }
 
     // Camera controls
     if (ImGui::IsWindowHovered() && ImGui::IsMouseDown(ImGuiMouseButton_Right) &&
@@ -314,6 +330,25 @@ void ViewportPanel::DrawGizmo() {
     auto* data = m_Context->GetEntityData(*m_SelectedEntity);
     if (!data) return;
 
+    // If selected is a UI element under a screen-space canvas, skip 3D gizmo
+    auto* ed = m_Context->GetEntityData(*m_SelectedEntity);
+    if (ed) {
+        bool isUI = (ed->Panel || ed->Button || (ed->Text && !ed->Text->WorldSpace) || ed->Canvas);
+        if (isUI) {
+            // climb to check if under screen-space canvas
+            EntityID cur = *m_SelectedEntity;
+            while (cur != -1) {
+                auto* d2 = m_Context->GetEntityData(cur);
+                if (!d2) break;
+                if (d2->Canvas && d2->Canvas->Space == CanvasComponent::RenderSpace::ScreenSpace) {
+                    ImGuizmo::Enable(false);
+                    return;
+                }
+                cur = d2->Parent;
+            }
+        }
+    }
+
     ImGuizmo::SetOrthographic(false);
 
         Camera* cam = m_UseInternalCamera ? m_Camera.get() : Renderer::Get().GetCamera();
@@ -343,6 +378,63 @@ void ViewportPanel::DrawGizmo() {
         data->Transform.Scale = scale;
         // Ensure transform updates propagate to children
         m_Context->MarkTransformDirty(*m_SelectedEntity);
+    }
+}
+
+// 2D UI gizmo: draw a draggable handle at panel/text screen position
+void ViewportPanel::DrawUIGizmo() {
+    if (!m_ShowGizmos || !m_Context || *m_SelectedEntity < 0) return;
+    auto* ed = m_Context->GetEntityData(*m_SelectedEntity);
+    if (!ed) return;
+    bool isScreenUI = false;
+    {
+        EntityID cur = *m_SelectedEntity;
+        while (cur != -1) {
+            auto* d2 = m_Context->GetEntityData(cur);
+            if (!d2) break;
+            if (d2->Canvas && d2->Canvas->Space == CanvasComponent::RenderSpace::ScreenSpace) { isScreenUI = true; break; }
+            cur = d2->Parent;
+        }
+    }
+    if (!isScreenUI) return;
+
+    // Determine viewport image top-left to convert screen coords to overlay coords
+    ImVec2 viewportTL = m_ViewportPos;
+    // Map element position to viewport overlay space: use Panel.Position or Text Transform.Position
+    ImVec2 p = viewportTL;
+    if (ed->Panel) {
+        p.x += ed->Panel->AnchorEnabled ? ed->Panel->AnchorOffset.x : ed->Panel->Position.x;
+        p.y += ed->Panel->AnchorEnabled ? ed->Panel->AnchorOffset.y : ed->Panel->Position.y;
+    } else if (ed->Text && !ed->Text->WorldSpace) {
+        p.x += ed->Transform.Position.x;
+        p.y += ed->Transform.Position.y;
+    } else if (ed->Canvas) {
+        p.x += 0.0f; p.y += 0.0f;
+    } else return;
+
+    // Draw handle
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    ImU32 col = IM_COL32(255, 180, 0, 200);
+    float r = 6.0f;
+    dl->AddCircleFilled(ImVec2(p.x, p.y), r, col);
+
+    // Drag to move
+    ImGui::SetCursorScreenPos(ImVec2(p.x - r, p.y - r));
+    ImGui::InvisibleButton("ui_drag", ImVec2(r*2, r*2));
+    if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        ImVec2 delta = ImGui::GetIO().MouseDelta;
+        if (ed->Panel) {
+            if (ed->Panel->AnchorEnabled) {
+                ed->Panel->AnchorOffset.x += delta.x;
+                ed->Panel->AnchorOffset.y += delta.y;
+            } else {
+                ed->Panel->Position.x += delta.x;
+                ed->Panel->Position.y += delta.y;
+            }
+        } else if (ed->Text && !ed->Text->WorldSpace) {
+            ed->Transform.Position.x += delta.x;
+            ed->Transform.Position.y += delta.y;
+        }
     }
 }
 
