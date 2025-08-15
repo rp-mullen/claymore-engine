@@ -11,6 +11,9 @@ public class MyTestScript : ScriptComponent
    // how quickly we rotate toward the target heading (higher = snappier)
    private float rotationSmooth = 10f;
 
+   // smoothed animator parameter (not just 0 or 5)
+   private float speedParam = 0f;
+
    [SerializeField]
    public Entity refEntity;
 
@@ -18,7 +21,6 @@ public class MyTestScript : ScriptComponent
       {
       Console.WriteLine("Made it to the start of OnCreate");
       Console.WriteLine("[MyTestScript] Referencing Entity " + refEntity.EntityID);
-
       _ = DoAsyncMethod();
       }
 
@@ -53,38 +55,36 @@ public class MyTestScript : ScriptComponent
          moveDir = Vector3.Normalize(moveDir);
 
          // Move
-         transform.position = transform.position + moveDir * dt * moveSpeed;
+         transform.position += moveDir * moveSpeed * dt;
 
          // --- Smoothly rotate around Y toward the move direction ---
-         // Convert movement direction to a yaw angle (radians)
-         // Note: Atan2(x, z) gives yaw with +Z forward, +X to the right.
-         float targetYaw = MathF.Atan2(moveDir.X, moveDir.Z);
-
-         // Build a target orientation that only rotates around Y
+         float targetYaw = MathF.Atan2(moveDir.X, moveDir.Z); // +Z forward, +X right
          Quaternion targetRot = Quaternion.CreateFromAxisAngle(Vector3.UnitY, targetYaw);
 
          // Critically-damped interpolation factor (frame-rate independent)
          float t = 1f - MathF.Exp(-rotationSmooth * dt);
-
-         // Slerp from current to target
-         Quaternion current = transform.rotation;
-         transform.rotation = Quaternion.Slerp(current, targetRot, t);
+         transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, t);
          }
 
-      // Animator param based on movement
+      // --- Smooth Animator "Speed" param (no snapping) ---
       var self = new Entity(EntityID);
       var animator = self.GetComponent<Animator>();
       if (animator != null)
          {
-         var ctrl = animator.GetController();
-         // Scale however your controller expects; using 0/5 like before:
-         ctrl.SetFloat("Speed", moving ? 5f : 0f);
+         // scale to what your controller expects; using 0..5 like before
+         float targetSpeed = moving ? 1f : 0f;
+
+         // exponential smoothing (frame-rate independent)
+         float lerpT = 1f - MathF.Exp(-6f * dt); // 8 = snappiness; try 6–12
+         speedParam = float.Lerp(speedParam, targetSpeed, lerpT);
+
+         animator.GetController().SetFloat("Speed", speedParam);
          }
       }
 
-   // Kept for clarity; movement now handled in OnUpdate to compute heading
+   // Optional: utility if you want to drive motion elsewhere
    public void MovePlayer(float dt, Vector3 dir)
       {
-      transform.position = transform.position + dir * dt * moveSpeed;
+      transform.position += dir * moveSpeed * dt;
       }
    }

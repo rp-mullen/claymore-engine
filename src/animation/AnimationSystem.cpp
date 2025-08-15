@@ -71,6 +71,16 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
             continue;
         }
 
+        // Predeclare evaluation context shared across phases (needed for Blend1D sampling later)
+        const cm::animation::AnimatorState* stNowForEval = nullptr;
+        std::shared_ptr<cm::animation::AnimationAsset> assetNow;
+        std::shared_ptr<cm::animation::AnimationClip> clipNow;
+        std::shared_ptr<cm::animation::AnimationAsset> assetB0, assetB1;
+        std::shared_ptr<cm::animation::AnimationClip> clipB0, clipB1;
+        float durationNow = 0.0f;
+        float blendT = 0.0f;
+        bool useBlend1D = false;
+
         // Animator controller update (if set) and in ControllerAnimated mode
         if (player.AnimatorMode == AnimationPlayerComponent::Mode::ControllerAnimated && player.Controller) {
             // Load default state clip if needed
@@ -99,8 +109,31 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                     player.CachedClips[st->Id] = clip;
                 }
             }
-            // Advance animator time even if current state's asset/clip is missing (allows condition-only transitions)
-            float currentDuration = asset ? asset->Duration() : (clip ? clip->Duration : 0.0f);
+            // Advance animator time; if Blend1D, use blended duration so normalized time progresses
+            float currentDuration = 0.0f;
+            if (st->Kind == cm::animation::AnimatorStateKind::Blend1D && !st->Blend1DEntries.empty()) {
+                float x = 0.0f;
+                auto itf = player.AnimatorInstance.Blackboard().Floats.find(st->Blend1DParam);
+                if (itf != player.AnimatorInstance.Blackboard().Floats.end()) x = glm::clamp(itf->second, 0.0f, 1.0f);
+                const auto& e = st->Blend1DEntries;
+                int i1 = 0, i2 = (int)e.size()-1;
+                for (int i=0;i<(int)e.size();++i) { if (e[i].Key <= x) i1 = i; if (e[i].Key >= x) { i2 = i; break; } }
+                i1 = glm::clamp(i1, 0, (int)e.size()-1); i2 = glm::clamp(i2, 0, (int)e.size()-1);
+                const auto& a = e[i1]; const auto& b = e[i2];
+                float denom = std::max(1e-6f, (b.Key - a.Key));
+                float t = glm::clamp((x - a.Key) / denom, 0.0f, 1.0f);
+                // Resolve durations for a/b (load or get cached)
+                std::shared_ptr<cm::animation::AnimationAsset> aAsset, bAsset; std::shared_ptr<cm::animation::AnimationClip> aClip, bClip;
+                if (!a.AssetPath.empty()) { auto ita = player.CachedAssets.find(st->Id * 1000 + i1); if (ita != player.CachedAssets.end()) aAsset = ita->second; else { aAsset = std::make_shared<cm::animation::AnimationAsset>(cm::animation::LoadAnimationAsset(a.AssetPath)); player.CachedAssets[st->Id * 1000 + i1] = aAsset; } }
+                if (!aAsset && !a.ClipPath.empty()) { auto itc = player.CachedClips.find(st->Id * 1000 + i1); if (itc != player.CachedClips.end()) aClip = itc->second; else { aClip = std::make_shared<cm::animation::AnimationClip>(cm::animation::LoadAnimationClip(a.ClipPath)); player.CachedClips[st->Id * 1000 + i1] = aClip; } }
+                if (!b.AssetPath.empty()) { auto ita = player.CachedAssets.find(st->Id * 1000 + i2); if (ita != player.CachedAssets.end()) bAsset = ita->second; else { bAsset = std::make_shared<cm::animation::AnimationAsset>(cm::animation::LoadAnimationAsset(b.AssetPath)); player.CachedAssets[st->Id * 1000 + i2] = bAsset; } }
+                if (!bAsset && !b.ClipPath.empty()) { auto itc = player.CachedClips.find(st->Id * 1000 + i2); if (itc != player.CachedClips.end()) bClip = itc->second; else { bClip = std::make_shared<cm::animation::AnimationClip>(cm::animation::LoadAnimationClip(b.ClipPath)); player.CachedClips[st->Id * 1000 + i2] = bClip; } }
+                float d0 = aAsset ? aAsset->Duration() : (aClip ? aClip->Duration : 0.0f);
+                float d1 = bAsset ? bAsset->Duration() : (bClip ? bClip->Duration : 0.0f);
+                currentDuration = glm::mix(d0, d1, t);
+            } else {
+                currentDuration = asset ? asset->Duration() : (clip ? clip->Duration : 0.0f);
+            }
             player.AnimatorInstance.Update(deltaTime * st->Speed * player.PlaybackSpeed, currentDuration);
             // Check transitions
             int next = player.AnimatorInstance.ChooseNextState();
@@ -123,40 +156,63 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
             }
 
             // Evaluate current (possibly updated) state asset at time – prefer unified asset if present
-            const auto* stNow = player.Controller->FindState(player.CurrentStateId);
-            std::shared_ptr<cm::animation::AnimationAsset> assetNow;
-            std::shared_ptr<cm::animation::AnimationClip> clipNow;
-            float durationNow = 0.0f;
-            if (stNow) {
-                if (!stNow->AnimationAssetPath.empty()) {
-                    auto ita = player.CachedAssets.find(stNow->Id);
-                    if (ita != player.CachedAssets.end()) assetNow = ita->second; else {
-                        assetNow = std::make_shared<cm::animation::AnimationAsset>(cm::animation::LoadAnimationAsset(stNow->AnimationAssetPath));
-                        player.CachedAssets[stNow->Id] = assetNow;
+            stNowForEval = player.Controller->FindState(player.CurrentStateId);
+            if (stNowForEval) {
+                if (stNowForEval->Kind == cm::animation::AnimatorStateKind::Blend1D && !stNowForEval->Blend1DEntries.empty()) {
+                    // Determine blend parameter value (0..1)
+                    float x = 0.0f;
+                    auto itf = player.AnimatorInstance.Blackboard().Floats.find(stNowForEval->Blend1DParam);
+                    if (itf != player.AnimatorInstance.Blackboard().Floats.end()) x = glm::clamp(itf->second, 0.0f, 1.0f);
+                    // Find two surrounding entries
+                    const auto& e = stNowForEval->Blend1DEntries;
+                    int i1 = 0, i2 = (int)e.size()-1;
+                    for (int i=0;i<(int)e.size();++i) { if (e[i].Key <= x) i1 = i; if (e[i].Key >= x) { i2 = i; break; } }
+                    i1 = glm::clamp(i1, 0, (int)e.size()-1); i2 = glm::clamp(i2, 0, (int)e.size()-1);
+                    const auto& a = e[i1]; const auto& b = e[i2];
+                    float denom = std::max(1e-6f, (b.Key - a.Key));
+                    blendT = glm::clamp((x - a.Key) / denom, 0.0f, 1.0f);
+                    // Resolve assets/clips for a and b
+                    if (!a.AssetPath.empty()) { auto ita = player.CachedAssets.find(stNowForEval->Id * 1000 + i1); if (ita != player.CachedAssets.end()) assetB0 = ita->second; else { assetB0 = std::make_shared<cm::animation::AnimationAsset>(cm::animation::LoadAnimationAsset(a.AssetPath)); player.CachedAssets[stNowForEval->Id * 1000 + i1] = assetB0; } }
+                    if (!assetB0 && !a.ClipPath.empty()) { auto itc = player.CachedClips.find(stNowForEval->Id * 1000 + i1); if (itc != player.CachedClips.end()) clipB0 = itc->second; else { clipB0 = std::make_shared<cm::animation::AnimationClip>(cm::animation::LoadAnimationClip(a.ClipPath)); player.CachedClips[stNowForEval->Id * 1000 + i1] = clipB0; } }
+                    if (!b.AssetPath.empty()) { auto ita = player.CachedAssets.find(stNowForEval->Id * 1000 + i2); if (ita != player.CachedAssets.end()) assetB1 = ita->second; else { assetB1 = std::make_shared<cm::animation::AnimationAsset>(cm::animation::LoadAnimationAsset(b.AssetPath)); player.CachedAssets[stNowForEval->Id * 1000 + i2] = assetB1; } }
+                    if (!assetB1 && !b.ClipPath.empty()) { auto itc = player.CachedClips.find(stNowForEval->Id * 1000 + i2); if (itc != player.CachedClips.end()) clipB1 = itc->second; else { clipB1 = std::make_shared<cm::animation::AnimationClip>(cm::animation::LoadAnimationClip(b.ClipPath)); player.CachedClips[stNowForEval->Id * 1000 + i2] = clipB1; } }
+                    useBlend1D = true;
+                    // duration as blend of two durations
+                    float d0 = assetB0 ? assetB0->Duration() : (clipB0 ? clipB0->Duration : 0.0f);
+                    float d1 = assetB1 ? assetB1->Duration() : (clipB1 ? clipB1->Duration : 0.0f);
+                    durationNow = glm::mix(d0, d1, blendT);
+                } else {
+                    if (!stNowForEval->AnimationAssetPath.empty()) {
+                        auto ita = player.CachedAssets.find(stNowForEval->Id);
+                        if (ita != player.CachedAssets.end()) assetNow = ita->second; else {
+                            assetNow = std::make_shared<cm::animation::AnimationAsset>(cm::animation::LoadAnimationAsset(stNowForEval->AnimationAssetPath));
+                            player.CachedAssets[stNowForEval->Id] = assetNow;
+                        }
                     }
-                }
-                if (!assetNow && !stNow->ClipPath.empty()) {
-                    auto itc = player.CachedClips.find(stNow->Id);
-                    if (itc != player.CachedClips.end()) clipNow = itc->second; else {
-                        clipNow = std::make_shared<cm::animation::AnimationClip>(cm::animation::LoadAnimationClip(stNow->ClipPath));
-                        player.CachedClips[stNow->Id] = clipNow;
+                    if (!assetNow && !stNowForEval->ClipPath.empty()) {
+                        auto itc = player.CachedClips.find(stNowForEval->Id);
+                        if (itc != player.CachedClips.end()) clipNow = itc->second; else {
+                            clipNow = std::make_shared<cm::animation::AnimationClip>(cm::animation::LoadAnimationClip(stNowForEval->ClipPath));
+                            player.CachedClips[stNowForEval->Id] = clipNow;
+                        }
                     }
+                    durationNow = assetNow ? assetNow->Duration() : (clipNow ? clipNow->Duration : 0.0f);
                 }
-                durationNow = assetNow ? assetNow->Duration() : (clipNow ? clipNow->Duration : 0.0f);
             }
 
             if (player.ActiveStates.empty()) player.ActiveStates.push_back({});
             AnimationState& s0 = player.ActiveStates.front();
             s0.Asset = assetNow.get();
             s0.LegacyClip = clipNow.get();
-            s0.Loop = stNow ? stNow->Loop : true;
-            // Time from normalized (guard against negatives and NaN)
-            float time = player.AnimatorInstance.Playback().StateNormalized * (durationNow > 0.0f ? durationNow : 1.0f);
+            s0.Loop = stNowForEval ? stNowForEval->Loop : true;
+            // Derive time from absolute state time so parameter changes (which alter duration) don't cause jumps
+            float baseT = player.AnimatorInstance.Playback().StateTime;
+            float time = (durationNow > 0.0f) ? fmod(baseT, durationNow) : 0.0f;
             if (!std::isfinite(time) || time < 0.0f) time = 0.0f;
             s0.Time = time;
 
             // Debug info
-            if (stNow) player.Debug_CurrentControllerStateName = stNow->Name;
+            if (stNowForEval) player.Debug_CurrentControllerStateName = stNowForEval->Name;
             player.Debug_CurrentAnimationName = assetNow ? assetNow->name : (clipNow ? clipNow->Name : std::string());
         }
 
@@ -168,12 +224,7 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                 std::shared_ptr<cm::animation::AnimationAsset> asset;
                 auto it = player.CachedAssets.find(0);
                 if (it == player.CachedAssets.end()) {
-                    // Attempt to load unified asset first; fallback to legacy wrapped
                     cm::animation::AnimationAsset a = cm::animation::LoadAnimationAsset(player.SingleClipPath);
-                    if (a.tracks.empty()) {
-                        cm::animation::AnimationClip legacy = cm::animation::LoadAnimationClip(player.SingleClipPath);
-                        if (!legacy.BoneTracks.empty()) a = cm::animation::WrapLegacyClipAsAsset(legacy);
-                    }
                     asset = std::make_shared<cm::animation::AnimationAsset>(std::move(a));
                     player.CachedAssets[0] = asset;
                 } else {
@@ -199,7 +250,8 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
 
         // Evaluate pose; if crossfading, blend between two states linearly
         const AnimationState& state = player.ActiveStates.front();
-        if (!state.LegacyClip && !state.Asset) continue;
+        // Allow Blend1D path to evaluate even when no single clip/asset bound in state container
+        if (!useBlend1D && !state.LegacyClip && !state.Asset) continue;
 
         // Advance time
         AnimationState& mutableState = player.ActiveStates.front();
@@ -234,7 +286,54 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
             return localBind;
         };
 
-        if (state.Asset) {
+        if (stNowForEval && stNowForEval->Kind == cm::animation::AnimatorStateKind::Blend1D && useBlend1D) {
+            // Evaluate two samples then blend; drive time from Animator's normalized state
+            std::vector<glm::mat4> A(skeleton.BoneEntities.size(), glm::mat4(1.0f));
+            std::vector<glm::mat4> B(skeleton.BoneEntities.size(), glm::mat4(1.0f));
+            float d0 = assetB0 ? assetB0->Duration() : (clipB0 ? clipB0->Duration : 0.0f);
+            float d1 = assetB1 ? assetB1->Duration() : (clipB1 ? clipB1->Duration : 0.0f);
+            float baseT = player.AnimatorInstance.Playback().StateTime;
+            float tA = (d0 > 0.0f) ? fmod(baseT, d0) : 0.0f;
+            float tB = (d1 > 0.0f) ? fmod(baseT, d1) : 0.0f;
+            // Sample A
+            if (assetB0) {
+                PoseBuffer pose; pose.local.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f)); pose.touched.resize(skeleton.BoneEntities.size(), false);
+                static BindingCache s_bindings; s_bindings.SetSkeleton(&skeleton);
+                EvalInputs in{ assetB0.get(), tA, stNowForEval->Loop };
+                EvalTargets tgt{ &pose };
+                EvalContext ctx{ &s_bindings, skeleton.Avatar.get(), &skeleton };
+                SampleAsset(in, ctx, tgt, nullptr, nullptr);
+                A = std::move(pose.local);
+            } else if (clipB0) {
+                EvaluateAnimation(*clipB0, tA, skeleton, A);
+            }
+            // Sample B
+            if (assetB1) {
+                PoseBuffer pose; pose.local.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f)); pose.touched.resize(skeleton.BoneEntities.size(), false);
+                static BindingCache s_bindings; s_bindings.SetSkeleton(&skeleton);
+                EvalInputs in{ assetB1.get(), tB, stNowForEval->Loop };
+                EvalTargets tgt{ &pose };
+                EvalContext ctx{ &s_bindings, skeleton.Avatar.get(), &skeleton };
+                SampleAsset(in, ctx, tgt, nullptr, nullptr);
+                B = std::move(pose.local);
+            } else if (clipB1) {
+                EvaluateAnimation(*clipB1, tB, skeleton, B);
+            }
+            // Fill untouched like elsewhere
+            auto ensureBind = [&](std::vector<glm::mat4>& buf){ for (int i=0;i<(int)buf.size();++i) { if (buf[i] == glm::mat4(1.0f)) buf[i] = computeLocalBind(i); } };
+            ensureBind(A); ensureBind(B);
+            // Lerp pose A->B by blendT
+            localTransforms.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f));
+            for (size_t i=0;i<localTransforms.size();++i) {
+                glm::vec3 T0, S0, T1, S1; glm::quat R0, R1;
+                decomposeTRS(A[i], T0, R0, S0);
+                decomposeTRS(B[i], T1, R1, S1);
+                glm::vec3 T = glm::mix(T0, T1, blendT);
+                glm::quat R = glm::slerp(R0, R1, blendT);
+                glm::vec3 S = glm::mix(S0, S1, blendT);
+                localTransforms[i] = glm::translate(T) * glm::mat4_cast(glm::normalize(R)) * glm::scale(S);
+            }
+        } else if (state.Asset) {
             // Unified evaluation into a temporary pose buffer sized to skeleton
             PoseBuffer pose; pose.local.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f)); pose.touched.resize(skeleton.BoneEntities.size(), false);
             static BindingCache s_bindings; s_bindings.SetSkeleton(&skeleton);

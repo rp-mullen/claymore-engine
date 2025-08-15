@@ -1,0 +1,40 @@
+{
+  "defaultState": 1,
+  "name": "New Controller",
+  "parameters": [
+    {
+      "defaultBool": false,
+      "defaultFloat": 0.0,
+      "defaultInt": 0,
+      "name": "Speed",
+      "type": "float"
+    }
+  ],
+  "states": [
+    {
+      "asset": "",
+      "blendParam": "Speed",
+      "clip": "",
+      "entries": [
+        {
+          "asset": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
+          "clip": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
+          "key": 0.0
+        },
+        {
+          "asset": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+          "clip": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+          "key": 1.0
+        }
+      ],
+      "id": 1,
+      "kind": 1,
+      "loop": true,
+      "name": "Entry",
+      "speed": 1.0,
+      "x": 14.0,
+      "y": 111.0
+    }
+  ],
+  "transitions": []
+}

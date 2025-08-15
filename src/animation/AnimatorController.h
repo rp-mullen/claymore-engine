@@ -9,6 +9,18 @@
 namespace cm {
 namespace animation {
 
+// Node kinds
+enum class AnimatorStateKind {
+    Single = 0,
+    Blend1D = 1
+};
+
+struct Blend1DEntry {
+    float Key = 0.0f; // normalized 0..1
+    std::string ClipPath; // Legacy .anim
+    std::string AssetPath; // Unified .anim
+};
+
 // Parameters
 enum class AnimatorParamType {
     Bool,
@@ -53,6 +65,10 @@ struct AnimatorState {
     std::string AnimationAssetPath; // Unified .anim (new)
     float Speed = 1.0f;
     bool Loop = true;
+    AnimatorStateKind Kind = AnimatorStateKind::Single;
+    // Blend1D specific
+    std::string Blend1DParam; // name of float parameter
+    std::vector<Blend1DEntry> Blend1DEntries; // sorted by Key
     // Editor visualization
     float EditorPosX = 0.0f;
     float EditorPosY = 0.0f;
@@ -145,8 +161,17 @@ struct AnimatorController {
         c.IntThreshold = j.value("iThreshold", 0);
     }
 
+    inline void to_json(nlohmann::json& j, const Blend1DEntry& e) {
+        j = nlohmann::json{{"key", e.Key}, {"clip", e.ClipPath}, {"asset", e.AssetPath}};
+    }
+    inline void from_json(const nlohmann::json& j, Blend1DEntry& e) {
+        e.Key = j.value("key", 0.0f);
+        e.ClipPath = j.value("clip", "");
+        e.AssetPath = j.value("asset", "");
+    }
+
     inline void to_json(nlohmann::json& j, const AnimatorState& s) {
-        j = nlohmann::json{{"id", s.Id}, {"name", s.Name}, {"clip", s.ClipPath}, {"asset", s.AnimationAssetPath}, {"speed", s.Speed}, {"loop", s.Loop}, {"x", s.EditorPosX}, {"y", s.EditorPosY}};
+        j = nlohmann::json{{"id", s.Id}, {"name", s.Name}, {"clip", s.ClipPath}, {"asset", s.AnimationAssetPath}, {"speed", s.Speed}, {"loop", s.Loop}, {"x", s.EditorPosX}, {"y", s.EditorPosY}, {"kind", (int)s.Kind}, {"blendParam", s.Blend1DParam}, {"entries", s.Blend1DEntries}};
     }
     inline void from_json(const nlohmann::json& j, AnimatorState& s) {
         s.Id = j.value("id", -1);
@@ -157,6 +182,9 @@ struct AnimatorController {
         s.Loop = j.value("loop", true);
         s.EditorPosX = j.value("x", 0.0f);
         s.EditorPosY = j.value("y", 0.0f);
+        s.Kind = (AnimatorStateKind)j.value("kind", 0);
+        s.Blend1DParam = j.value("blendParam", "");
+        if (j.contains("entries")) s.Blend1DEntries = j["entries"].get<std::vector<Blend1DEntry>>();
     }
 
     inline void to_json(nlohmann::json& j, const AnimatorTransition& t) {

@@ -6,6 +6,7 @@
 #include "ui/FileDialogs.h"
 #include <windows.h>
 #include <editor/Project.h>
+#include <algorithm>
 
 using nlohmann::json;
 using cm::animation::AnimatorController;
@@ -151,17 +152,33 @@ void AnimationControllerPanel::DrawNodeEditor() {
         ImGui::OpenPopup("AnimNodeContext");
     }
     if (ImGui::BeginPopup("AnimNodeContext")) {
-        if (ImGui::MenuItem("Add State")) {
-            ImVec2 mouse = ImGui::GetMousePos();
-            // Convert mouse screen-space to grid-space using editor origin and panning
-            ImVec2 pan = ImNodes::EditorContextGetPanning();
-            pendingNewStateGridPos = ImVec2(mouse.x - editorScreenOrigin.x - pan.x,
-                                           mouse.y - editorScreenOrigin.y - pan.y);
-            AnimatorState s; s.Id = m_NextStateId++; s.Name = "State" + std::to_string(s.Id);
-            s.EditorPosX = 0.0f; s.EditorPosY = 0.0f; // will set precise position below
-            m_Controller->States.push_back(s);
-            pendingNewStateId = s.Id;
-            if (m_Controller->DefaultState < 0) m_Controller->DefaultState = s.Id;
+        if (ImGui::BeginMenu("Create")) {
+            if (ImGui::MenuItem("State")) {
+                ImVec2 mouse = ImGui::GetMousePos();
+                ImVec2 pan = ImNodes::EditorContextGetPanning();
+                pendingNewStateGridPos = ImVec2(mouse.x - editorScreenOrigin.x - pan.x,
+                                               mouse.y - editorScreenOrigin.y - pan.y);
+                AnimatorState s; s.Id = m_NextStateId++; s.Name = "State" + std::to_string(s.Id);
+                s.EditorPosX = 0.0f; s.EditorPosY = 0.0f;
+                m_Controller->States.push_back(s);
+                pendingNewStateId = s.Id;
+                if (m_Controller->DefaultState < 0) m_Controller->DefaultState = s.Id;
+            }
+            if (ImGui::MenuItem("Blend1D")) {
+                ImVec2 mouse = ImGui::GetMousePos();
+                ImVec2 pan = ImNodes::EditorContextGetPanning();
+                pendingNewStateGridPos = ImVec2(mouse.x - editorScreenOrigin.x - pan.x,
+                                               mouse.y - editorScreenOrigin.y - pan.y);
+                AnimatorState s; s.Id = m_NextStateId++; s.Name = "Blend1D" + std::to_string(s.Id);
+                s.Kind = cm::animation::AnimatorStateKind::Blend1D;
+                s.EditorPosX = 0.0f; s.EditorPosY = 0.0f;
+                cm::animation::Blend1DEntry e0; e0.Key = 0.0f; s.Blend1DEntries.push_back(e0);
+                cm::animation::Blend1DEntry e1; e1.Key = 1.0f; s.Blend1DEntries.push_back(e1);
+                m_Controller->States.push_back(s);
+                pendingNewStateId = s.Id;
+                if (m_Controller->DefaultState < 0) m_Controller->DefaultState = s.Id;
+            }
+            ImGui::EndMenu();
         }
         ImGui::EndPopup();
     }
@@ -181,6 +198,7 @@ void AnimationControllerPanel::DrawNodeEditor() {
         // Editable name
         char nameBuf[128]; strncpy(nameBuf, s.Name.c_str(), sizeof(nameBuf)); nameBuf[sizeof(nameBuf)-1] = 0;
         if (ImGui::InputText("##name", nameBuf, sizeof(nameBuf))) s.Name = nameBuf;
+        if (s.Kind == cm::animation::AnimatorStateKind::Blend1D) { ImGui::SameLine(); ImGui::TextDisabled("[Blend1D]"); }
         ImNodes::EndNodeTitleBar();
 
         ImNodes::BeginInputAttribute(s.Id * 1000 + 1);
@@ -397,35 +415,62 @@ void AnimationControllerPanel::DrawPropertiesPane() {
             ImGui::Text("State Properties");
             char nameBuf[128]; strncpy(nameBuf, s.Name.c_str(), sizeof(nameBuf)); nameBuf[sizeof(nameBuf)-1]=0;
             if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf))) s.Name = nameBuf;
-            // Clip selection dropdown identical to Inspector
-            static int selectedIndex = -1;
-            struct AnimOption { std::string name; std::string path; };
-            static std::vector<AnimOption> s_options;
-            s_options.clear();
-            auto root = Project::GetAssetDirectory();
-            if (root.empty()) root = std::filesystem::path("assets");
-            if (std::filesystem::exists(root)) {
-                for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
-                    if (!p.is_regular_file()) continue;
-                    auto ext = p.path().extension().string();
-                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-                    if (ext == ".anim") s_options.push_back({ p.path().stem().string(), p.path().string() });
+            if (s.Kind == cm::animation::AnimatorStateKind::Blend1D) {
+                // Blend parameter (float)
+                int sel = -1; std::vector<std::string> floatParams;
+                for (const auto& p : m_Controller->Parameters) if (p.Type == cm::animation::AnimatorParamType::Float) floatParams.push_back(p.Name);
+                for (int i=0;i<(int)floatParams.size();++i) if (floatParams[i]==s.Blend1DParam) { sel=i; break; }
+                const char* cur = sel>=0? floatParams[sel].c_str(): "<Float Param>";
+                if (ImGui::BeginCombo("Blend Param", cur)) {
+                    for (int i=0;i<(int)floatParams.size();++i) { bool isSel=(i==sel); if (ImGui::Selectable(floatParams[i].c_str(), isSel)) { s.Blend1DParam=floatParams[i]; sel=i; } if (isSel) ImGui::SetItemDefaultFocus(); }
+                    ImGui::EndCombo();
                 }
-            }
-            selectedIndex = -1;
-            for (int i=0;i<(int)s_options.size();++i) if (s_options[i].path == s.ClipPath) { selectedIndex = i; break; }
-            const char* currentLabel = (selectedIndex >= 0 ? s_options[selectedIndex].name.c_str() : "<Select Clip>");
-            if (ImGui::BeginCombo("Clip", currentLabel)) {
-                for (int i = 0; i < (int)s_options.size(); ++i) {
-                    bool isSelected = (i == selectedIndex);
-                    if (ImGui::Selectable(s_options[i].name.c_str(), isSelected)) {
-                        selectedIndex = i;
-                        s.ClipPath = s_options[i].path;
-                        s.AnimationAssetPath = s_options[i].path; // mirror
+                ImGui::Separator(); ImGui::Text("Entries");
+                for (size_t ei=0; ei<s.Blend1DEntries.size(); ++ei) {
+                    auto& e = s.Blend1DEntries[ei]; ImGui::PushID((int)ei);
+                    ImGui::DragFloat("Key", &e.Key, 0.01f, 0.0f, 1.0f);
+                    struct AnimOption { std::string name; std::string path; }; std::vector<AnimOption> options;
+                    auto root = Project::GetAssetDirectory(); if (root.empty()) root = std::filesystem::path("assets");
+                    if (std::filesystem::exists(root)) { for (auto& p : std::filesystem::recursive_directory_iterator(root)) { if (!p.is_regular_file()) continue; auto ext = p.path().extension().string(); std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower); if (ext == ".anim") options.push_back({ p.path().stem().string(), p.path().string() }); } }
+                    int sidx=-1; for (int i=0;i<(int)options.size();++i) if (options[i].path==e.AssetPath || options[i].path==e.ClipPath) { sidx=i; break; }
+                    const char* lab = sidx>=0? options[sidx].name.c_str(): "<Select Clip>";
+                    if (ImGui::BeginCombo("Clip", lab)) { for (int i=0;i<(int)options.size();++i) { bool isSel=(i==sidx); if (ImGui::Selectable(options[i].name.c_str(), isSel)) { sidx=i; e.AssetPath=options[i].path; e.ClipPath=options[i].path; } if (isSel) ImGui::SetItemDefaultFocus(); } ImGui::EndCombo(); }
+                    ImGui::SameLine(); if (ImGui::Button("Remove")) { s.Blend1DEntries.erase(s.Blend1DEntries.begin()+ei); ImGui::PopID(); break; }
+                    ImGui::PopID();
+                }
+                if (ImGui::Button("+ Add Entry")) { cm::animation::Blend1DEntry ne; ne.Key = 0.5f; s.Blend1DEntries.push_back(ne); }
+                std::sort(s.Blend1DEntries.begin(), s.Blend1DEntries.end(), [](const auto& a, const auto& b){ return a.Key < b.Key; });
+            } else {
+                // Clip selection dropdown identical to Inspector
+                static int selectedIndex = -1;
+                struct AnimOption { std::string name; std::string path; };
+                static std::vector<AnimOption> s_options;
+                s_options.clear();
+                auto root = Project::GetAssetDirectory();
+                if (root.empty()) root = std::filesystem::path("assets");
+                if (std::filesystem::exists(root)) {
+                    for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
+                        if (!p.is_regular_file()) continue;
+                        auto ext = p.path().extension().string();
+                        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                        if (ext == ".anim") s_options.push_back({ p.path().stem().string(), p.path().string() });
                     }
-                    if (isSelected) ImGui::SetItemDefaultFocus();
                 }
-                ImGui::EndCombo();
+                selectedIndex = -1;
+                for (int i=0;i<(int)s_options.size();++i) if (s_options[i].path == s.ClipPath) { selectedIndex = i; break; }
+                const char* currentLabel = (selectedIndex >= 0 ? s_options[selectedIndex].name.c_str() : "<Select Clip>");
+                if (ImGui::BeginCombo("Clip", currentLabel)) {
+                    for (int i = 0; i < (int)s_options.size(); ++i) {
+                        bool isSelected = (i == selectedIndex);
+                        if (ImGui::Selectable(s_options[i].name.c_str(), isSelected)) {
+                            selectedIndex = i;
+                            s.ClipPath = s_options[i].path;
+                            s.AnimationAssetPath = s_options[i].path; // mirror
+                        }
+                        if (isSelected) ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
             }
             ImGui::DragFloat("Speed", &s.Speed, 0.01f, 0.0f, 10.0f);
             ImGui::Checkbox("Loop", &s.Loop);
