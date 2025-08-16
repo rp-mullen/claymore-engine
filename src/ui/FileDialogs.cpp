@@ -1,5 +1,8 @@
 #include "ui/FileDialogs.h"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <Windows.h>
 #include <shobjidl.h>
 #include <string>

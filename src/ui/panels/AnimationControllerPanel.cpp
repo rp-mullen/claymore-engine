@@ -4,6 +4,9 @@
 #include <fstream>
 #include "animation/AnimatorController.h"
 #include "ui/FileDialogs.h"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <editor/Project.h>
 #include <algorithm>

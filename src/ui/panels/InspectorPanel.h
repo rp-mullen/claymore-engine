@@ -22,6 +22,8 @@ public:
     void OnImGuiRender();
     // Render inspector UI without opening its own ImGui window
     void OnImGuiRenderEmbedded();
+    // External selection hook: when a project asset (e.g., scene file) is selected
+    void SetSelectedAssetPath(const std::string& path) { m_SelectedAssetPath = path; }
    void SetAvatarBuilderPanel(AvatarBuilderPanel* panel) { m_AvatarBuilder = panel; }
    // Animator node selection bridge
    void ShowAnimatorStateProperties(const std::string& stateName,
@@ -52,6 +54,7 @@ private:
    void DrawScriptProperty(PropertyInfo& property, void* scriptHandle);
     void DrawInspectorContents();
     void DrawGroupingControls(EntityID entity);
+    void DrawSceneFilePreview();
 
 private:
    EntityID* m_SelectedEntity = nullptr;
@@ -62,4 +65,5 @@ private:
     // Rename state for entity name in inspector
     bool m_RenamingEntityName = false;
     char m_RenameBuffer[128] = {0};
+    std::string m_SelectedAssetPath;
    };

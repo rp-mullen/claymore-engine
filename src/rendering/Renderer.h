@@ -41,6 +41,7 @@ public:
     void BeginFrame(float r, float g, float b);
     void EndFrame();
     void Resize(uint32_t width, uint32_t height);
+    void SetRenderToOffscreen(bool enable) { m_RenderToOffscreen = enable; }
 
     // Scene rendering
     void RenderScene(Scene& scene);
@@ -51,16 +52,14 @@ public:
     void DrawMesh(const Mesh& mesh, const float* transform, const Material& material, uint16_t viewId, const struct MaterialPropertyBlock* propertyBlock = nullptr);
 
     // Camera
-    Camera* GetCamera() const { 
-       
-       if (Scene::CurrentScene->m_IsPlaying) {
-          Camera* cam = Scene::CurrentScene->GetActiveCamera();
-          if (cam) {
-             return cam;
-             }
-          }
-       return m_RendererCamera; 
-       }
+    Camera* GetCamera() const {
+        // Prefer the scene's active camera whenever available (both in editor play and standalone)
+        if (Scene::CurrentScene) {
+            Camera* cam = Scene::CurrentScene->GetActiveCamera();
+            if (cam) return cam;
+        }
+        return m_RendererCamera;
+    }
     void SetCamera(Camera* cam) { m_RendererCamera = cam; }
 
     // Viewport info
@@ -138,6 +137,9 @@ private:
     float m_UIMouseX = 0.0f;
     float m_UIMouseY = 0.0f;
     bool  m_UIMouseValid = false;
+
+    // When true, views 0/1/2 render to the offscreen scene framebuffer; otherwise, they render directly to the backbuffer
+    bool m_RenderToOffscreen = true;
 
 public:
     void SetShowUIOverlay(bool v){ m_ShowUIOverlay = v; }

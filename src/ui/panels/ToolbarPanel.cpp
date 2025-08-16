@@ -74,6 +74,9 @@ void ToolbarPanel::TogglePlayMode() {
       if (scene.m_RuntimeScene) {
          scene.m_RuntimeScene->OnStop();
          scene.m_RuntimeScene = nullptr;
+         // Restore global scene pointer immediately to avoid any late calls
+         // referencing the destroyed runtime clone in the remainder of the frame
+         Scene::CurrentScene = &scene;
          m_UILayer->TogglePlayMode();
          }
       }

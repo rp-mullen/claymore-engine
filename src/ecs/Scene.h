@@ -34,6 +34,8 @@ public:
 
    EntityID InstantiateAsset(const std::string& path, const glm::vec3& position);
    EntityID InstantiateModel(const std::string& path, const glm::vec3& rootPosition);
+   // Fast path for models imported via cached binaries (.meta/.meshbin/.skelbin)
+   EntityID InstantiateModelFast(const std::string& metaPath, const glm::vec3& position);
 
    void DestroyEntity(Entity e) {RemoveEntity(e.GetID());}
 

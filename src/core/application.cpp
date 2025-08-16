@@ -7,7 +7,11 @@
 #include <bgfx/platform.h>
 #include <bx/math.h>
 #include <iostream>
+#include <nlohmann/json.hpp>
+#include "pipeline/AssetRegistry.h"
+#include "pipeline/AssetMetadata.h"
 #include <algorithm>
+#include <fstream>
 
 #include "Application.h"
 #include "rendering/Renderer.h"
@@ -22,6 +26,10 @@
 #include <scripting/DotNetHost.h>
 #include "editor/Project.h"
 #include "physics/Physics.h"
+#include "io/FileSystem.h"
+#include "serialization/Serializer.h"
+#include "pipeline/AssetPipeline.h"
+#include "pipeline/AssetLibrary.h"
 // Application.cpp
 Application* Application::s_Instance = nullptr;
 
@@ -53,15 +61,89 @@ Application::Application(int width, int height, const std::string& title)
         // Optional: std::filesystem::create_directories(defaultProjPath);
     }
 
+    // Editor mode: register GUID→path for assets so GUID references resolve when swapping scenes
+    {
+        std::filesystem::path assetsDir = Project::GetProjectDirectory() / "assets";
+        if (std::filesystem::exists(assetsDir)) {
+            for (auto& entry : std::filesystem::recursive_directory_iterator(assetsDir)) {
+                if (!entry.is_regular_file()) continue;
+                std::string abs = entry.path().string();
+                const AssetMetadata* meta = AssetRegistry::Instance().GetMetadata(abs);
+                AssetMetadata metaLocal;
+                if (!meta) {
+                    // Try read sidecar .meta file
+                    std::filesystem::path metaPath = entry.path(); metaPath += ".meta";
+                    if (std::filesystem::exists(metaPath)) {
+                        try {
+                            std::ifstream mi(metaPath.string());
+                            nlohmann::json mj; mi >> mj; mi.close();
+                            metaLocal = mj.get<AssetMetadata>();
+                            meta = &metaLocal;
+                        } catch(...) {}
+                    }
+                }
+                if (!meta) continue;
+                if (meta->guid == ClaymoreGUID()) continue;
+                // Normalize to virtual path (assets/..)
+                std::string vpath = abs;
+                std::replace(vpath.begin(), vpath.end(), '\\', '/');
+                auto pos = vpath.find("assets/");
+                if (pos != std::string::npos) vpath = vpath.substr(pos);
+                // Infer type from extension
+                std::string ext = entry.path().extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                AssetType at = AssetType::Mesh;
+                if (ext == ".fbx" || ext == ".gltf" || ext == ".glb" || ext == ".obj") at = AssetType::Mesh;
+                else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga") at = AssetType::Texture;
+                else if (ext == ".prefab") at = AssetType::Prefab;
+                AssetLibrary::Instance().RegisterAsset(AssetReference(meta->guid, 0, static_cast<int32_t>(at)), at, vpath, entry.path().filename().string());
+                // Also map absolute path so serializers that wrote absolute paths can resolve
+                AssetLibrary::Instance().RegisterPathAlias(meta->guid, abs);
+            }
+        }
+    }
+
+    // Try mounting a pak next to the executable for standalone mode (DO THIS EARLY)
+    {
+        std::filesystem::path exeDir = std::filesystem::current_path();
+        bool mounted = false;
+        // 1) Look for any .pak file in the directory
+        for (auto& entry : std::filesystem::directory_iterator(exeDir)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".pak") {
+                if (FileSystem::Instance().MountPak(entry.path().string())) {
+                    mounted = true; break;
+                }
+            }
+        }
+        // 2) Fallback names if none found by scan
+        if (!mounted) {
+            std::filesystem::path pakA = exeDir / (Project::GetProjectName() + ".pak");
+            std::filesystem::path pakB = exeDir / "Game.pak";
+            if (std::filesystem::exists(pakA)) {
+                FileSystem::Instance().MountPak(pakA.string());
+            } else if (std::filesystem::exists(pakB)) {
+                FileSystem::Instance().MountPak(pakB.string());
+            }
+        }
+    }
+
+    // Decide runtime mode BEFORE initializing renderer so we can gate editor-only work
+    m_RunEditorUI = !FileSystem::Instance().IsPakMounted();
 
     // 1. Initialize Window (GLFW)
     InitWindow(width, height, title);
 
-    // 2. Initialize BGFX Renderer
+    // 2. Initialize BGFX Renderer (shader compile gated by m_RunEditorUI)
     InitBgfx();
+    // Standalone/game mode: render directly to backbuffer instead of editor offscreen target
+    if (!m_RunEditorUI) {
+        Renderer::Get().SetRenderToOffscreen(false);
+    }
 
-    // 3. Initialize ImGui
-    InitImGui();
+    // 3. Initialize ImGui (editor mode only)
+    if (m_RunEditorUI) {
+        InitImGui();
+    }
 
     // 4. Initialize Physics System
     Physics::Get().Init();
@@ -81,13 +163,47 @@ Application::Application(int width, int height, const std::string& title)
        L"ManagedStart"
     );
     
-    // 4. Initialize Asset Pipeline + Watcher
+    // 4. Initialize Asset Pipeline + Watcher (editor only)
     m_AssetPipeline = std::make_unique<AssetPipeline>();
     m_AssetWatcher = std::make_unique<AssetWatcher>(*m_AssetPipeline, defaultProjPath.string());
-    m_AssetWatcher->Start();
+    if (m_RunEditorUI) {
+        m_AssetWatcher->Start();
+		uiLayer->LoadProject(defaultProjPath.string());
+		Scene::CurrentScene = &uiLayer->GetScene();
+    } else {
+        m_GameScene = std::make_unique<Scene>();
+        Scene::CurrentScene = m_GameScene.get();
+    }
 
-	uiLayer->LoadProject(defaultProjPath.string());
-	Scene::CurrentScene = &uiLayer->GetScene();
+    // If running with a mounted pak, try to load entry scene from manifest
+    if (FileSystem::Instance().IsPakMounted()) {
+        std::string manifestText;
+        if (FileSystem::Instance().ReadTextFile("game_manifest.json", manifestText)) {
+            try {
+                nlohmann::json j = nlohmann::json::parse(manifestText);
+                // Load asset GUID->path map first so scene deserialization can resolve meshes/materials
+                if (j.contains("assetMap") && j["assetMap"].is_array()) {
+                    for (auto& rec : j["assetMap"]) {
+                        std::string guidStr = rec.value("guid", "");
+                        std::string vpath   = rec.value("path", "");
+                        if (!guidStr.empty() && !vpath.empty()) {
+                            ClaymoreGUID g = ClaymoreGUID::FromString(guidStr);
+                            // Register into AssetLibrary for runtime lookup
+                            AssetReference aref(g);
+                            AssetLibrary::Instance().RegisterAsset(aref, AssetType::Mesh, vpath, vpath);
+                        }
+                    }
+                }
+                std::string entry = j.value("entryScene", "");
+                if (!entry.empty()) {
+                    Serializer::LoadSceneFromFile(entry, *Scene::CurrentScene);
+                    if (m_RunEditorUI) uiLayer->SetCurrentScenePath(entry);
+                }
+            } catch(const std::exception& e) {
+                std::cerr << "[Init] Failed parsing game_manifest.json: " << e.what() << std::endl;
+            }
+        }
+    }
 
     std::cout << "[Application] Initialization complete." << std::endl;
 }
@@ -134,8 +250,10 @@ void Application::InitWindow(int width, int height, const std::string& title) {
 // =============================================================
 void Application::InitBgfx() {
     std::cout << "[Application] Initializing bgfx..." << std::endl;
-    // Compile shaders on startup before Renderer tries to load programs
-    ShaderManager::Instance().CompileAllShaders();
+    // Only compile shaders in editor mode; standalone relies on precompiled .bin files
+    if (m_RunEditorUI) {
+        ShaderManager::Instance().CompileAllShaders();
+    }
 
     Renderer::Get().Init(m_width, m_height, glfwGetWin32Window(m_window));
     std::cout << "[Application] bgfx initialized." << std::endl;
@@ -191,7 +309,7 @@ void Application::Run() {
     std::cout << "[Application] Running main loop..." << std::endl;
     Time::Init();
 
-    // In your app/game-loop bootstrap, ON THE THREAD that will call Scene::Update:
+    // In your app/game-loop bootstrap, ON THE THREAD that will call Scene::Update: 
     if (InstallSyncContextPtr) {
        InstallSyncContextPtr();
        }
@@ -201,7 +319,8 @@ void Application::Run() {
         Time::Tick();
 
         float dt = Time::GetDeltaTime();
-        Scene& scene = uiLayer->GetScene();
+        // Scene reference must be determined AFTER UI may toggle play/stop
+        // Do not bind a reference to *Scene::CurrentScene here.
         // --------------------------------------
         // ASSET PIPELINE PROCESSING
         // --------------------------------------
@@ -217,74 +336,93 @@ void Application::Run() {
         Input::Update();
 
         // --------------------------------------
-        // START NEW IMGUI FRAME
+        // START NEW IMGUI FRAME (editor mode only)
         // --------------------------------------
-        ImGui_ImplGlfw_NewFrame();
-        ImGui_ImplBgfx_NewFrame();
-        ImGui::NewFrame();
-
-        // --------------------------------------
-        // UI RENDER (Docking Panels, Inspector, etc.)
-        // --------------------------------------
-        /*uiLayer->HandleCameraControls();*/
-        uiLayer->OnUIRender();
+        if (m_RunEditorUI) {
+            ImGui_ImplGlfw_NewFrame();
+            ImGui_ImplBgfx_NewFrame();
+            ImGui::NewFrame();
+        }
 
         // --------------------------------------
-        // SCENE UPDATE
+        // UI RENDER (Docking Panels, Inspector, etc.) (editor mode only)
+        // This may toggle Play/Stop and create/destroy the runtime clone.
         // --------------------------------------
-        if (scene.m_RuntimeScene) {
+        if (m_RunEditorUI) {
+            /*uiLayer->HandleCameraControls();*/
+            uiLayer->OnUIRender();
+        }
 
-			if (Scene::CurrentScene != scene.m_RuntimeScene.get()) {
-		
-                Scene::CurrentScene = scene.m_RuntimeScene.get();
-
-                if (InstallSyncContextPtr) InstallSyncContextPtr();
-
-                if (ClearSyncContextPtr) ClearSyncContextPtr();
-			}
-
-           scene.m_RuntimeScene->Update(dt);
-           }
-        else {
-           scene.Update(dt);
-           SkinningSystem::Update(scene);
-           }
+        // --------------------------------------
+        // SCENE UPDATE (decide after UI may have toggled Play/Stop)
+        // --------------------------------------
+        if (m_RunEditorUI) {
+            Scene& editorScene = uiLayer->GetScene();
+            if (editorScene.m_RuntimeScene) {
+                // Ensure CurrentScene points to runtime clone
+                if (Scene::CurrentScene != editorScene.m_RuntimeScene.get()) {
+                    Scene::CurrentScene = editorScene.m_RuntimeScene.get();
+                    if (InstallSyncContextPtr) InstallSyncContextPtr();
+                    if (ClearSyncContextPtr) ClearSyncContextPtr();
+                }
+                editorScene.m_RuntimeScene->Update(dt);
+            } else {
+                // Ensure CurrentScene points back to editor scene
+                if (Scene::CurrentScene != &editorScene) {
+                    Scene::CurrentScene = &editorScene;
+                    if (ClearSyncContextPtr) ClearSyncContextPtr();
+                }
+                editorScene.Update(dt);
+                SkinningSystem::Update(editorScene);
+            }
+        } else {
+            // Game mode without editor UI
+            if (Scene::CurrentScene) Scene::CurrentScene->Update(dt);
+        }
 
         // --------------------------------------
         // SCENE RENDER
         // --------------------------------------
         Renderer::Get().BeginFrame(0.1f, 0.1f, 0.1f);
-        if (scene.m_RuntimeScene) {
-            Renderer::Get().RenderScene(*scene.m_RuntimeScene);
-        }
-        else {
-            Renderer::Get().RenderScene(scene);
-           // Editor-only: draw outline for selected entity
-           Renderer::Get().DrawEntityOutline(scene, uiLayer->GetSelectedEntity());
-        }
-
-        // --------------------------------------
-        // ENTITY PICKING (skip if UI consumed input this frame)
-        // --------------------------------------
-        if (!Renderer::Get().WasUIInputConsumedThisFrame()) {
-            Picking::Process(scene, Renderer::Get().GetCamera());
-        }
-        int pickedEntity = Picking::GetLastPick();
-        if (pickedEntity != -1) {
-            std::cout << "[Debug] Picked Entity: " << pickedEntity << std::endl;
-            uiLayer->SetSelectedEntity(pickedEntity);
-            // Clear any legacy timeline selection (new panel manages its own inspector)
+        if (m_RunEditorUI) {
+            Scene& editorScene = uiLayer->GetScene();
+            if (editorScene.m_RuntimeScene) {
+                Renderer::Get().RenderScene(*editorScene.m_RuntimeScene);
+            } else {
+                Renderer::Get().RenderScene(editorScene);
+                // Editor-only: draw outline for selected entity
+                Renderer::Get().DrawEntityOutline(editorScene, uiLayer->GetSelectedEntity());
+            }
+        } else {
+            Renderer::Get().RenderScene(*Scene::CurrentScene);
         }
 
         // --------------------------------------
-        // IMGUI RENDER PASS
+        // ENTITY PICKING (skip if UI consumed input this frame) (editor mode only)
         // --------------------------------------
-        ImGui::Render();
-        bgfx::setViewFrameBuffer(255, BGFX_INVALID_HANDLE);
-        bgfx::setViewRect(255, 0, 0, uint16_t(m_width), uint16_t(m_height));
-        bgfx::touch(255);
-        bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
-        ImGui_ImplBgfx_Render(255, ImGui::GetDrawData(), 0x00000000);
+        if (m_RunEditorUI && !Renderer::Get().WasUIInputConsumedThisFrame()) {
+            Picking::Process(uiLayer->GetScene(), Renderer::Get().GetCamera());
+        }
+        if (m_RunEditorUI) {
+            int pickedEntity = Picking::GetLastPick();
+            if (pickedEntity != -1) {
+                std::cout << "[Debug] Picked Entity: " << pickedEntity << std::endl;
+                uiLayer->SetSelectedEntity(pickedEntity);
+                // Clear any legacy timeline selection (new panel manages its own inspector)
+            }
+        }
+
+        // --------------------------------------
+        // IMGUI RENDER PASS (editor mode only)
+        // --------------------------------------
+        if (m_RunEditorUI) {
+            ImGui::Render();
+            bgfx::setViewFrameBuffer(255, BGFX_INVALID_HANDLE);
+            bgfx::setViewRect(255, 0, 0, uint16_t(m_width), uint16_t(m_height));
+            bgfx::touch(255);
+            bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
+            ImGui_ImplBgfx_Render(255, ImGui::GetDrawData(), 0x00000000);
+        }
 
         // --------------------------------------
         // SUBMIT FRAME
@@ -311,9 +449,11 @@ void Application::Shutdown() {
 
     m_Jobs.reset();
 
-    ImGui_ImplBgfx_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
+    if (m_RunEditorUI) {
+        ImGui_ImplBgfx_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+    }
     glfwDestroyWindow(m_window);
     glfwTerminate();
 

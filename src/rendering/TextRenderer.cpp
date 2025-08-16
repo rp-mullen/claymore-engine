@@ -5,6 +5,7 @@
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <imstb_truetype.h>
+#include "io/FileSystem.h"
 
 bgfx::VertexLayout TextRenderer::Vertex::Layout;
 void TextRenderer::Vertex::InitLayout() {
@@ -24,16 +25,20 @@ TextRenderer::~TextRenderer() {
 }
 
 bool TextRenderer::BakeFont(const std::string& ttfPath, uint16_t w, uint16_t h, float pixelSize) {
-    FILE* f = fopen(ttfPath.c_str(), "rb");
-    if (!f) return false;
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f); rewind(f);
-    std::vector<unsigned char> ttf(size);
-    fread(ttf.data(), 1, size, f); fclose(f);
+    std::vector<uint8_t> ttf;
+    if (!FileSystem::Instance().ReadFile(ttfPath, ttf)) {
+        // Fallback to stdio if not in pak
+        FILE* f = fopen(ttfPath.c_str(), "rb");
+        if (!f) return false;
+        fseek(f, 0, SEEK_END);
+        long size = ftell(f); rewind(f);
+        ttf.resize(static_cast<size_t>(size));
+        fread(ttf.data(), 1, size, f); fclose(f);
+    }
 
     m_Baked.chars.resize(96);
     m_Baked.pixels.assign(w * h, 0);
-    int res = stbtt_BakeFontBitmap(ttf.data(), 0, pixelSize, m_Baked.pixels.data(), w, h, 32, 96, (stbtt_bakedchar*)m_Baked.chars.data());
+    int res = stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(ttf.data()), 0, pixelSize, m_Baked.pixels.data(), w, h, 32, 96, (stbtt_bakedchar*)m_Baked.chars.data());
     if (res <= 0) return false;
     m_Baked.width = w; m_Baked.height = h; m_Baked.basePixelSize = pixelSize;
 

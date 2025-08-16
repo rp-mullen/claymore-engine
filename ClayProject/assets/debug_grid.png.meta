@@ -1,14 +1,14 @@
 {
-    "guid": "f83fa43580cfd27826f9b56cbffe5f0f",
+    "guid": "44fae8d5737777c1e0e73cb27a5cb75b",
     "hash": "34750a7acf7ae172ec23727386ad0379",
-    "lastImported": "2025-08-04 14:42:19",
+    "lastImported": "2025-08-16 12:57:58",
     "processedPath": "cache/debug_grid.png",
     "reference": {
         "fileID": 0,
-        "guid": "f83fa43580cfd27826f9b56cbffe5f0f",
+        "guid": "44fae8d5737777c1e0e73cb27a5cb75b",
         "type": 3
     },
     "settings": {},
-    "sourcePath": "C:\\Projects\\claymore\\ClayProject\\assets\\debug_grid.png",
+    "sourcePath": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\debug_grid.png",
     "type": "texture"
 }

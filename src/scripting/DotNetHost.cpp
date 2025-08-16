@@ -5,6 +5,9 @@ extern "C" {
 #include "coreclr_delegates.h"
 #include "hostfxr.h"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <psapi.h>
 #include <iostream>
@@ -46,6 +49,7 @@ Script_OnCreate_fn g_Script_OnCreate = nullptr;
 Script_OnUpdate_fn g_Script_OnUpdate = nullptr;
 Script_Invoke_fn g_Script_Invoke = nullptr;
 ReloadScripts_fn g_ReloadScripts = nullptr;
+Script_Destroy_fn g_Script_Destroy = nullptr;
 
 InstallSyncContext_fn InstallSyncContextPtr = nullptr;
 EnsureInstalled_fn    EnsureInstalledPtr = nullptr;
@@ -304,6 +308,27 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
          ClearSyncContextPtr = reinterpret_cast<ClearSyncContext_fn>(fn);
    }
 
+   // Resolve Script_Destroy so native can free managed GCHandles when scripts are destroyed
+   {
+      void* fn = nullptr;
+      int localRc = load_assembly_and_get_function_pointer(
+         fullPath.c_str(),
+         L"ClaymoreEngine.InteropExports, ClaymoreEngine",
+         L"Script_Destroy",
+         L"ClaymoreEngine.Script_DestroyDelegate, ClaymoreEngine",
+         nullptr,
+         &fn
+      );
+      if (localRc == 0 && fn)
+      {
+         g_Script_Destroy = reinterpret_cast<Script_Destroy_fn>(fn);
+      }
+      else
+      {
+         std::cerr << "[Interop] Failed to resolve Script_Destroy (HRESULT=" << std::hex << localRc << ")\n";
+      }
+   }
+
    {
    void* fn = nullptr;
    int rc = load_assembly_and_get_function_pointer(
@@ -534,7 +559,12 @@ void SetupEntityInterop(std::filesystem::path fullPath)
             (void*)&Animator_GetBool,
             (void*)&Animator_GetInt,
             (void*)&Animator_GetFloat,
-            (void*)&Animator_GetTrigger
+            (void*)&Animator_GetTrigger,
+
+            // UI Buttons (3)
+            (void*)&UI_ButtonIsHovered,
+            (void*)&UI_ButtonIsPressed,
+            (void*)&UI_ButtonWasClicked
         };
 
         using EntityInteropInitFn = void(*)(void**, int);

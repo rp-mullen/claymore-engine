@@ -55,7 +55,7 @@ static inline glm::mat4 GetWorldOrIdentity(Scene& scene, EntityID id)
 }
 
 void SkinningSystem::Update(Scene& scene)
-   {
+   { 
    auto& entities = scene.GetEntities();
 
    // 1) Group skinned meshes by SkeletonRoot and collect per-skeleton data

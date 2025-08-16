@@ -8,6 +8,8 @@
 #include "pipeline/AssetPipeline.h"
 #include "pipeline/AssetRegistry.h"
 #include "pipeline/AssetLibrary.h"
+#include "pipeline/BuildExporter.h"
+#include "ui/Logger.h"
 
 #include <filesystem>
 #include <fstream>
@@ -15,7 +17,11 @@
 #include <rendering/StandardMeshManager.h>
 #include <rendering/MaterialManager.h>
 #include <rendering/Environment.h>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <Windows.h>
+#include <cstring>
 
 using json = nlohmann::json;
 
@@ -235,11 +241,32 @@ void MenuBarPanel::OnImGuiRender() {
             }
         }
 
+        ImGui::Separator();
+
         if (ImGui::MenuItem("Exit")) {
             // Hook into application quit logic
         }
         ImGui::EndMenu();
     }
+
+    // BUILD MENU
+    if (ImGui::BeginMenu("Build")) {
+        if (ImGui::MenuItem("Export Standalone...")) {
+            m_ExportPopupOpen = true;
+            // Defaults
+            std::filesystem::path defaultOutDir = Project::GetProjectDirectory() / "dist" / "Windows" / Project::GetProjectName();
+            m_ExportOutDir = defaultOutDir.string();
+            m_ExportIncludeAll = false;
+            m_ExportEntryScene.clear();
+            if (m_UILayer) {
+                const std::string& currentScenePath = m_UILayer->GetCurrentScenePath();
+                if (!currentScenePath.empty()) m_ExportEntryScene = currentScenePath;
+            }
+            ImGui::OpenPopup("Export Standalone");
+        }
+        ImGui::EndMenu();
+    }
+    // Note: actual popup rendering is triggered from UILayer after EndMenuBar
 
     // SCENE MENU
     if (ImGui::BeginMenu("Scene")) {
@@ -287,7 +314,19 @@ void MenuBarPanel::OnImGuiRender() {
 
             // 4. Scan and import all assets anew (this will compile scripts as well)
             AssetPipeline::Instance().ScanProject(projectDir);
-            std::cout << "[MenuBarPanel] Reimport Assets triggered." << std::endl;
+            // Drain imports synchronously so registry is populated before fixup and printing
+            AssetPipeline::Instance().ProcessAllBlocking();
+            // Log what will be imported this run
+            const auto& list = AssetPipeline::Instance().GetLastScanList();
+            std::cout << "[MenuBarPanel] Reimport Assets triggered. Files scanned: " << list.size() << std::endl;
+            for (const auto& p : list) {
+                std::cout << "  - " << p << std::endl;
+            }
+            // 5. Fix up scenes/prefabs GUIDs by name/path where needed
+            AssetPipeline::Instance().FixupAssetReferencesByName(Project::GetProjectDirectory().string());
+            // 6. One more pass to pick up newly fixed paths in registration
+            AssetPipeline::Instance().ScanProject(projectDir);
+            AssetPipeline::Instance().ProcessAllBlocking();
         }
 
         if (ImGui::MenuItem("Reimport Scripts")) {
@@ -463,6 +502,65 @@ void MenuBarPanel::OnImGuiRender() {
             ImGui::EndMenu(); // Create submenu
         }
         ImGui::EndMenu();
+    }
+}
+
+void MenuBarPanel::RenderExportPopup() {
+    if (ImGui::BeginPopupModal("Export Standalone", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Output Directory");
+        static char outBuf[1024];
+        if (m_ExportOutDir.size() >= sizeof(outBuf)) m_ExportOutDir.resize(sizeof(outBuf)-1);
+        std::strncpy(outBuf, m_ExportOutDir.c_str(), sizeof(outBuf));
+        outBuf[sizeof(outBuf)-1] = '\0';
+        if (ImGui::InputText("##outdir", outBuf, sizeof(outBuf))) {
+            m_ExportOutDir = outBuf;
+        }
+        if (ImGui::Button("Browse")) {
+            std::string sel = ShowOpenFolderDialog();
+            if (!sel.empty()) m_ExportOutDir = sel;
+        }
+        ImGui::Separator();
+        ImGui::Text("Entry Scene (.scene)");
+        static char sceneBuf[1024];
+        if (m_ExportEntryScene.size() >= sizeof(sceneBuf)) m_ExportEntryScene.resize(sizeof(sceneBuf)-1);
+        std::strncpy(sceneBuf, m_ExportEntryScene.c_str(), sizeof(sceneBuf));
+        sceneBuf[sizeof(sceneBuf)-1] = '\0';
+        if (ImGui::InputText("##entryscene", sceneBuf, sizeof(sceneBuf))) {
+            m_ExportEntryScene = sceneBuf;
+        }
+        if (ImGui::Button("Pick Scene")) {
+            std::string sel = ShowOpenFileDialog();
+            if (!sel.empty()) m_ExportEntryScene = sel;
+        }
+        ImGui::Checkbox("Include all assets (debug)", &m_ExportIncludeAll);
+        ImGui::Separator();
+        bool canExport = !m_ExportOutDir.empty() && !m_ExportEntryScene.empty();
+        if (!canExport) {
+            ImGui::TextColored(ImVec4(1,0.6f,0,1), "Please select an output folder and an entry scene.");
+        }
+        if (ImGui::Button("Export") && canExport) {
+            BuildExporter::Options opts;
+            opts.outputDirectory = m_ExportOutDir;
+            opts.entryScenes = { m_ExportEntryScene };
+            opts.includeAllAssets = m_ExportIncludeAll;
+            Logger::Log("Starting standalone export...");
+            if (BuildExporter::ExportProject(opts)) {
+                Logger::Log(std::string("Export completed successfully to: ") + m_ExportOutDir);
+            } else {
+                Logger::LogError("Export failed (missing entry scene or other error)");
+            }
+            ImGui::CloseCurrentPopup();
+            m_ExportPopupOpen = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel")) {
+            ImGui::CloseCurrentPopup();
+            m_ExportPopupOpen = false;
+        }
+        ImGui::EndPopup();
+    } else if (m_ExportPopupOpen) {
+        // If not visible this frame, reopen to ensure it shows after click
+        ImGui::OpenPopup("Export Standalone");
     }
 }
 

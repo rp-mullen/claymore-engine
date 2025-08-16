@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <fstream>
+#include "io/FileSystem.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
@@ -132,8 +134,27 @@ Model ModelLoader::LoadModel(const std::string& filepath)
 
     Assimp::Importer importer;
     importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
+    // If file is inside a mounted pak, extract to temp cache before loading via Assimp
+    std::string openPath = filepath;
+    if (!std::filesystem::exists(openPath)) {
+        std::vector<uint8_t> bytes;
+        if (FileSystem::Instance().ReadFile(filepath, bytes)) {
+            std::filesystem::path cacheDir = std::filesystem::temp_directory_path() / "claymore_pak_cache";
+            std::error_code ec; std::filesystem::create_directories(cacheDir, ec);
+            size_t h = std::hash<std::string>{}(filepath);
+            std::string ext = std::filesystem::path(filepath).extension().string();
+            std::filesystem::path outPath = cacheDir / ("model_" + std::to_string(h) + ext);
+            std::ofstream out(outPath, std::ios::binary | std::ios::trunc);
+            if (out.is_open()) {
+                if (!bytes.empty()) out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+                out.close();
+                openPath = outPath.string();
+            }
+        }
+    }
+
     const aiScene* scene = importer.ReadFile(
-        filepath.c_str(),
+        openPath.c_str(),
         aiProcess_Triangulate |
         aiProcess_GenNormals |
         aiProcess_CalcTangentSpace |

@@ -8,6 +8,9 @@
 #include "AssetRegistry.h"
 #include <rendering/ShaderManager.h>
 #include <bgfx/bgfx.h>
+#include <deque>
+
+#include "ModelImportCache.h"
 
 // ---------------------------
 // GPU Upload Job Struct
@@ -48,12 +51,25 @@ public:
     // File scanning and import queue
     void ScanProject(const std::string& rootPath);
     void EnqueueAssetImport(const std::string& path);
+    const std::vector<std::string>& GetLastScanList() const { return m_LastScanList; }
+    // After a full reimport, fix up scene/prefab GUID references by resolving by name or path
+    void FixupAssetReferencesByName(const std::string& projectRoot);
+    // Editor convenience: drain all pending imports and tasks synchronously (blocking)
+    void ProcessAllBlocking();
 
     // Main-thread execution
     void ProcessMainThreadTasks();
     void ProcessGPUUploads();
     void EnqueueMainThreadTask(std::function<void()> task);
     void EnqueueGPUUpload(PendingGPUUpload&& task);
+
+    // -------- Model Import Queue (editor-only) --------
+    struct ImportRequest {
+        std::string sourcePath;       // dropped .fbx/.gltf/.glb/.obj
+        std::string preferredVPath;   // suggested virtual path base (e.g., assets/models)
+        std::function<void(const BuiltModelPaths&)> onReady; // main-thread callback
+    };
+    void EnqueueModelImport(const ImportRequest& req);
 
     // Asset importing
     void ImportAsset(const std::string& path);
@@ -94,4 +110,9 @@ private:
 
     std::queue<PendingGPUUpload> m_GPUUploadQueue;
     std::mutex m_GPUQueueMutex;
+
+    // Debug: snapshot of assets collected by last ScanProject
+    std::vector<std::string> m_LastScanList;
+
+    // (deprecated) model-specific main-thread queue removed; use EnqueueMainThreadTask instead
 };

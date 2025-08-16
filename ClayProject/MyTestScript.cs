@@ -62,7 +62,7 @@ public class MyTestScript : ScriptComponent
          Quaternion targetRot = Quaternion.CreateFromAxisAngle(Vector3.UnitY, targetYaw);
 
          // Critically-damped interpolation factor (frame-rate independent)
-         float t = 1f - MathF.Exp(-rotationSmooth * dt);
+         float t = 1f - MathF.Exp(-rotationSmooth * dt); 
          transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, t);
          }
 
@@ -73,7 +73,7 @@ public class MyTestScript : ScriptComponent
          {
          // scale to what your controller expects; using 0..5 like before
          float targetSpeed = moving ? 1f : 0f;
-
+            float x = 1f;
          // exponential smoothing (frame-rate independent)
          float lerpT = 1f - MathF.Exp(-6f * dt); // 8 = snappiness; try 6–12
          speedParam = float.Lerp(speedParam, targetSpeed, lerpT);

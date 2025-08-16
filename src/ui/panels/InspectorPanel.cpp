@@ -20,6 +20,7 @@
 // For project asset directory discovery and animation asset helpers
 #include <editor/Project.h>
 #include "animation/AnimationSerializer.h"
+#include <filesystem>
 
 bool DrawVec3Control(const char* label, glm::vec3& values, float resetValue = 0.0f) {
     bool changed = false;
@@ -84,6 +85,13 @@ void InspectorPanel::DrawInspectorContents() {
         return;
     }
 
+    // Only show scene preview when no entity is selected AND a scene file is selected.
+    if ((!m_SelectedEntity || *m_SelectedEntity == -1) && !m_SelectedAssetPath.empty()) {
+        std::string ext = std::filesystem::path(m_SelectedAssetPath).extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        if (ext == ".scene") { DrawSceneFilePreview(); return; }
+    }
+
     if (m_SelectedEntity && *m_SelectedEntity != -1 && m_Context) {
         // Entity header with rename-on-click
         if (auto* data = m_Context->GetEntityData(*m_SelectedEntity)) {
@@ -135,6 +143,63 @@ void InspectorPanel::DrawInspectorContents() {
     else {
         ImGui::Text("No entity selected.");
     }
+}
+
+void InspectorPanel::DrawSceneFilePreview() {
+    using json = nlohmann::json;
+    std::string ext = std::filesystem::path(m_SelectedAssetPath).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext != ".scene") return;
+
+    ImGui::Text("Scene File Preview");
+    ImGui::Separator();
+    ImGui::Text("%s", std::filesystem::path(m_SelectedAssetPath).filename().string().c_str());
+
+    try {
+        std::ifstream in(m_SelectedAssetPath);
+        if (!in.is_open()) return;
+        json j; in >> j; in.close();
+        if (j.contains("entities") && j["entities"].is_array()) {
+            const auto& ents = j["entities"];
+            ImGui::Text("Entities: %d", (int)ents.size());
+            // Show first N entity summaries
+            int shown = 0;
+            for (const auto& e : ents) {
+                if (shown++ > 25) { ImGui::Text("... (%d more)", (int)ents.size() - 25); break; }
+                std::string name = e.value("name", std::string("<unnamed>"));
+                uint32_t id = e.value("id", 0u);
+                ImGui::BulletText("[%u] %s", id, name.c_str());
+                if (e.contains("mesh")) {
+                    const auto& m = e["mesh"];
+                    if (m.contains("meshReference")) {
+                        const auto& r = m["meshReference"];
+                        std::string guid = r.value("guid", std::string(""));
+                        int fileID = r.value("fileID", 0);
+                        ImGui::Text("  mesh guid: %s  fileID: %d", guid.c_str(), fileID);
+                    }
+                    if (m.contains("meshName")) {
+                        ImGui::Text("  mesh name: %s", m.value("meshName", std::string()).c_str());
+                    }
+                }
+            }
+            // Scan for asset-looking strings
+            std::vector<std::string> assets;
+            std::function<void(const json&)> walk = [&](const json& n){
+                if (n.is_string()) {
+                    std::string s = n.get<std::string>();
+                    std::string lower = s; for(char &c:lower) c = (char)tolower(c);
+                    if (lower.find("assets/") != std::string::npos || lower.find(".fbx")!=std::string::npos || lower.find(".gltf")!=std::string::npos || lower.find(".png")!=std::string::npos)
+                        assets.push_back(s);
+                } else if (n.is_array()) for (auto& e2 : n) walk(e2); else if (n.is_object()) for (auto it=n.begin(); it!=n.end(); ++it) walk(it.value());
+            };
+            walk(j);
+            if (!assets.empty()) {
+                ImGui::Separator();
+                ImGui::Text("Referenced assets:");
+                int shownA = 0; for (const auto& a : assets) { if (shownA++ > 30) { ImGui::Text("... (%d more)", (int)assets.size()-30); break; } ImGui::BulletText("%s", a.c_str()); }
+            }
+        }
+    } catch(...) {}
 }
 void InspectorPanel::DrawGroupingControls(EntityID entity) {
     auto* data = m_Context->GetEntityData(entity);

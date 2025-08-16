@@ -9,7 +9,11 @@ public:
       }
 
    ~ManagedScriptComponent() override {
-      // TODO: free handle with GCHandle::Free() equivalent if needed
+      // Release the managed GCHandle associated with this instance
+      if (m_Handle && g_Script_Destroy) {
+         g_Script_Destroy(m_Handle);
+      }
+      m_Handle = nullptr;
       }
 
    void OnCreate(Entity e) override {

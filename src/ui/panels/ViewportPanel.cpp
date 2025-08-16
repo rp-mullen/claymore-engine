@@ -15,6 +15,8 @@
 #include <rendering/ModelLoader.h>
 #include <imgui_internal.h>
 #include "ViewportToolbar.h"
+#include "pipeline/AssetPipeline.h"
+#include "core/application.h"
 
 // =============================
 // Main Viewport Render
@@ -454,16 +456,45 @@ void ViewportPanel::DecomposeMatrix(const float* matrix, glm::vec3& pos, glm::ve
 }
 
 void ViewportPanel::FinalizeAssetDrop() {
-   if (!m_Context || m_DraggedAssetPath.empty()) return;
+    if (!m_Context || m_DraggedAssetPath.empty()) return;
 
-   std::string path = m_DraggedAssetPath;
-   // Use the last computed ghost position for placement when available
-   EntityID entityID = m_Context->InstantiateAsset(path, m_GhostPosition);
-   if (entityID == -1) {
-       std::cerr << "[ViewportPanel] Failed to instantiate asset: " << path << std::endl;
-   } else {
-       *m_SelectedEntity = entityID;
-   }
-
-   }
+    std::string path = m_DraggedAssetPath;
+    // Models: enqueue background import then hot-swap; others: old path
+    std::string ext = std::filesystem::path(path).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext == ".fbx" || ext == ".obj" || ext == ".gltf" || ext == ".glb") {
+        // Create placeholder
+        Entity placeholder = m_Context->CreateEntity("Importing ...");
+        EntityID placeholderID = placeholder.GetID();
+        if (auto* ed = m_Context->GetEntityData(placeholderID)) {
+            ed->Transform.Position = m_GhostPosition;
+        }
+        AssetPipeline::ImportRequest req;
+        req.sourcePath = path;
+        req.preferredVPath = "assets/models";
+        req.onReady = [this, placeholderID, pos = m_GhostPosition](const BuiltModelPaths& built){
+            // If build failed, keep placeholder but rename
+            if (built.metaPath.empty()) {
+                auto* ed = m_Context->GetEntityData(placeholderID);
+                if (ed) ed->Name = "Import failed (see console)";
+                return;
+            }
+            // Replace placeholder
+            m_Context->RemoveEntity(placeholderID);
+            EntityID id = m_Context->InstantiateModelFast(built.metaPath, pos);
+            if (id != -1) *m_SelectedEntity = id;
+        };
+        if (auto* pipeline = Application::Get().GetAssetPipeline()) {
+            pipeline->EnqueueModelImport(req);
+        }
+    } else {
+        // Use the last computed ghost position for placement when available
+        EntityID entityID = m_Context->InstantiateAsset(path, m_GhostPosition);
+        if (entityID == -1) {
+            std::cerr << "[ViewportPanel] Failed to instantiate asset: " << path << std::endl;
+        } else {
+            *m_SelectedEntity = entityID;
+        }
+    }
+}
 

@@ -6,6 +6,7 @@
 #include "pipeline/AssetWatcher.h"
 #include "pipeline/AssetPipeline.h"
 #include "jobs/JobSystem.h"
+#include "ecs/Scene.h"
 
 class Application {
 public:
@@ -16,6 +17,7 @@ public:
 
     JobSystem& Jobs() { return *m_Jobs; }
     AssetWatcher* GetAssetWatcher() const { return m_AssetWatcher.get(); }
+    AssetPipeline* GetAssetPipeline() const { return m_AssetPipeline.get(); }
 
     void Run();
 
@@ -44,4 +46,8 @@ private:
     std::unique_ptr<UILayer> uiLayer;
 	std::unique_ptr<AssetPipeline> m_AssetPipeline;
 	std::unique_ptr<AssetWatcher> m_AssetWatcher;
+
+    // Runtime without editor UI
+    bool m_RunEditorUI = true;
+    std::unique_ptr<Scene> m_GameScene;
 };

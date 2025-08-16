@@ -1,6 +1,7 @@
 #include "TextureLoader.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#include "io/FileSystem.h"
 #include <stdexcept>
 #include <algorithm>
 #include <string>
@@ -17,7 +18,14 @@
 bgfx::TextureHandle TextureLoader::Load2D(const std::string& path, bool generateMips)
 {
     int width, height, channels;
-    stbi_uc* data = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    // Try virtual filesystem first
+    std::vector<uint8_t> fileData;
+    stbi_uc* data = nullptr;
+    if (FileSystem::Instance().ReadFile(path, fileData)) {
+        data = stbi_load_from_memory(fileData.data(), static_cast<int>(fileData.size()), &width, &height, &channels, 4);
+    } else {
+        data = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    }
     if (!data)
     {
         throw std::runtime_error("Failed to load texture: " + path);
@@ -70,7 +78,14 @@ bgfx::TextureHandle TextureLoader::LoadIconTexture(const std::string& path)
         constexpr float dpi = 96.0f;
         constexpr int targetSizePx = 64; // raster size; UI can scale down as needed
 
-        NSVGimage* svg = nsvgParseFromFile(path.c_str(), "px", dpi);
+        // Load SVG via FileSystem if possible
+        std::string svgText;
+        NSVGimage* svg = nullptr;
+        if (FileSystem::Instance().ReadTextFile(path, svgText)) {
+            svg = nsvgParse(const_cast<char*>(svgText.c_str()), "px", dpi);
+        } else {
+            svg = nsvgParseFromFile(path.c_str(), "px", dpi);
+        }
         if (svg == nullptr)
         {
             throw std::runtime_error("Failed to parse SVG icon: " + path);
@@ -121,7 +136,13 @@ bgfx::TextureHandle TextureLoader::LoadIconTexture(const std::string& path)
 
     // Fallback: load raster image via stb_image
     int width, height, channels;
-    stbi_uc* data = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    std::vector<uint8_t> fileData;
+    stbi_uc* data = nullptr;
+    if (FileSystem::Instance().ReadFile(path, fileData)) {
+        data = stbi_load_from_memory(fileData.data(), static_cast<int>(fileData.size()), &width, &height, &channels, 4);
+    } else {
+        data = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    }
     if (!data)
     {
         throw std::runtime_error("Failed to load icon texture: " + path);

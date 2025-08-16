@@ -139,6 +139,7 @@ target_include_directories(Claymore PRIVATE
     external/ImGuizmo
     external/imnodes
     external/json/include
+    src
     external/JoltPhysics
     external/dotnet_hosting
     src
@@ -183,23 +184,44 @@ endforeach()
 set(IMGUI_SHADER_DIR ${CMAKE_SOURCE_DIR}/shaders/imgui)
 set(IMGUI_SHADER_OUT ${CMAKE_BINARY_DIR}/shaders/imgui)
 
-add_custom_target(compile_imgui_shaders ALL
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${IMGUI_SHADER_OUT}
-    COMMAND ${CMAKE_SOURCE_DIR}/tools/shaderc.exe
-        -f ${IMGUI_SHADER_DIR}/vs_ocornut_imgui.sc
-        -o ${IMGUI_SHADER_OUT}/vs_ocornut_imgui.bin
-        --type vertex --platform windows --profile s_5_0
-        --varyingdef ${IMGUI_SHADER_DIR}/varying.def.sc
-        -i ${CMAKE_SOURCE_DIR}/shaders -i ${CMAKE_SOURCE_DIR}/external/bgfx/src
-    COMMAND ${CMAKE_SOURCE_DIR}/tools/shaderc.exe
-        -f ${IMGUI_SHADER_DIR}/fs_ocornut_imgui.sc
-        -o ${IMGUI_SHADER_OUT}/fs_ocornut_imgui.bin
-        --type fragment --platform windows --profile s_5_0
-        --varyingdef ${IMGUI_SHADER_DIR}/varying.def.sc
-        -i ${CMAKE_SOURCE_DIR}/shaders -i ${CMAKE_SOURCE_DIR}/external/bgfx/src
-    DEPENDS ${IMGUI_SHADER_DIR}/vs_ocornut_imgui.sc ${IMGUI_SHADER_DIR}/fs_ocornut_imgui.sc
+# Try to locate shaderc.exe in a few common places
+set(SHADERC_EXE "")
+set(_shaderc_candidates
+    ${CMAKE_SOURCE_DIR}/tools/shaderc.exe
+    ${CMAKE_BINARY_DIR}/tools/shaderc.exe
+    ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/shadercDebug.exe
+    ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/shadercRelease.exe
+    ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2019/bin/shadercDebug.exe
+    ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2019/bin/shadercRelease.exe
 )
-add_dependencies(Claymore compile_imgui_shaders)
+foreach(c ${_shaderc_candidates})
+    if(EXISTS ${c})
+        set(SHADERC_EXE ${c})
+        break()
+    endif()
+endforeach()
+
+if(SHADERC_EXE)
+    add_custom_target(compile_imgui_shaders ALL
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${IMGUI_SHADER_OUT}
+        COMMAND ${SHADERC_EXE}
+            -f ${IMGUI_SHADER_DIR}/vs_ocornut_imgui.sc
+            -o ${IMGUI_SHADER_OUT}/vs_ocornut_imgui.bin
+            --type vertex --platform windows --profile s_5_0
+            --varyingdef ${IMGUI_SHADER_DIR}/varying.def.sc
+            -i ${CMAKE_SOURCE_DIR}/shaders -i ${CMAKE_SOURCE_DIR}/external/bgfx/src
+        COMMAND ${SHADERC_EXE}
+            -f ${IMGUI_SHADER_DIR}/fs_ocornut_imgui.sc
+            -o ${IMGUI_SHADER_OUT}/fs_ocornut_imgui.bin
+            --type fragment --platform windows --profile s_5_0
+            --varyingdef ${IMGUI_SHADER_DIR}/varying.def.sc
+            -i ${CMAKE_SOURCE_DIR}/shaders -i ${CMAKE_SOURCE_DIR}/external/bgfx/src
+        DEPENDS ${IMGUI_SHADER_DIR}/vs_ocornut_imgui.sc ${IMGUI_SHADER_DIR}/fs_ocornut_imgui.sc
+    )
+    add_dependencies(Claymore compile_imgui_shaders)
+else()
+    message(WARNING "shaderc.exe not found; skipping ImGui shader compilation. Place shaderc.exe in 'tools/' or build bgfx tools to generate it. The runtime will copy any precompiled bins if present.")
+endif()
 
 # ============================
 # POST-BUILD STEPS

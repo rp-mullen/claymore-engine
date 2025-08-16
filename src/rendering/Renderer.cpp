@@ -154,7 +154,11 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
 
     m_SceneFrameBuffer = bgfx::createFrameBuffer(2, fbTextures, true);
     
-    bgfx::setViewFrameBuffer(0, m_SceneFrameBuffer);
+    if (m_RenderToOffscreen) {
+        bgfx::setViewFrameBuffer(0, m_SceneFrameBuffer);
+    } else {
+        bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
+    }
 
     // Default clear
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff);
@@ -194,14 +198,25 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
     m_TextRenderer = std::make_unique<TextRenderer>();
     // Use dedicated text shaders that sample the atlas alpha
     bgfx::ProgramHandle fontProgram = ShaderManager::Instance().LoadProgram("vs_text", "fs_text");
-    m_TextRenderer->Init("assets/fonts/Roboto-Regular.ttf", fontProgram, 512, 512, 48.0f);
+    if (!m_TextRenderer->Init("assets/fonts/Roboto-Regular.ttf", fontProgram, 512, 512, 48.0f)) {
+        std::cerr << "[Renderer] Failed to initialize TextRenderer (font bake). Continuing without text." << std::endl;
+    }
 
     // UI rendering init
     UIVertex::Init();
     m_UIProgram = ShaderManager::Instance().LoadProgram("vs_ui", "fs_ui");
     if (!bgfx::isValid(m_UISampler)) m_UISampler = bgfx::createUniform("s_uiTex", bgfx::UniformType::Sampler);
+    if (!bgfx::isValid(m_UIProgram)) {
+        std::cerr << "[Renderer] UI shader program invalid; UI overlay disabled." << std::endl;
+        m_ShowUIOverlay = false;
+    }
     // Fallback white texture for panels without texture
-    m_UIWhiteTex = TextureLoader::Load2D("assets/debug/white.png");
+    try {
+        m_UIWhiteTex = TextureLoader::Load2D("assets/debug/white.png");
+    } catch(const std::exception& e) {
+        std::cerr << "[Renderer] Failed to load UI white texture: " << e.what() << std::endl;
+        m_UIWhiteTex.idx = bgfx::kInvalidHandle;
+    }
 }
 Renderer::~Renderer() {
     m_TextRenderer.reset();
@@ -219,18 +234,30 @@ void Renderer::BeginFrame(float r, float g, float b) {
    // Grid view (0)
    bgfx::setViewRect(0, 0, 0, m_Width, m_Height);
    bgfx::setViewTransform(0, m_view, m_proj);
-   bgfx::setViewFrameBuffer(0, m_SceneFrameBuffer);  // ← this was missing before!
+   if (m_RenderToOffscreen) {
+       bgfx::setViewFrameBuffer(0, m_SceneFrameBuffer);
+   } else {
+       bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
+   }
    bgfx::touch(0);
 
    // Mesh view (1)
    bgfx::setViewRect(1, 0, 0, m_Width, m_Height);
    bgfx::setViewTransform(1, m_view, m_proj);
-   bgfx::setViewFrameBuffer(1, m_SceneFrameBuffer);  // ← this was missing!
+   if (m_RenderToOffscreen) {
+       bgfx::setViewFrameBuffer(1, m_SceneFrameBuffer);
+   } else {
+       bgfx::setViewFrameBuffer(1, BGFX_INVALID_HANDLE);
+   }
    bgfx::touch(1);
 
    // Screen-space UI/Text view (2) on the same framebuffer, rendered after 0/1
    bgfx::setViewRect(2, 0, 0, m_Width, m_Height);
-   bgfx::setViewFrameBuffer(2, m_SceneFrameBuffer);
+   if (m_RenderToOffscreen) {
+       bgfx::setViewFrameBuffer(2, m_SceneFrameBuffer);
+   } else {
+       bgfx::setViewFrameBuffer(2, BGFX_INVALID_HANDLE);
+   }
    bgfx::touch(2);
    }
 

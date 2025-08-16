@@ -54,6 +54,25 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                     player.AnimatorInstance.SetController(ctrl);
                     player.AnimatorInstance.ResetToDefaults();
                     player.CurrentStateId = ctrl->DefaultState;
+                    // Bind default state's asset/clip immediately so evaluation has something to drive
+                    const auto* st = player.Controller->FindState(player.CurrentStateId);
+                    if (st) {
+                        if (!st->AnimationAssetPath.empty()) {
+                            auto ita = player.CachedAssets.find(st->Id);
+                            if (ita == player.CachedAssets.end())
+                                player.CachedAssets[st->Id] = std::make_shared<cm::animation::AnimationAsset>(cm::animation::LoadAnimationAsset(st->AnimationAssetPath));
+                        }
+                        if (st->AnimationAssetPath.empty() && !st->ClipPath.empty()) {
+                            auto itc = player.CachedClips.find(st->Id);
+                            if (itc == player.CachedClips.end())
+                                player.CachedClips[st->Id] = std::make_shared<cm::animation::AnimationClip>(cm::animation::LoadAnimationClip(st->ClipPath));
+                        }
+                    }
+                    // Respect PlayOnStart for controller mode as well (advance will still be driven by controller)
+                    if (!player._InitApplied) {
+                        player._InitApplied = true;
+                        if (player.PlayOnStart) player.IsPlaying = true;
+                    }
                 }
             } catch (...) {
                 // Ignore errors; will remain unloaded
@@ -298,7 +317,7 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
             // Sample A
             if (assetB0) {
                 PoseBuffer pose; pose.local.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f)); pose.touched.resize(skeleton.BoneEntities.size(), false);
-                static BindingCache s_bindings; s_bindings.SetSkeleton(&skeleton);
+                static BindingCache s_bindings; s_bindings.SetScene(&scene); s_bindings.SetSkeleton(&skeleton);
                 EvalInputs in{ assetB0.get(), tA, stNowForEval->Loop };
                 EvalTargets tgt{ &pose };
                 EvalContext ctx{ &s_bindings, skeleton.Avatar.get(), &skeleton };
@@ -310,7 +329,7 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
             // Sample B
             if (assetB1) {
                 PoseBuffer pose; pose.local.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f)); pose.touched.resize(skeleton.BoneEntities.size(), false);
-                static BindingCache s_bindings; s_bindings.SetSkeleton(&skeleton);
+                static BindingCache s_bindings; s_bindings.SetScene(&scene); s_bindings.SetSkeleton(&skeleton);
                 EvalInputs in{ assetB1.get(), tB, stNowForEval->Loop };
                 EvalTargets tgt{ &pose };
                 EvalContext ctx{ &s_bindings, skeleton.Avatar.get(), &skeleton };
@@ -336,7 +355,7 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
         } else if (state.Asset) {
             // Unified evaluation into a temporary pose buffer sized to skeleton
             PoseBuffer pose; pose.local.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f)); pose.touched.resize(skeleton.BoneEntities.size(), false);
-            static BindingCache s_bindings; s_bindings.SetSkeleton(&skeleton);
+            static BindingCache s_bindings; s_bindings.SetScene(&scene); s_bindings.SetSkeleton(&skeleton);
             EvalInputs in{ state.Asset, mutableState.Time, mutableState.Loop };
             EvalTargets tgt{ &pose };
             EvalContext ctx{ &s_bindings, skeleton.Avatar.get(), &skeleton };
@@ -411,7 +430,7 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
                 float nextTime = player.AnimatorInstance.Playback().NextStateTime;
                 if (nextAsset) {
                     PoseBuffer pose; pose.local.resize(skeleton.BoneEntities.size(), glm::mat4(1.0f)); pose.touched.resize(skeleton.BoneEntities.size(), false);
-                    static BindingCache s_bindings; s_bindings.SetSkeleton(&skeleton);
+                    static BindingCache s_bindings; s_bindings.SetScene(&scene); s_bindings.SetSkeleton(&skeleton);
                     EvalInputs in{ nextAsset, nextTime, nextSt->Loop };
                     EvalTargets tgt{ &pose };
                     EvalContext ctx{ &s_bindings, skeleton.Avatar.get(), &skeleton };

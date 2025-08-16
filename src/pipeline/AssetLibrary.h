@@ -8,6 +8,10 @@
 #include "rendering/TextureLoader.h"
 #include "animation/AnimationTypes.h"
 
+// Forward declarations to avoid heavy includes
+struct EntityData;
+class Scene;
+
 // Asset types enum
 enum class AssetType {
     Mesh = 3,
@@ -15,7 +19,8 @@ enum class AssetType {
     Material = 21,
     Shader = 48,
     Script = 115,
-    Animation = 196
+    Animation = 196,
+    Prefab = 250
 };
 
 // Asset entry in the library
@@ -45,6 +50,8 @@ public:
     
     // Asset registration
     void RegisterAsset(const AssetReference& ref, AssetType type, const std::string& path, const std::string& name);
+    // Register an alternate path string (absolute or virtual) that should also resolve to the same GUID
+    void RegisterPathAlias(const ClaymoreGUID& guid, const std::string& altPath);
     void UnregisterAsset(const AssetReference& ref);
     
                 // Asset lookup
@@ -56,6 +63,7 @@ public:
     std::shared_ptr<Mesh> LoadMesh(const AssetReference& ref);
     std::shared_ptr<Material> LoadMaterial(const AssetReference& ref);
     std::shared_ptr<bgfx::TextureHandle> LoadTexture(const AssetReference& ref);
+    bool LoadPrefabIntoEntity(const AssetReference& ref, EntityData& outEntity, Scene& scene);
     
     // Primitive mesh creation
     std::shared_ptr<Mesh> CreatePrimitiveMesh(const std::string& primitiveType);
@@ -63,6 +71,7 @@ public:
                 // Asset path to GUID mapping
             ClaymoreGUID GetGUIDForPath(const std::string& path);
             std::string GetPathForGUID(const ClaymoreGUID& guid);
+            std::vector<std::tuple<std::string, ClaymoreGUID, AssetType>> GetAllAssets() const;
     
     // Clear all assets
     void Clear();
@@ -70,6 +79,10 @@ public:
     // Debug
     void PrintAllAssets() const;
     
+    // Internal helpers for fast-path model cache loading
+    static std::string ResolveMeshBinFromMeta(const std::string& metaPath, int fileID);
+    static std::shared_ptr<Mesh> LoadMeshBin(const std::string& meshBinPath, int fileID);
+
 private:
     AssetLibrary() = default;
     ~AssetLibrary() = default;

@@ -16,6 +16,7 @@ using Script_Create_fn = void* (*)(const char* className);
 using Script_OnCreate_fn = void (*)(void* handle, int entityID);
 using Script_OnUpdate_fn = void (*)(void* handle, float dt);
 using Script_Invoke_fn = void (*)(void* handle, const char* methodName);
+using Script_Destroy_fn = void (*)(void* handle);
 using ReloadScripts_fn = int (*)(const wchar_t*);
 
 // These are resolved at runtime
@@ -23,6 +24,7 @@ extern Script_Create_fn g_Script_Create;
 extern Script_OnCreate_fn g_Script_OnCreate;
 extern Script_OnUpdate_fn g_Script_OnUpdate;
 extern Script_Invoke_fn g_Script_Invoke;
+extern Script_Destroy_fn g_Script_Destroy;
 extern ReloadScripts_fn g_ReloadScripts;
 // Creates and initializes the managed script instance for an entity
 void CallOnCreate(void* instance, int entityID);

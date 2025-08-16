@@ -5,6 +5,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include "io/FileSystem.h"
 
 namespace fs = std::filesystem;
 
@@ -29,6 +30,10 @@ static std::string GetBackendFolder(bgfx::RendererType::Enum renderer)
 
 bool ShaderManager::CompileShader(const std::string& name, ShaderType type)
    {
+   // In packaged runtime, skip compilation; we rely on precompiled bins in the pak
+   if (FileSystem::Instance().IsPakMounted()) {
+       return true;
+   }
    fs::path exeDir = fs::current_path();  // e.g., build/Release
    fs::path shadersDir = exeDir / "shaders";
    fs::path toolsDir   = exeDir / "tools";
@@ -87,31 +92,50 @@ bool ShaderManager::CompileShader(const std::string& name, ShaderType type)
 
 static bgfx::ShaderHandle CreateShaderFromFile(const fs::path& path)
    {
-   std::ifstream file(path, std::ios::binary);
-   if (!file.is_open()) {
-      std::cerr << "[ShaderManager] Failed to open shader file: " << path << std::endl;
-      return BGFX_INVALID_HANDLE;
-      }
-
-   file.seekg(0, std::ios::end);
-   size_t size = (size_t)file.tellg();
-   file.seekg(0, std::ios::beg);
-
-   const bgfx::Memory* mem = bgfx::alloc(uint32_t(size + 1));
-   file.read((char*)mem->data, size);
-   mem->data[size] = '\0';
+   std::vector<uint8_t> data;
+   if (!FileSystem::Instance().ReadFile(path.string(), data)) {
+       std::cerr << "[ShaderManager] Failed to read shader: \"" << path.string() << "\"" << std::endl;
+       return BGFX_INVALID_HANDLE;
+   }
+   const bgfx::Memory* mem = bgfx::alloc(uint32_t(data.size() + 1));
+   if (!data.empty()) memcpy(mem->data, data.data(), data.size());
+   mem->data[data.size()] = '\0';
 
    return bgfx::createShader(mem);
    }
 
 bgfx::ShaderHandle ShaderManager::LoadShader(const std::string& name, ShaderType type)
    {
-   if (!CompileShader(name, type)) {
-      return BGFX_INVALID_HANDLE;
-      }
-
    fs::path exeDir = fs::current_path();
-   fs::path shaderOut = exeDir / "shaders" / "compiled" / "windows" / (name + ".bin");
+   fs::path shaderOut;
+   if (FileSystem::Instance().IsPakMounted()) {
+       // packaged: prefer direct path under compiled folder (VFS handles lookup), but also try plain shaders/<name>.bin
+       std::vector<fs::path> candidates = {
+           exeDir / "shaders" / "compiled" / "windows" / (name + ".bin"),
+           exeDir / "shaders" / (name + ".bin"),
+           fs::path("shaders/compiled/windows/") / (name + ".bin"),
+           fs::path("shaders/") / (name + ".bin")
+       };
+       for (auto& c : candidates) {
+           std::vector<uint8_t> data;
+           if (FileSystem::Instance().ReadFile(c.string(), data) && !data.empty()) {
+               std::cout << "[ShaderManager] Using shader bin: " << c.string() << std::endl;
+               shaderOut = c; break;
+           }
+       }
+       if (shaderOut.empty()) {
+           // Fallback to conventional path; CreateShaderFromFile will still error log if not found
+           shaderOut = exeDir / "shaders" / "compiled" / "windows" / (name + ".bin");
+       }
+   } else {
+       shaderOut = exeDir / "shaders" / "compiled" / "windows" / (name + ".bin");
+   }
+   // In editor mode, ensure compiled; in packaged mode just read from VFS/disk
+   if (!FileSystem::Instance().IsPakMounted()) {
+       if (!CompileShader(name, type)) {
+          return BGFX_INVALID_HANDLE;
+       }
+   }
    return CreateShaderFromFile(shaderOut);
    }
 
@@ -142,6 +166,7 @@ bgfx::ProgramHandle ShaderManager::LoadProgram(const std::string& vsName, const 
 // ------------------- New: CompileAllShaders -------------------
 void ShaderManager::CompileAllShaders()
 {
+    if (FileSystem::Instance().IsPakMounted()) return;
     fs::path exeDir = fs::current_path();
     fs::path shadersDir = exeDir / "shaders";
 

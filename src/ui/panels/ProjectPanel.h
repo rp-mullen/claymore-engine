@@ -41,6 +41,8 @@ public:
 private:
    void DrawFolderTree(FileNode& node);
    void DrawFileList(const std::string& folderPath);
+   void DrawSelectedInspector();
+   void DrawScenePreviewInspector(const std::string& scenePath);
    FileNode BuildFileTree(const std::string& path);
    
    // Helper functions for file operations

@@ -46,6 +46,10 @@ bool HasComponent(int entityID, const char* componentName) {
     if (strcmp(componentName, "RigidBodyComponent") == 0) return data->RigidBody != nullptr;
     if (strcmp(componentName, "MeshComponent") == 0) return data->Mesh != nullptr;
     if (strcmp(componentName, "Animator") == 0 || strcmp(componentName, "AnimationPlayerComponent") == 0) return data->AnimationPlayer != nullptr;
+    // UI components: accept both short and full names
+    if (strcmp(componentName, "Canvas") == 0 || strcmp(componentName, "CanvasComponent") == 0) return data->Canvas != nullptr;
+    if (strcmp(componentName, "Panel") == 0 || strcmp(componentName, "PanelComponent") == 0) return data->Panel != nullptr;
+    if (strcmp(componentName, "Button") == 0 || strcmp(componentName, "ButtonComponent") == 0) return data->Button != nullptr;
     // Add other components here...
 
     return false;
@@ -66,6 +70,12 @@ void AddComponent(int entityID, const char* componentName) {
         }
     } else if ((strcmp(componentName, "Animator") == 0 || strcmp(componentName, "AnimationPlayerComponent") == 0) && !data->AnimationPlayer) {
         data->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>();
+    } else if ((strcmp(componentName, "Canvas") == 0 || strcmp(componentName, "CanvasComponent") == 0) && !data->Canvas) {
+        data->Canvas = std::make_unique<CanvasComponent>();
+    } else if ((strcmp(componentName, "Panel") == 0 || strcmp(componentName, "PanelComponent") == 0) && !data->Panel) {
+        data->Panel = std::make_unique<PanelComponent>();
+    } else if ((strcmp(componentName, "Button") == 0 || strcmp(componentName, "ButtonComponent") == 0) && !data->Button) {
+        data->Button = std::make_unique<ButtonComponent>();
     }
     // Add other components here...
 }
@@ -81,6 +91,12 @@ void RemoveComponent(int entityID, const char* componentName) {
         data->RigidBody.reset();
     } else if (strcmp(componentName, "Animator") == 0 || strcmp(componentName, "AnimationPlayerComponent") == 0) {
         data->AnimationPlayer.reset();
+    } else if (strcmp(componentName, "Canvas") == 0 || strcmp(componentName, "CanvasComponent") == 0) {
+        data->Canvas.reset();
+    } else if (strcmp(componentName, "Panel") == 0 || strcmp(componentName, "PanelComponent") == 0) {
+        data->Panel.reset();
+    } else if (strcmp(componentName, "Button") == 0 || strcmp(componentName, "ButtonComponent") == 0) {
+        data->Button.reset();
     }
     // Add other components here...
 }

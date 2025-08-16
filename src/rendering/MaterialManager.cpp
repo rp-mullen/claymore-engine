@@ -28,15 +28,24 @@ std::shared_ptr<PBRMaterial> MaterialManager::CreateDefaultPBRMaterial() {
         auto program = ShaderManager::Instance().LoadProgram("vs_pbr", "fs_pbr");
         defaultMaterial = std::make_shared<PBRMaterial>("DefaultPBR", program);
 
-        bgfx::TextureHandle whiteTex = TextureLoader::Load2D("assets/debug/white.png");
-        bgfx::TextureHandle mrTex = TextureLoader::Load2D("assets/debug/metallic_roughness.png");
-        bgfx::TextureHandle normalTex = TextureLoader::Load2D("assets/debug/normal.png");
+        bgfx::TextureHandle whiteTex{bgfx::kInvalidHandle};
+        bgfx::TextureHandle mrTex{bgfx::kInvalidHandle};
+        bgfx::TextureHandle normalTex{bgfx::kInvalidHandle};
+        try { whiteTex = TextureLoader::Load2D("assets/debug/white.png"); } catch(...) { }
+        try { mrTex = TextureLoader::Load2D("assets/debug/metallic_roughness.png"); } catch(...) { }
+        try { normalTex = TextureLoader::Load2D("assets/debug/normal.png"); } catch(...) { }
         
         defaultMaterial->SetAlbedoTexture(whiteTex);
         defaultMaterial->SetMetallicRoughnessTexture(mrTex);
         defaultMaterial->SetNormalTexture(normalTex);
     }
     return defaultMaterial;
+}
+
+std::shared_ptr<SkinnedPBRMaterial> MaterialManager::CreateSkinnedPBRMaterial() {
+    auto program = ShaderManager::Instance().LoadProgram("vs_pbr_skinned", "fs_pbr_skinned");
+    auto mat = std::make_shared<SkinnedPBRMaterial>("SkinnedPBR", program);
+    return mat;
 }
 
 std::shared_ptr<DebugMaterial> MaterialManager::CreateDefaultDebugMaterial() {

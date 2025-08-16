@@ -5,6 +5,8 @@
 #include <iostream>
 #include <filesystem>
 #include <algorithm>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include "ecs/EntityData.h"
 #include "../UILayer.h"
 
@@ -256,8 +258,10 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
          continue;
 
       bool isDir = entry.is_directory();
-      // Hide .meta files
-      if (!isDir && entry.path().extension() == ".meta") {
+      // Hide .meta and model cache binaries
+      std::string ext = entry.path().extension().string();
+      std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+      if (!isDir && (ext == ".meta" || ext == ".meshbin" || ext == ".skelbin" || ext == ".animbin")) {
          continue;
       }
       EnsureExtraIconsLoaded();
@@ -279,19 +283,17 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
       ImGui::PopStyleColor(3);
       ImGui::PopStyleVar();
 
-      // Click-to-navigate or open
+      // Single-click: select item; if scene, show inspector info; double-click opens
       if (ImGui::IsItemClicked()) {
          m_SelectedItemName = fileName;
          if (isDir) {
             m_CurrentFolder = entry.path().string();
          } else {
             std::string fullPath = entry.path().string();
-            if (IsSceneFile(fullPath)) {
-               LoadSceneFile(fullPath);
-            } else {
+            m_SelectedItemPath = fullPath; // selection for inspector
+            if (!IsSceneFile(fullPath)) {
                std::cout << "[Open] File clicked: " << fullPath << "\n";
             }
-            m_SelectedItemPath = fullPath;
          }
       }
 
@@ -338,6 +340,43 @@ ImTextureID ProjectPanel::GetFileIconForPath(const std::string& path) const {
     if (ext == ".scene") return m_FileIcon;
     if (ext == ".prefab") return m_FileIcon;
     return m_FileIcon;
+}
+
+// Inspector for the currently selected asset (right panel or inline under grid)
+void ProjectPanel::DrawSelectedInspector() {
+    if (m_SelectedItemPath.empty()) return;
+    const std::string ext = std::filesystem::path(m_SelectedItemPath).extension().string();
+    if (IsSceneFile(m_SelectedItemPath)) {
+        DrawScenePreviewInspector(m_SelectedItemPath);
+    }
+}
+
+// Lightweight preview of a scene JSON: counts and referenced asset paths
+void ProjectPanel::DrawScenePreviewInspector(const std::string& scenePath) {
+    try {
+        std::ifstream in(scenePath);
+        if (!in.is_open()) return;
+        nlohmann::json j; in >> j; in.close();
+        int entityCount = 0; if (j.contains("entities") && j["entities"].is_array()) entityCount = (int)j["entities"].size();
+        ImGui::Separator();
+        ImGui::Text("Scene: %s", std::filesystem::path(scenePath).filename().string().c_str());
+        ImGui::Text("Entities: %d", entityCount);
+        // Collect asset-looking strings
+        std::vector<std::string> assets;
+        std::function<void(const nlohmann::json&)> walk = [&](const nlohmann::json& n){
+            if (n.is_string()) {
+                std::string s = n.get<std::string>();
+                std::string lower = s; for(char &c:lower) c = (char)tolower(c);
+                if (lower.find("assets/") != std::string::npos || lower.find(".fbx")!=std::string::npos || lower.find(".gltf")!=std::string::npos || lower.find(".png")!=std::string::npos)
+                    assets.push_back(s);
+            } else if (n.is_array()) for (auto& e : n) walk(e); else if (n.is_object()) for (auto it=n.begin(); it!=n.end(); ++it) walk(it.value());
+        };
+        walk(j);
+        if (!assets.empty()) {
+            ImGui::Text("Referenced assets:");
+            for (const auto& a : assets) ImGui::BulletText("%s", a.c_str());
+        }
+    } catch(...) {}
 }
 
 void ProjectPanel::EnsureExtraIconsLoaded() const {

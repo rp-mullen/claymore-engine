@@ -1,0 +1,8 @@
+{
+  "binaries": [
+    "Claymore.exe",
+    "ClaymoreEngine.dll",
+    "nethost.dll",
+    "GameScripts.dll"
+  ]
+}

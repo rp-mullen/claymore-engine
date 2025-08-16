@@ -246,4 +246,8 @@ namespace ClaymoreEngine
     // (Resolved by native via load_assembly_and_get_function_pointer)
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void Script_InvokeDelegate(IntPtr handle, [MarshalAs(UnmanagedType.LPStr)] string methodName);
+
+    // Destroy delegate so native can free GCHandles for managed script instances
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void Script_DestroyDelegate(IntPtr handle);
 }

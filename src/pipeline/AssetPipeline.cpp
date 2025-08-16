@@ -7,7 +7,11 @@
 #include "rendering/ShaderManager.h"
 #include "animation/AnimationImporter.h"
 #include "animation/AnimationSerializer.h"
+#include "ModelImportCache.h"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <Windows.h>
 #include <filesystem>
 #include <fstream>
@@ -27,6 +31,8 @@
 #include <assimp/scene.h>
 #include <animation/AvatarSerializer.h>
 
+#include "jobs/Jobs.h"
+#include "jobs/JobSystem.h"
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -35,6 +41,7 @@ using json = nlohmann::json;
 // SCAN PROJECT (background safe)
 // ---------------------------------------
 void AssetPipeline::ScanProject(const std::string& rootPath) {
+    m_LastScanList.clear();
     for (auto& entry : fs::recursive_directory_iterator(rootPath)) {
         if (!entry.is_regular_file()) continue;
 
@@ -42,6 +49,7 @@ void AssetPipeline::ScanProject(const std::string& rootPath) {
         if (!IsSupportedAsset(ext)) continue;
 
         std::string filePath = entry.path().string();
+        m_LastScanList.push_back(filePath);
         std::string hash = ComputeHash(filePath);
 
         const auto* meta = GetMetadata(filePath);
@@ -49,6 +57,7 @@ void AssetPipeline::ScanProject(const std::string& rootPath) {
             EnqueueAssetImport(filePath);
         }
     }
+    std::cout << "[AssetPipeline] Scan complete. Assets found: " << m_LastScanList.size() << std::endl;
 }
 
 // ---------------------------------------
@@ -87,6 +96,8 @@ void AssetPipeline::ProcessMainThreadTasks() {
         localTaskQueue.pop();
     }
 
+    // 2b. (removed) model-specific queue no longer used; callbacks go through m_MainThreadTasks
+
     // 3. Process GPU upload jobs
     ProcessGPUUploads();
 }
@@ -101,6 +112,30 @@ void AssetPipeline::ProcessGPUUploads() {
     while (!localGPUQueue.empty()) {
         localGPUQueue.front().Upload();
         localGPUQueue.pop();
+    }
+}
+
+// Block until current import queue and tasks are processed (called after menu-triggered reimport)
+void AssetPipeline::ProcessAllBlocking() {
+    // Pump until queues are empty for this frame budget
+    int safety = 10000;
+    while (safety-- > 0) {
+        size_t q1, q2, q3;
+        {
+            std::lock_guard<std::mutex> l1(m_QueueMutex);
+            q1 = m_ImportQueue.size();
+        }
+        {
+            std::lock_guard<std::mutex> l2(m_MainThreadQueueMutex);
+            q2 = m_MainThreadTasks.size();
+        }
+        {
+            std::lock_guard<std::mutex> l3(m_GPUQueueMutex);
+            q3 = m_GPUUploadQueue.size();
+        }
+        if (q1 == 0 && q2 == 0 && q3 == 0) break;
+        ProcessMainThreadTasks();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
 
@@ -366,6 +401,33 @@ void AssetPipeline::ImportModel(const std::string& path) {
 }
 
 // ---------------------------------------
+// Enqueue Model Import (BG job → main-thread callback)
+// ---------------------------------------
+void AssetPipeline::EnqueueModelImport(const ImportRequest& req) {
+    // Run CPU-heavy build in a background job; then marshal to main thread
+    Jobs().Enqueue([this, req]{
+        try {
+            BuiltModelPaths built{};
+            if (!EnsureModelCache(req.sourcePath, built)) {
+                EnqueueMainThreadTask([cb = req.onReady]{ if (cb) { BuiltModelPaths empty{}; cb(empty); } });
+                return;
+            }
+            EnqueueMainThreadTask([built, cb = req.onReady]{ if (cb) cb(built); });
+        } catch (const std::exception& e) {
+            EnqueueMainThreadTask([cb = req.onReady, msg = std::string(e.what())]{
+                std::cerr << "[AssetPipeline] Import job threw: " << msg << std::endl;
+                if (cb) { BuiltModelPaths empty{}; cb(empty); }
+            });
+        } catch (...) {
+            EnqueueMainThreadTask([cb = req.onReady]{
+                std::cerr << "[AssetPipeline] Import job threw unknown exception" << std::endl;
+                if (cb) { BuiltModelPaths empty{}; cb(empty); }
+            });
+        }
+    });
+}
+
+// ---------------------------------------
 // TEXTURE IMPORT (CPU -> GPU queue)
 // ---------------------------------------
 void AssetPipeline::ImportTextureCPU(const std::string& path) {
@@ -437,9 +499,9 @@ std::string AssetPipeline::ComputeHash(const std::string& path) const {
 // ---------------------------------------
 bool AssetPipeline::IsSupportedAsset(const std::string& ext) const {
     static const std::unordered_set<std::string> supported = {
-        ".fbx",      // Models
+        ".fbx", ".obj", ".gltf", ".glb", // Models
         ".png", ".jpg", ".jpeg", ".tga", // Textures
-        ".sc", ".shader", ".glsl", // Shaders
+        ".sc", ".shader", ".glsl",         // Shaders
         ".cs"
     };
     return supported.find(ext) != supported.end();
@@ -490,4 +552,135 @@ void AssetPipeline::CheckAndCompileScriptsAtStartup()
     {
         std::cerr << "[Startup] No .cs scripts found in project. Cannot build GameScripts.dll.\n";
     }
+}
+
+// -----------------------------------------------------
+// FIXUP GUID REFERENCES in scenes/prefabs after reimport
+// -----------------------------------------------------
+void AssetPipeline::FixupAssetReferencesByName(const std::string& projectRoot) {
+    namespace fs = std::filesystem;
+    // Build lookups:
+    // - filename (without dir) -> {GUID, virtual path}
+    // - filename -> virtual path (for non-GUID assets like textures)
+    std::unordered_map<std::string, std::pair<ClaymoreGUID, std::string>> nameToGuidPath;
+    std::unordered_map<std::string, std::string> nameToVPath;
+    // Walk assets dir
+    fs::path assetsDir = fs::path(projectRoot) / "assets";
+    if (fs::exists(assetsDir)) {
+        for (auto& e : fs::recursive_directory_iterator(assetsDir)) {
+            if (!e.is_regular_file()) continue;
+            std::string p = e.path().string();
+            const AssetMetadata* meta = AssetRegistry::Instance().GetMetadata(p);
+            std::string v = p; std::replace(v.begin(), v.end(), '\\', '/');
+            auto pos = v.find("assets/"); if (pos != std::string::npos) v = v.substr(pos);
+            const std::string fname = e.path().filename().string();
+            nameToVPath[fname] = v;
+            if (meta && !(meta->guid.high == 0 && meta->guid.low == 0)) {
+                nameToGuidPath[fname] = { meta->guid, v };
+            }
+        }
+    }
+
+    auto tryFixFile = [&](const fs::path& path) {
+        try {
+            std::ifstream in(path.string());
+            if (!in.is_open()) return;
+            nlohmann::json j; in >> j; in.close();
+            bool changed = false;
+            // Walk entities -> mesh and material/anim paths
+            if (j.contains("entities") && j["entities"].is_array()) {
+                for (auto& ent : j["entities"]) {
+                    if (ent.contains("mesh") && ent["mesh"].is_object()) {
+                        auto& m = ent["mesh"];
+                        // If meshReference guid is zero, or guid not known, try resolve by filename from meshPath
+                        bool need = false;
+                        ClaymoreGUID g{};
+                        if (m.contains("meshReference") && m["meshReference"].contains("guid")) {
+                            std::string gs = m["meshReference"]["guid"].get<std::string>();
+                            g = ClaymoreGUID::FromString(gs);
+                            if (g.high == 0 && g.low == 0) need = true;
+                        } else need = true;
+                        std::string filename;
+                        if (m.contains("meshPath")) filename = fs::path(m["meshPath"].get<std::string>()).filename().string();
+                        else if (m.contains("meshName")) filename = m["meshName"].get<std::string>();
+                        if (need && !filename.empty()) {
+                            auto it = nameToGuidPath.find(filename);
+                            if (it != nameToGuidPath.end()) {
+                                m["meshReference"]["guid"] = it->second.first.ToString();
+                                m["meshReference"]["type"] = (int)AssetType::Mesh;
+                                if (!m.contains("meshPath")) m["meshPath"] = it->second.second;
+                                changed = true;
+                            }
+                        }
+
+                        // Normalize material texture paths to virtual assets path if missing or invalid
+                        auto fixTex = [&](const char* key){
+                            if (!m.contains(key)) return;
+                            std::string val = m[key].get<std::string>();
+                            std::string fname = fs::path(val).filename().string();
+                            // If not under assets/ or file not present, map by filename
+                            bool needsMap = val.empty() || val.find("assets/") == std::string::npos;
+                            if (!needsMap) {
+                                // keep
+                            } else if (!fname.empty()) {
+                                auto it2 = nameToVPath.find(fname);
+                                if (it2 != nameToVPath.end()) { m[key] = it2->second; changed = true; }
+                            }
+                        };
+                        fixTex("mat_albedoPath");
+                        fixTex("mat_mrPath");
+                        fixTex("mat_normalPath");
+
+                        // PropertyBlock texture overrides
+                        if (m.contains("propertyBlockTextures") && m["propertyBlockTextures"].is_object()) {
+                            for (auto it = m["propertyBlockTextures"].begin(); it != m["propertyBlockTextures"].end(); ++it) {
+                                std::string val = it.value().get<std::string>();
+                                std::string fname = fs::path(val).filename().string();
+                                if (!fname.empty()) {
+                                    auto it2 = nameToVPath.find(fname);
+                                    if (it2 != nameToVPath.end()) { it.value() = it2->second; changed = true; }
+                                }
+                            }
+                        }
+                    }
+
+                    // Animator controller/clip paths normalization
+                    if (ent.contains("animator") && ent["animator"].is_object()) {
+                        auto& a = ent["animator"];
+                        auto normAsset = [&](const char* key){
+                            if (!a.contains(key)) return;
+                            std::string val = a[key].get<std::string>();
+                            std::string fname = fs::path(val).filename().string();
+                            if (!fname.empty()) {
+                                auto it2 = nameToVPath.find(fname);
+                                if (it2 != nameToVPath.end()) { a[key] = it2->second; changed = true; }
+                            }
+                        };
+                        normAsset("controllerPath");
+                        normAsset("singleClipPath");
+                    }
+                }
+            }
+            if (changed) {
+                std::ofstream out(path.string());
+                out << j.dump(4);
+            }
+        } catch (...) { }
+    };
+
+    // Helper: robust directory walk (skip permission errors)
+    auto walkDir = [&](const fs::path& dir, const std::string& ext){
+        std::error_code ec;
+        if (!fs::exists(dir, ec)) return;
+        fs::recursive_directory_iterator it(dir, fs::directory_options::skip_permission_denied, ec), end;
+        while (!ec && it != end) {
+            if (it->is_regular_file(ec) && it->path().extension() == ext) tryFixFile(it->path());
+            it.increment(ec);
+        }
+    };
+
+    // Fix scenes under <projectRoot>/scenes
+    walkDir(fs::path(projectRoot) / "scenes", ".scene");
+    // Fix prefabs under <projectRoot>/assets
+    walkDir(fs::path(projectRoot) / "assets", ".prefab");
 }

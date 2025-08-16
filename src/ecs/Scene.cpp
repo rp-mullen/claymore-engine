@@ -30,9 +30,14 @@ namespace fs = std::filesystem;
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/euler_angles.hpp>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include "animation/AvatarSerializer.h"
 #include "serialization/Serializer.h"
+#include <nlohmann/json.hpp>
+#include <fstream>
 
 #include "jobs/JobSystem.h"
 #include "jobs/ParallelFor.h"
@@ -649,6 +654,20 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     return rootID;
 }
 
+EntityID Scene::InstantiateModelFast(const std::string& metaPath, const glm::vec3& position) {
+    // Minimal stub: detect .meta and for now fall back to slow path using source inside meta
+    try {
+        std::ifstream in(metaPath);
+        if (!in.is_open()) return -1;
+        nlohmann::json j; in >> j; in.close();
+        if (j.contains("source") && j["source"].is_string()) {
+            std::string source = j["source"].get<std::string>();
+            return InstantiateModel(source, position);
+        }
+    } catch (...) { }
+    return -1;
+}
+
 
 
 
@@ -806,6 +825,9 @@ std::shared_ptr<Scene> Scene::RuntimeClone() {
           clone->CreatePhysicsBody(id, data.Transform, *data.Collider);
       }
       }
+
+   // Ensure interop lookups (Scene::Get()) target the runtime clone during script initialization
+   Scene::CurrentScene = clone.get();
 
    // Apply reflected property values to managed scripts, then initialize
    for (auto& [scriptPtr, entity] : toInitialize) {

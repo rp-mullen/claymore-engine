@@ -13,6 +13,7 @@
 #include "panels/AvatarBuilderPanel.h"
 #include "ecs/Scene.h"
 #include "panels/ScriptRegistryPanel.h"
+#include "panels/AssetRegistryPanel.h"
 
 #include <vector>
 #include <memory>
@@ -59,6 +60,7 @@ public:
     void DeferSceneLoad(const std::string& filepath);
     void ProcessDeferredSceneLoad();
     void SetCurrentScenePath(const std::string& path) { m_CurrentScenePath = path; }
+    const std::string& GetCurrentScenePath() const { return m_CurrentScenePath; }
     
 public:
     void FocusConsoleNextFrame() { m_FocusConsoleNextFrame = true; }
@@ -86,6 +88,7 @@ private:
     MenuBarPanel m_MenuBarPanel;
     ConsolePanel m_ConsolePanel;
     ScriptRegistryPanel m_ScriptPanel;
+    AssetRegistryPanel m_AssetRegistryPanel;
     AnimationControllerPanel m_AnimCtrlPanel;
     class AnimTimelinePanel m_AnimTimelinePanel{};
     AvatarBuilderPanel m_AvatarBuilderPanel{ &m_Scene };

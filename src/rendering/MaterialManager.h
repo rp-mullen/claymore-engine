@@ -3,6 +3,7 @@
 #include <memory>
 #include "PBRMaterial.h"
 #include "DebugMaterial.h"
+#include "SkinnedPBRMaterial.h"
 
 class MaterialManager {
 public:
@@ -10,6 +11,7 @@ public:
     bgfx::VertexLayout GetPBRVertexLayout();
     
     std::shared_ptr<PBRMaterial> CreateDefaultPBRMaterial();
+    std::shared_ptr<SkinnedPBRMaterial> CreateSkinnedPBRMaterial();
 
     std::shared_ptr<DebugMaterial> CreateDefaultDebugMaterial();
 };

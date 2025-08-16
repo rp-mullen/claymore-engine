@@ -4,18 +4,55 @@
 #include "rendering/MaterialManager.h"
 #include "rendering/ModelLoader.h"
 #include "rendering/TextureLoader.h"
+#include "serialization/Serializer.h"
 #include <iostream>
 #include <filesystem>
+#include <algorithm>
+#include "editor/Project.h"
+#include <nlohmann/json.hpp>
+#include <fstream>
 
 namespace fs = std::filesystem;
 
 void AssetLibrary::RegisterAsset(const AssetReference& ref, AssetType type, const std::string& path, const std::string& name) {
-    AssetEntry entry(ref, type, path, name);
+    // Normalize forward slashes
+    std::string normPath = path;
+    std::replace(normPath.begin(), normPath.end(), '\\', '/');
+
+    // If already registered with same mapping, skip noisy log and return
+    auto it = m_Assets.find(ref.guid);
+    if (it != m_Assets.end()) {
+        bool samePath = (it->second.path == normPath);
+        bool sameType = (it->second.type == type);
+        if (samePath && sameType) {
+            // Ensure reverse maps are consistent then exit quietly
+            m_PathToGUID[normPath] = ref.guid;
+            m_GUIDToPath[ref.guid] = normPath;
+            return;
+        }
+        // If GUID exists but path changed (rename/move), update and keep entry data (like cached meshes)
+        it->second.path = normPath;
+        it->second.type = type;
+        it->second.name = name;
+        m_PathToGUID[normPath] = ref.guid;
+        m_GUIDToPath[ref.guid] = normPath;
+        std::cout << "[AssetLibrary] Updated asset path: " << name << " (GUID: " << ref.guid.ToString() << ") -> " << normPath << std::endl;
+        return;
+    }
+
+    AssetEntry entry(ref, type, normPath, name);
     m_Assets[ref.guid] = entry;
-    m_PathToGUID[path] = ref.guid;
-    m_GUIDToPath[ref.guid] = path;
-    
+    m_PathToGUID[normPath] = ref.guid;
+    m_GUIDToPath[ref.guid] = normPath;
+
     std::cout << "[AssetLibrary] Registered asset: " << name << " (GUID: " << ref.guid.ToString() << ")" << std::endl;
+}
+
+void AssetLibrary::RegisterPathAlias(const ClaymoreGUID& guid, const std::string& altPath) {
+    if (guid.high == 0 && guid.low == 0) return;
+    std::string norm = altPath;
+    std::replace(norm.begin(), norm.end(), '\\', '/');
+    m_PathToGUID[norm] = guid;
 }
 
 void AssetLibrary::UnregisterAsset(const AssetReference& ref) {
@@ -45,6 +82,14 @@ AssetEntry* AssetLibrary::GetAsset(const std::string& path) {
     return nullptr;
 }
 
+bool AssetLibrary::LoadPrefabIntoEntity(const AssetReference& ref, EntityData& outEntity, Scene& scene) {
+    AssetEntry* entry = this->GetAsset(ref);
+    if (!entry) return false;
+    if (entry->type != AssetType::Prefab) return false;
+    // entry->path should be a prefab json path (virtual path ok). Use Serializer to load and populate outEntity
+    return Serializer::LoadPrefabFromFile(entry->path, outEntity, scene);
+}
+
 std::shared_ptr<Mesh> AssetLibrary::LoadMesh(const AssetReference& ref) {
     AssetEntry* entry = GetAsset(ref);
     if (!entry) {
@@ -61,6 +106,16 @@ std::shared_ptr<Mesh> AssetLibrary::LoadMesh(const AssetReference& ref) {
 
     // For imported models, support submesh selection via fileID
     if (!entry->path.empty()) {
+        // Fast-path: .meshbin or .meta
+        std::string ext = std::filesystem::path(entry->path).extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        if (ext == ".meshbin") {
+            return LoadMeshBin(entry->path, ref.fileID);
+        }
+        if (ext == ".meta") {
+            std::string meshBin = ResolveMeshBinFromMeta(entry->path, ref.fileID);
+            if (!meshBin.empty()) return LoadMeshBin(meshBin, ref.fileID);
+        }
         // Cache per-fileID meshes inside the entry by reusing its mesh pointer for fileID 0
         // and loading a model once per request; keep a simple cache map local static for now.
         static std::unordered_map<std::string, std::vector<std::shared_ptr<Mesh>>> s_modelMeshCache;
@@ -143,13 +198,48 @@ std::shared_ptr<Mesh> AssetLibrary::CreatePrimitiveMesh(const std::string& primi
 }
 
 ClaymoreGUID AssetLibrary::GetGUIDForPath(const std::string& path) {
-    auto it = m_PathToGUID.find(path);
-    return it != m_PathToGUID.end() ? it->second : ClaymoreGUID();
+    // Normalize slashes
+    std::string key = path;
+    std::replace(key.begin(), key.end(), '\\', '/');
+    // Direct lookup
+    auto it = m_PathToGUID.find(key);
+    if (it != m_PathToGUID.end()) return it->second;
+    // If absolute under project, convert to project-relative
+    try {
+        std::filesystem::path proj = Project::GetProjectDirectory();
+        if (!proj.empty()) {
+            std::error_code ec;
+            std::filesystem::path rel = std::filesystem::relative(key, proj, ec);
+            if (!ec) {
+                std::string v = rel.string();
+                std::replace(v.begin(), v.end(), '\\', '/');
+                auto it2 = m_PathToGUID.find(v);
+                if (it2 != m_PathToGUID.end()) return it2->second;
+            }
+        }
+    } catch(...) {}
+    // If the string contains assets/, use substring from there
+    size_t pos = key.find("assets/");
+    if (pos != std::string::npos) {
+        std::string v = key.substr(pos);
+        auto it3 = m_PathToGUID.find(v);
+        if (it3 != m_PathToGUID.end()) return it3->second;
+    }
+    return ClaymoreGUID();
 }
 
 std::string AssetLibrary::GetPathForGUID(const ClaymoreGUID& guid) {
     auto it = m_GUIDToPath.find(guid);
     return it != m_GUIDToPath.end() ? it->second : "";
+}
+
+std::vector<std::tuple<std::string, ClaymoreGUID, AssetType>> AssetLibrary::GetAllAssets() const {
+    std::vector<std::tuple<std::string, ClaymoreGUID, AssetType>> out;
+    out.reserve(m_Assets.size());
+    for (const auto& [guid, entry] : m_Assets) {
+        out.emplace_back(entry.path, guid, entry.type);
+    }
+    return out;
 }
 
 void AssetLibrary::Clear() {
@@ -167,3 +257,32 @@ void AssetLibrary::PrintAllAssets() const {
                   << ", Path: " << entry.path << ")" << std::endl;
     }
 } 
+
+// ----------------------------------------------
+// Fast-path helpers for .meta/.meshbin
+// ----------------------------------------------
+std::string AssetLibrary::ResolveMeshBinFromMeta(const std::string& metaPath, int /*fileID*/) {
+    try {
+        std::ifstream in(metaPath);
+        if (!in.is_open()) return {};
+        nlohmann::json j; in >> j; in.close();
+        if (j.contains("meshes") && j["meshes"].is_array() && !j["meshes"].empty()) {
+            // Read first mesh entry's "mesh" string and strip optional #index
+            std::string m = j["meshes"][0].value("mesh", std::string());
+            if (m.empty()) return {};
+            // If string contains #, split
+            auto pos = m.find('#');
+            if (pos != std::string::npos) m = m.substr(0, pos);
+            return m;
+        }
+    } catch (...) {}
+    return {};
+}
+
+std::shared_ptr<Mesh> AssetLibrary::LoadMeshBin(const std::string& meshBinPath, int /*fileID*/) {
+    // Stub: allocate an empty mesh for now; real implementation will map/read streams and create GPU buffers
+    auto mesh = std::make_shared<Mesh>();
+    mesh->numVertices = 0;
+    mesh->numIndices = 0;
+    return mesh;
+}

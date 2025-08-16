@@ -266,6 +266,8 @@ void UILayer::OnUIRender() {
     // Route Inspector to Animation inspector when a .anim is selected in Project panel
     m_SceneHierarchyPanel.OnImGuiRender();
     {
+        // Forward currently selected asset path to Inspector so it can show previews
+        m_InspectorPanel.SetSelectedAssetPath(m_ProjectPanel.GetSelectedItemPath());
         std::string selExt = m_ProjectPanel.GetSelectedItemExtension();
         if (selExt == ".anim") {
             ImGui::Begin("Inspector");
@@ -274,6 +276,8 @@ void UILayer::OnUIRender() {
         } else {
             m_InspectorPanel.OnImGuiRender();
         }
+        // Render Asset Registry panel docked in the same right column
+        m_AssetRegistryPanel.OnImGuiRender();
     }
 
     // Editor-only terrain painting
@@ -337,6 +341,7 @@ void UILayer::BeginDockspace() {
         ImGui::DockBuilderDockWindow("Project", dock_down);
         ImGui::DockBuilderDockWindow("Console", dock_down);
         ImGui::DockBuilderDockWindow("Script Registry", dock_right);
+        ImGui::DockBuilderDockWindow("Asset Registry", dock_right);
         ImGui::DockBuilderDockWindow("Viewport", dockspace_id);
         ImGui::DockBuilderDockWindow("Animation Controller", dockspace_id);
         ImGui::DockBuilderDockWindow("Animation Timeline", dockspace_id);
@@ -438,6 +443,9 @@ void UILayer::BeginDockspace() {
 
     ImGui::EndChild();
     ImGui::PopStyleVar();
+
+    // Render any modals requested by menu items after the menu bar has closed
+    m_MenuBarPanel.RenderExportPopup();
 
     // DockSpace (below toolbar), reserve space for status bar using negative height
     ImGui::Separator();
