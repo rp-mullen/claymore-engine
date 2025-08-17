@@ -28,6 +28,41 @@ bgfx::TextureHandle TextureLoader::Load2D(const std::string& path, bool generate
     }
     if (!data)
     {
+        // Procedural fallbacks for engine default debug textures so export isn't hard-blocked by missing files
+        auto ends_with = [](const std::string& s, const std::string& suffix) {
+            if (suffix.size() > s.size()) return false;
+            return std::equal(suffix.rbegin(), suffix.rend(), s.rbegin());
+        };
+        std::vector<uint8_t> generated;
+        if (ends_with(path, "assets/debug/white.png")) {
+            width = height = 1; channels = 4; generated = { 255, 255, 255, 255 };
+        } else if (ends_with(path, "assets/debug/metallic_roughness.png")) {
+            // Default: non-metallic (0), roughness ~1.0 (255) in G channel; pack into RGBA as needed
+            width = height = 1; channels = 4; generated = { 0, 255, 0, 255 };
+        } else if (ends_with(path, "assets/debug/normal.png")) {
+            // Default normal map value (0.5,0.5,1.0) -> (128,128,255)
+            width = height = 1; channels = 4; generated = { 128, 128, 255, 255 };
+        }
+
+        if (!generated.empty()) {
+            // Create texture from generated pixels
+            bgfx::TextureHandle handle = bgfx::createTexture2D(
+                static_cast<uint16_t>(width),
+                static_cast<uint16_t>(height),
+                generateMips,
+                1,
+                bgfx::TextureFormat::RGBA8,
+                BGFX_TEXTURE_NONE,
+                nullptr);
+            const bgfx::Memory* mem = bgfx::copy(generated.data(), static_cast<uint32_t>(generated.size()));
+            bgfx::updateTexture2D(handle, 0, 0, 0, 0,
+                                  static_cast<uint16_t>(width),
+                                  static_cast<uint16_t>(height),
+                                  mem,
+                                  static_cast<uint16_t>(width * 4));
+            return handle;
+        }
+
         throw std::runtime_error("Failed to load texture: " + path);
     }
 

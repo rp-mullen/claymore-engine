@@ -161,10 +161,19 @@ void SkinningSystem::Update(Scene& scene)
          // Nothing to compute (fast path).
          }
 
-      // Upload bones on main thread (after kernels done)
+      // Upload bones on main thread (after kernels done). Ensure palette filled for bind-pose too
       for (auto& w : g.meshes) {
-         if (w.skMat) w.skMat->UploadBones(*w.palette);                  // :contentReference[oaicite:14]{index=14}
+         if (!w.palette->empty()) {
+            // If still identity (bind pose), compute palette = invMesh * (globalBind) where pose was identity
+            // g.pose may be empty in bind pose; in that case, construct from skeleton bind data
+            if (g.inBindPose) {
+               for (size_t i = 0; i < w.palette->size(); ++i) {
+                  (*w.palette)[i] = w.invMeshWorld * glm::mat4(1.0f);
+               }
+            }
+            if (w.skMat) w.skMat->UploadBones(*w.palette);
          }
+      }
 
       // 3) Blendshapes per mesh (only dynamic + dirty)
       for (auto& w : g.meshes) {

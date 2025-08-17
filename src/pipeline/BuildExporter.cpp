@@ -14,6 +14,24 @@
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
+static bool CopyDirectoryRecursive(const fs::path& src, const fs::path& dst) {
+    std::error_code ec;
+    if (!fs::exists(src)) return false;
+    for (auto it = fs::recursive_directory_iterator(src, ec); !ec && it != fs::recursive_directory_iterator(); ++it) {
+        const auto& entry = *it;
+        fs::path rel = fs::relative(entry.path(), src, ec);
+        if (ec) rel = entry.path().filename();
+        fs::path outPath = dst / rel;
+        if (entry.is_directory()) {
+            fs::create_directories(outPath, ec);
+        } else if (entry.is_regular_file()) {
+            fs::create_directories(outPath.parent_path(), ec);
+            std::error_code cec; fs::copy_file(entry.path(), outPath, fs::copy_options::overwrite_existing, cec);
+        }
+    }
+    return true;
+}
+
 static std::string MakeVirtualPath(const fs::path& absPath) {
     // Normalize to forward slashes first
     std::string s = absPath.generic_string();
@@ -146,9 +164,21 @@ bool BuildExporter::ExportProject(const Options& opts) {
             "assets/fonts/Roboto-Regular.ttf"
         };
         fs::path proj = Project::GetProjectDirectory();
+        // Try project assets first, then fallback to engine-level assets under repo root (parent of ClayProject)
+        fs::path repoRoot = proj.parent_path();
+        // Final fallback: derive from exe dir
+        if (repoRoot.empty() || !fs::exists(repoRoot)) {
+            fs::path exeDirHere = fs::current_path();
+            repoRoot = fs::weakly_canonical(exeDirHere / "../../..");
+        }
         for (const char* rel : kRuntimeAssets) {
-            fs::path abs = proj / rel;
-            AddIfExists(abs.string(), files);
+            bool added = false;
+            fs::path absProj = proj / rel;
+            if (fs::exists(absProj)) { AddIfExists(absProj.string(), files); added = true; }
+            if (!added) {
+                fs::path absEngine = repoRoot / rel; // e.g., <repo>/assets/debug/white.png
+                AddIfExists(absEngine.string(), files);
+            }
         }
     }
 
@@ -247,6 +277,28 @@ bool BuildExporter::ExportProject(const Options& opts) {
         }
     }
 
+    // Also copy the managed engine output directory (scripts/ClaymoreEngine/bin/<Config>/<TFM>) into the export
+    try {
+        // Heuristic to resolve repo root from current exe dir (../../.. relative like Application does for ClayProject)
+        fs::path repoRoot = fs::weakly_canonical(exeDir / "../../..");
+        std::vector<fs::path> managedCandidates = {
+            repoRoot / "scripts/ClaymoreEngine/bin/Debug/net8.0",
+            repoRoot / "scripts/ClaymoreEngine/bin/Debug/net8.0-windows",
+            repoRoot / "scripts/ClaymoreEngine/bin/Release/net8.0",
+            repoRoot / "scripts/ClaymoreEngine/bin/Release/net8.0-windows"
+        };
+        fs::path chosen;
+        for (const auto& c : managedCandidates) { if (fs::exists(c)) { chosen = c; break; } }
+        if (!chosen.empty()) {
+            std::cout << "[BuildExporter] Copying managed runtime from: " << chosen << std::endl;
+            CopyDirectoryRecursive(chosen, fs::path(opts.outputDirectory));
+        } else {
+            std::cerr << "[BuildExporter] Warning: Managed output directory not found under scripts/ClaymoreEngine/bin." << std::endl;
+        }
+    } catch(const std::exception& e) {
+        std::cerr << "[BuildExporter] Failed copying managed runtime directory: " << e.what() << std::endl;
+    }
+
     // Optionally rename executable to project name for convenience
     try {
         const std::string proj = projName;
@@ -259,6 +311,13 @@ bool BuildExporter::ExportProject(const Options& opts) {
     } catch(const std::exception& e) {
         std::cerr << "[BuildExporter] Failed to create project executable: " << e.what() << std::endl;
     }
+
+    // Drop a marker file to force play-mode in exported builds
+    try {
+        std::ofstream marker(fs::path(opts.outputDirectory) / "game_mode_only.marker", std::ios::trunc);
+        marker << "play_mode_only";
+        marker.close();
+    } catch(...) {}
 
     std::cout << "[BuildExporter] Export completed successfully!" << std::endl;
     std::cout << "[BuildExporter] Output directory: " << opts.outputDirectory << std::endl;

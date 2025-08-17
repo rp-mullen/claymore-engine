@@ -43,12 +43,9 @@
 # ==========================
 *.dll
 *.pdb
-*.exe
 *.lib
 *.exp
 *.ilk
-
-!/tools/
 
 # ==========================
 # Temporary & misc
@@ -58,3 +55,8 @@
 *.swp
 *.DS_Store
 Thumbs.db
+
+# ==========================
+# ClayProject files
+# ==========================
+/ClayProject/dist/

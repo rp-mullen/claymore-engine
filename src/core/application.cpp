@@ -128,7 +128,9 @@ Application::Application(int width, int height, const std::string& title)
     }
 
     // Decide runtime mode BEFORE initializing renderer so we can gate editor-only work
-    m_RunEditorUI = !FileSystem::Instance().IsPakMounted();
+    // Force play-mode if export marker exists next to the executable
+    bool forceGameMode = std::filesystem::exists(std::filesystem::current_path() / "game_mode_only.marker");
+    m_RunEditorUI = !(FileSystem::Instance().IsPakMounted() || forceGameMode);
 
     // 1. Initialize Window (GLFW)
     InitWindow(width, height, title);
@@ -201,6 +203,24 @@ Application::Application(int width, int height, const std::string& title)
                 }
             } catch(const std::exception& e) {
                 std::cerr << "[Init] Failed parsing game_manifest.json: " << e.what() << std::endl;
+            }
+        }
+    }
+
+    // In exported/game mode (no editor UI), create a runtime clone and enter play
+    if (!m_RunEditorUI) {
+        if (m_GameScene) {
+            m_RuntimeScene = m_GameScene->RuntimeClone();
+            if (m_RuntimeScene) {
+                m_RuntimeScene->m_IsPlaying = true;
+                Scene::CurrentScene = m_RuntimeScene.get();
+                // Debug: report entering play mode and script counts
+                size_t scriptCount = 0;
+                for (const auto& e : m_RuntimeScene->GetEntities()) {
+                    auto* d = m_RuntimeScene->GetEntityData(e.GetID());
+                    if (d) scriptCount += d->Scripts.size();
+                }
+                std::cout << "[Game] Entered play mode (runtime clone). Scripts attached: " << scriptCount << std::endl;
             }
         }
     }
