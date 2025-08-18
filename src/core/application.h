@@ -26,6 +26,7 @@ public:
     bool IsPlaying() const { return m_IsPlaying; }
 
     std::filesystem::path defaultProjPath;
+    bool m_RunEditorUI = true;
 private:
     static Application* s_Instance;
 
@@ -48,6 +49,6 @@ private:
 	std::unique_ptr<AssetWatcher> m_AssetWatcher;
 
     // Runtime without editor UI
-    bool m_RunEditorUI = true;
+    
     std::unique_ptr<Scene> m_GameScene;
 };

@@ -62,7 +62,7 @@ target_include_directories(DotnetBridge PUBLIC
     external/glm
     src
 )
-
+ 
 target_link_libraries(DotnetBridge PRIVATE OpenSSL::SSL OpenSSL::Crypto JoltPhysics imgui_bgfx imgui)
 
 set_target_properties(DotnetBridge PROPERTIES

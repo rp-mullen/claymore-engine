@@ -6,6 +6,7 @@
 #include "panels/ToolbarPanel.h"
 #include "panels/MenuBarPanel.h"
 #include "panels/ConsolePanel.h"
+#include "panels/ProfilerPanel.h"
 #include "panels/PrefabEditorPanel.h"
 #include "panels/AnimationControllerPanel.h"
 // Legacy timeline panel removed in favor of new editor/animation panel
@@ -55,6 +56,7 @@ public:
     // Access to Project panel
     ProjectPanel& GetProjectPanel() { return m_ProjectPanel; }
     class AnimTimelinePanel& GetTimelinePanel() { return m_AnimTimelinePanel; }
+    ProfilerPanel& GetProfilerPanel() { return m_ProfilerPanel; }
     
     // Deferred scene loading
     void DeferSceneLoad(const std::string& filepath);
@@ -92,6 +94,7 @@ private:
     AnimationControllerPanel m_AnimCtrlPanel;
     class AnimTimelinePanel m_AnimTimelinePanel{};
     AvatarBuilderPanel m_AvatarBuilderPanel{ &m_Scene };
+    ProfilerPanel m_ProfilerPanel;
 
     bool m_PlayMode = false; // Simulation state
     bool m_FocusConsoleNextFrame = false;

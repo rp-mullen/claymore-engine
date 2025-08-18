@@ -22,6 +22,7 @@
 #define NOMINMAX
 #endif
 #include <Windows.h>
+#include "ui/UILayer.h"
 #include <cstring>
 
 using json = nlohmann::json;
@@ -288,6 +289,10 @@ void MenuBarPanel::OnImGuiRender() {
 
     // TOOLS MENU
     if (ImGui::BeginMenu("Tools")) {
+        if (ImGui::MenuItem("Profiler")) {
+            if (m_UILayer) m_UILayer->GetProfilerPanel().Open();
+        }
+        ImGui::Separator();
         if (ImGui::MenuItem("Reimport Assets")) {
             namespace fs = std::filesystem;
             std::string projectDir = Project::GetProjectDirectory().string();

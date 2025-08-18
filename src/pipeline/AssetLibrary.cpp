@@ -75,7 +75,18 @@ AssetEntry* AssetLibrary::GetAsset(const ClaymoreGUID& guid) {
 }
 
 AssetEntry* AssetLibrary::GetAsset(const std::string& path) {
-    auto it = m_PathToGUID.find(path);
+    // Normalize slashes and resolve via GUID to be robust against absolute vs project-relative paths
+    std::string norm = path;
+    std::replace(norm.begin(), norm.end(), '\\', '/');
+
+    // Prefer unified path→GUID resolution helper
+    ClaymoreGUID guid = GetGUIDForPath(norm);
+    if (guid.high != 0 || guid.low != 0) {
+        return GetAsset(guid);
+    }
+
+    // Fallback: direct lookup on normalized string
+    auto it = m_PathToGUID.find(norm);
     if (it != m_PathToGUID.end()) {
         return GetAsset(it->second);
     }

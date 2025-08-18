@@ -192,7 +192,7 @@ void InspectorPanel::DrawSceneFilePreview() {
                     std::string lower = s; for(char &c:lower) c = (char)tolower(c);
                     if (lower.find("assets/") != std::string::npos || lower.find(".fbx")!=std::string::npos || lower.find(".gltf")!=std::string::npos || lower.find(".png")!=std::string::npos)
                         assets.push_back(s);
-                } else if (n.is_array()) for (auto& e2 : n) walk(e2); else if (n.is_object()) for (auto it=n.begin(); it!=n.end(); ++it) walk(it.value());
+                } else if (n.is_array()) for (const auto& e2 : n) walk(e2); else if (n.is_object()) for (auto it=n.begin(); it!=n.end(); ++it) walk(it.value());
             };
             walk(j);
             if (!assets.empty()) {

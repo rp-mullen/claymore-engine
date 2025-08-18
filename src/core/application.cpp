@@ -30,6 +30,7 @@
 #include "serialization/Serializer.h"
 #include "pipeline/AssetPipeline.h"
 #include "pipeline/AssetLibrary.h"
+#include "utils/Profiler.h"
 // Application.cpp
 Application* Application::s_Instance = nullptr;
 
@@ -335,6 +336,8 @@ void Application::Run() {
        }
 
     while (!glfwWindowShouldClose(m_window)) {
+        Profiler::Get().BeginFrame();
+        ScopedTimer frameTimer("Frame");
         glfwPollEvents();
         Time::Tick();
 
@@ -370,7 +373,10 @@ void Application::Run() {
         // --------------------------------------
         if (m_RunEditorUI) {
             /*uiLayer->HandleCameraControls();*/
-            uiLayer->OnUIRender();
+            {
+                ScopedTimer t("UI");
+                uiLayer->OnUIRender();
+            }
         }
 
         // --------------------------------------
@@ -385,35 +391,58 @@ void Application::Run() {
                     if (InstallSyncContextPtr) InstallSyncContextPtr();
                     if (ClearSyncContextPtr) ClearSyncContextPtr();
                 }
-                editorScene.m_RuntimeScene->Update(dt);
+                {
+                    ScopedTimer t("Scene/Update (Play)");
+                    editorScene.m_RuntimeScene->Update(dt);
+                }
             } else {
                 // Ensure CurrentScene points back to editor scene
                 if (Scene::CurrentScene != &editorScene) {
                     Scene::CurrentScene = &editorScene;
                     if (ClearSyncContextPtr) ClearSyncContextPtr();
                 }
-                editorScene.Update(dt);
-                SkinningSystem::Update(editorScene);
+                {
+                    ScopedTimer t("Scene/Update (Edit)");
+                    editorScene.Update(dt);
+                }
+                {
+                    ScopedTimer t("Skinning");
+                    SkinningSystem::Update(editorScene);
+                }
             }
         } else {
             // Game mode without editor UI
-            if (Scene::CurrentScene) Scene::CurrentScene->Update(dt);
+            if (Scene::CurrentScene) {
+                ScopedTimer t("Scene/Update (Game)");
+                Scene::CurrentScene->Update(dt);
+            }
         }
 
         // --------------------------------------
         // SCENE RENDER
         // --------------------------------------
-        Renderer::Get().BeginFrame(0.1f, 0.1f, 0.1f);
+        {
+            ScopedTimer t("Renderer/BeginFrame");
+            Renderer::Get().BeginFrame(0.1f, 0.1f, 0.1f);
+        }
         if (m_RunEditorUI) {
             Scene& editorScene = uiLayer->GetScene();
             if (editorScene.m_RuntimeScene) {
+                ScopedTimer t("Renderer/RenderScene (Play)");
                 Renderer::Get().RenderScene(*editorScene.m_RuntimeScene);
             } else {
-                Renderer::Get().RenderScene(editorScene);
+                {
+                    ScopedTimer t("Renderer/RenderScene (Edit)");
+                    Renderer::Get().RenderScene(editorScene);
+                }
                 // Editor-only: draw outline for selected entity
-                Renderer::Get().DrawEntityOutline(editorScene, uiLayer->GetSelectedEntity());
+                {
+                    ScopedTimer t("Renderer/DrawOutline");
+                    Renderer::Get().DrawEntityOutline(editorScene, uiLayer->GetSelectedEntity());
+                }
             }
         } else {
+            ScopedTimer t("Renderer/RenderScene (Game)");
             Renderer::Get().RenderScene(*Scene::CurrentScene);
         }
 
@@ -421,6 +450,7 @@ void Application::Run() {
         // ENTITY PICKING (skip if UI consumed input this frame) (editor mode only)
         // --------------------------------------
         if (m_RunEditorUI && !Renderer::Get().WasUIInputConsumedThisFrame()) {
+            ScopedTimer t("Picking");
             Picking::Process(uiLayer->GetScene(), Renderer::Get().GetCamera());
         }
         if (m_RunEditorUI) {
@@ -436,6 +466,7 @@ void Application::Run() {
         // IMGUI RENDER PASS (editor mode only)
         // --------------------------------------
         if (m_RunEditorUI) {
+            ScopedTimer t("UI/Render");
             ImGui::Render();
             bgfx::setViewFrameBuffer(255, BGFX_INVALID_HANDLE);
             bgfx::setViewRect(255, 0, 0, uint16_t(m_width), uint16_t(m_height));
@@ -447,7 +478,11 @@ void Application::Run() {
         // --------------------------------------
         // SUBMIT FRAME
         // --------------------------------------
-        uint32_t frameNum = bgfx::frame();
+        {
+            ScopedTimer t("Renderer/SubmitFrame");
+            (void)bgfx::frame();
+        }
+        Profiler::Get().EndFrame();
 
     }
 
@@ -484,4 +519,34 @@ Application& Application::Get() {
     if (!s_Instance)
         throw std::runtime_error("Application::Get() called before Application was created!");
     return *s_Instance;
+}
+
+// ------------------------------------------------------------
+// Playmode controls (editor mode only)
+// ------------------------------------------------------------
+void Application::StartPlayMode() {
+    if (m_IsPlaying) return;
+    if (!m_RunEditorUI) return;
+    if (!uiLayer) return;
+
+    Scene& editorScene = uiLayer->GetScene();
+    if (editorScene.m_RuntimeScene) return;
+
+    editorScene.m_RuntimeScene = editorScene.RuntimeClone();
+    if (editorScene.m_RuntimeScene) {
+        editorScene.m_RuntimeScene->m_IsPlaying = true;
+        Scene::CurrentScene = editorScene.m_RuntimeScene.get();
+        m_IsPlaying = true;
+    }
+}
+
+void Application::StopPlayMode() {
+    if (!m_IsPlaying) return;
+    if (!m_RunEditorUI) return;
+    if (!uiLayer) return;
+
+    Scene& editorScene = uiLayer->GetScene();
+    editorScene.m_RuntimeScene.reset();
+    Scene::CurrentScene = &editorScene;
+    m_IsPlaying = false;
 }

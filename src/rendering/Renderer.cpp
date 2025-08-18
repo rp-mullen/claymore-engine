@@ -123,6 +123,7 @@ static void UpdateTerrainBuffers(TerrainComponent& terrain)
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/euler_angles.hpp>
+#include <core/application.h>
 
 // ---------------- Initialization ----------------
 void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
@@ -350,7 +351,9 @@ void Renderer::RenderScene(Scene& scene) {
         if (lights.size() == 4) break; // Hard limit
     }
 
-    DrawGrid();
+    if (Application::Get().m_RunEditorUI) {
+       DrawGrid();
+       }
 
     // Upload light data to shaders
     UploadLightsToShader(lights);
@@ -564,13 +567,32 @@ void Renderer::RenderScene(Scene& scene) {
                 if (p.Mode == PanelComponent::FillMode::NineSlice && p.Texture.IsValid()) {
                     float L = x0, T = y0, R = x1, B = y1;
                     float w = (x1 - x0), h = (y1 - y0);
-                    float lpx = w * p.SliceUV.x, tpx = h * p.SliceUV.y, rpx = w * p.SliceUV.z, bpx = h * p.SliceUV.w;
-                    float xL = L, xM = L + lpx, xR = R - rpx;
-                    float yT = T, yM = T + tpx, yB = B - bpx;
                     float uL = p.UVRect.x, vT = p.UVRect.y, uR = p.UVRect.z, vB = p.UVRect.w;
-                    float du = (uR - uL), dv = (vB - vT);
-                    float uL2 = uL + du * p.SliceUV.x, uR2 = uR - du * p.SliceUV.z;
-                    float vT2 = vT + dv * p.SliceUV.y, vB2 = vB - dv * p.SliceUV.w;
+                    float du = (uR - uL);
+                    float dv = (vB - vT);
+                    // Convert absolute UV slice margins into fractions of the selected rect
+                    float lFrac = (du != 0.0f) ? (p.SliceUV.x / du) : 0.0f;
+                    float rFrac = (du != 0.0f) ? (p.SliceUV.z / du) : 0.0f;
+                    float tFrac = (dv != 0.0f) ? (p.SliceUV.y / dv) : 0.0f;
+                    float bFrac = (dv != 0.0f) ? (p.SliceUV.w / dv) : 0.0f;
+
+                    float lpx = w * lFrac;
+                    float rpx = w * rFrac;
+                    float tpx = h * tFrac;
+                    float bpx = h * bFrac;
+
+                    float xL = L;
+                    float xM = L + lpx;
+                    float xR = R - rpx;
+                    float yT = T;
+                    float yM = T + tpx;
+                    float yB = B - bpx;
+
+                    // Compute UV splits using absolute slice margins inside the rect
+                    float uL2 = uL + p.SliceUV.x;
+                    float uR2 = uR - p.SliceUV.z;
+                    float vT2 = vT + p.SliceUV.y;
+                    float vB2 = vB - p.SliceUV.w;
 
                     auto submitQuad = [&](float xa, float ya, float xb, float yb, float ua, float va, float ub, float vb){
                         UIVertex vv[4] = {
@@ -590,6 +612,11 @@ void Renderer::RenderScene(Scene& scene) {
                         bgfx::TextureHandle th2 = m_UIWhiteTex;
                         if (p.Texture.IsValid()) {
                             if (auto* entry = AssetLibrary::Instance().GetAsset(p.Texture)) {
+                                // Lazy-load like the non-9slice path to ensure the texture is available
+                                if (!entry->texture || !bgfx::isValid(*entry->texture)) {
+                                    auto tex = AssetLibrary::Instance().LoadTexture(p.Texture);
+                                    (void)tex;
+                                }
                                 if (entry->texture && bgfx::isValid(*entry->texture)) th2 = *entry->texture;
                             }
                         }
@@ -633,6 +660,11 @@ void Renderer::RenderScene(Scene& scene) {
                 bgfx::TextureHandle th = m_UIWhiteTex;
                 if (p.Texture.IsValid()) {
                     if (auto* entry = AssetLibrary::Instance().GetAsset(p.Texture)) {
+                        // Lazy-load the texture if needed so drops immediately show up
+                        if (!entry->texture || !bgfx::isValid(*entry->texture)) {
+                            auto tex = AssetLibrary::Instance().LoadTexture(p.Texture);
+                            (void)tex;
+                        }
                         if (entry->texture && bgfx::isValid(*entry->texture)) th = *entry->texture;
                     }
                 }

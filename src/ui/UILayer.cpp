@@ -183,6 +183,7 @@ void UILayer::OnUIRender() {
     // Render other panels first
     m_ProjectPanel.OnImGuiRender();
     m_ConsolePanel.OnImGuiRender();
+    m_ProfilerPanel.OnImGuiRender();
     if (m_FocusConsoleNextFrame) {
         ImGui::SetWindowFocus("Console");
         m_FocusConsoleNextFrame = false;

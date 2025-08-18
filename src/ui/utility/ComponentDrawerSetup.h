@@ -534,6 +534,8 @@ inline void RegisterComponentDrawers() {
 
     // Panel drawer
     registry.Register<PanelComponent>("Panel", [](PanelComponent& p){
+        // Scope IDs by component address to avoid collisions with Transform controls (e.g., Scale)
+        ImGui::PushID(&p);
         ImGui::Checkbox("Visible", &p.Visible);
         ImGui::DragFloat2("Size", &p.Size.x, 1.0f, 0.0f, 10000.0f);
         ImGui::DragFloat2("Scale", &p.Scale.x, 0.01f, 0.01f, 10.0f);
@@ -543,6 +545,11 @@ inline void RegisterComponentDrawers() {
         ImGui::TextDisabled("Texture");
         if (p.Texture.IsValid()) {
             if (auto* entry = AssetLibrary::Instance().GetAsset(p.Texture)) {
+                // Ensure texture is loaded for preview
+                if (!entry->texture || !bgfx::isValid(*entry->texture)) {
+                    auto tex = AssetLibrary::Instance().LoadTexture(p.Texture);
+                    (void)tex;
+                }
                 ImTextureID thumb = (entry->texture && bgfx::isValid(*entry->texture)) ? TextureLoader::ToImGuiTextureID(*entry->texture) : 0;
                 ImGui::Image(thumb, ImVec2(64,64));
             } else {
@@ -567,7 +574,11 @@ inline void RegisterComponentDrawers() {
                             AssetLibrary::Instance().RegisterAsset(AssetReference(guid, 0, (int)AssetType::Texture), AssetType::Texture, path, std::filesystem::path(path).filename().string());
                             entry = AssetLibrary::Instance().GetAsset(path);
                         }
-                        if (entry) p.Texture = entry->reference;
+                        if (entry) {
+                            p.Texture = entry->reference;
+                            // Preload so renderer can use immediately and preview shows correctly
+                            AssetLibrary::Instance().LoadTexture(p.Texture);
+                        }
                     }
                 }
             }
@@ -597,6 +608,7 @@ inline void RegisterComponentDrawers() {
         if (p.Mode == PanelComponent::FillMode::NineSlice) {
             ImGui::DragFloat4("Slice UV (L T R B)", &p.SliceUV.x, 0.001f, 0.0f, 0.5f);
         }
+        ImGui::PopID();
     });
 
     // Button drawer

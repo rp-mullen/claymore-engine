@@ -15,6 +15,8 @@
 #include <editor/Project.h>
 #include <unordered_set>
 
+#include "ecs/Scene.h"
+
 namespace fs = std::filesystem;
 
 // Heuristic: Determine if an entity is the root of an imported model. If so, try to infer model path
@@ -420,6 +422,7 @@ json Serializer::SerializePanel(const PanelComponent& panel) {
     json data;
     data["position"] = { panel.Position.x, panel.Position.y };
     data["size"] = { panel.Size.x, panel.Size.y };
+    data["scale"] = { panel.Scale.x, panel.Scale.y };
     data["pivot"] = { panel.Pivot.x, panel.Pivot.y };
     data["rotation"] = panel.Rotation;
     data["texture"] = panel.Texture;
@@ -431,6 +434,9 @@ json Serializer::SerializePanel(const PanelComponent& panel) {
     data["anchorEnabled"] = panel.AnchorEnabled;
     data["anchor"] = (int)panel.Anchor;
     data["anchorOffset"] = { panel.AnchorOffset.x, panel.AnchorOffset.y };
+    data["fillMode"] = (int)panel.Mode;
+    data["tileRepeat"] = { panel.TileRepeat.x, panel.TileRepeat.y };
+    data["sliceUV"] = { panel.SliceUV.x, panel.SliceUV.y, panel.SliceUV.z, panel.SliceUV.w };
     return data;
 }
 
@@ -442,6 +448,10 @@ void Serializer::DeserializePanel(const json& data, PanelComponent& panel) {
     if (data.contains("size") && data["size"].is_array() && data["size"].size() == 2) {
         panel.Size.x = data["size"][0];
         panel.Size.y = data["size"][1];
+    }
+    if (data.contains("scale") && data["scale"].is_array() && data["scale"].size() == 2) {
+        panel.Scale.x = data["scale"][0];
+        panel.Scale.y = data["scale"][1];
     }
     if (data.contains("pivot") && data["pivot"].is_array() && data["pivot"].size() == 2) {
         panel.Pivot.x = data["pivot"][0];
@@ -469,6 +479,17 @@ void Serializer::DeserializePanel(const json& data, PanelComponent& panel) {
     if (data.contains("anchorOffset") && data["anchorOffset"].is_array() && data["anchorOffset"].size() == 2) {
         panel.AnchorOffset.x = data["anchorOffset"][0];
         panel.AnchorOffset.y = data["anchorOffset"][1];
+    }
+    if (data.contains("fillMode")) panel.Mode = (PanelComponent::FillMode)((int)data["fillMode"]);
+    if (data.contains("tileRepeat") && data["tileRepeat"].is_array() && data["tileRepeat"].size() == 2) {
+        panel.TileRepeat.x = data["tileRepeat"][0];
+        panel.TileRepeat.y = data["tileRepeat"][1];
+    }
+    if (data.contains("sliceUV") && data["sliceUV"].is_array() && data["sliceUV"].size() == 4) {
+        panel.SliceUV.x = data["sliceUV"][0];
+        panel.SliceUV.y = data["sliceUV"][1];
+        panel.SliceUV.z = data["sliceUV"][2];
+        panel.SliceUV.w = data["sliceUV"][3];
     }
 }
 
@@ -781,6 +802,24 @@ json Serializer::SerializeScene( Scene& scene) {
     json sceneData;
     sceneData["version"] = "1.0";
     sceneData["entities"] = json::array();
+    // Optional: include an asset map to help resolve GUIDs across different working copies
+    // We serialize all known AssetLibrary mappings as a portable hint.
+    try {
+        auto all = AssetLibrary::Instance().GetAllAssets();
+        if (!all.empty()) {
+            json amap = json::array();
+            for (const auto& rec : all) {
+                const std::string& path = std::get<0>(rec);
+                const ClaymoreGUID& guid = std::get<1>(rec);
+                if (path.empty()) continue;
+                json j;
+                j["guid"] = guid.ToString();
+                j["path"] = path;
+                amap.push_back(std::move(j));
+            }
+            if (!amap.empty()) sceneData["assetMap"] = std::move(amap);
+        }
+    } catch(...) {}
 
     // Build skip set for descendants of imported model roots and collect per-node overrides
     std::unordered_set<EntityID> skip;
@@ -851,6 +890,20 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
         std::cout << "[DeserializeBegin] version=" << data.value("version", "")
                   << " entities=" << (data.contains("entities") && data["entities"].is_array() ? data["entities"].size() : 0)
                   << std::endl;
+    } catch(...) {}
+
+    // If the scene carries an assetMap, pre-register GUID→path so asset references resolve
+    try {
+        if (data.contains("assetMap") && data["assetMap"].is_array()) {
+            for (const auto& rec : data["assetMap"]) {
+                std::string gstr = rec.value("guid", "");
+                std::string vpath = rec.value("path", "");
+                if (gstr.empty() || vpath.empty()) continue;
+                ClaymoreGUID g = ClaymoreGUID::FromString(gstr);
+                // Register with generic Mesh type; actual type is not required for path resolution
+                AssetLibrary::Instance().RegisterAsset(AssetReference(g, 0, (int)AssetType::Mesh), AssetType::Mesh, vpath, vpath);
+            }
+        }
     } catch(...) {}
 
     // Telemetry: count components and unknown blocks before mutating scene
@@ -985,6 +1038,18 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
                     }
                     // Normalize slashes
                     for (char& c : resolved) if (c=='\\') c = '/';
+                    // Register this model asset mapping so subsequent serialization/deserialization can resolve by GUID
+                    try {
+                        std::string gstr = a.value("guid", "");
+                        if (!gstr.empty()) {
+                            ClaymoreGUID g = ClaymoreGUID::FromString(gstr);
+                            if (!(g.high == 0 && g.low == 0)) {
+                                std::string v = p; for (char& ch : v) if (ch=='\\') ch = '/';
+                                AssetLibrary::Instance().RegisterAsset(AssetReference(g, 0, (int)AssetType::Mesh), AssetType::Mesh, v, v);
+                                if (!resolved.empty()) AssetLibrary::Instance().RegisterPathAlias(g, resolved);
+                            }
+                        }
+                    } catch(...) {}
                     // Determine spawn position
                     glm::vec3 pos(0.0f);
                     if (entityData.contains("transform")) {
@@ -1032,7 +1097,7 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
                             EntityID skelEntity = (EntityID)-1; if (auto* sk = findSkel(newId, skelEntity)) {
                                 bool needsRebind = sk->BoneEntities.size() != sk->InverseBindPoses.size();
                                 if (!needsRebind) {
-                                    for (auto id : sk->BoneEntities) { if (id == (EntityID)-1) { needsRebind = true; break; } }
+                                    for (const auto& id : sk->BoneEntities) { if (id == (EntityID)-1) { needsRebind = true; break; } }
                                 }
                                 if (needsRebind) {
                                     std::unordered_map<std::string, EntityID> pathMap;

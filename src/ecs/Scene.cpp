@@ -21,6 +21,8 @@ namespace fs = std::filesystem;
 #include "animation/AnimationAsset.h"
 #include "animation/AnimationSerializer.h"
 #include "animation/AnimationPlayerComponent.h"
+#include <nlohmann/json.hpp>
+#include <fstream>
 
 
 #include <sstream> // Include for std::ostringstream
@@ -30,23 +32,15 @@ namespace fs = std::filesystem;
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/euler_angles.hpp>
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
 #include <windows.h>
 #include "animation/AvatarSerializer.h"
 #include "serialization/Serializer.h"
-#include <nlohmann/json.hpp>
-#include <fstream>
 
 #include "jobs/JobSystem.h"
 #include "jobs/ParallelFor.h"
 #include <jobs/Jobs.h>
-#include "pipeline/AssetLibrary.h"
-
-#include "io/FileSystem.h"
-#include <editor/Project.h>
-
+#include "pipeline/AssetLibrary.h"    
+#include "utils/Profiler.h"
 // --- Kernels --------------------------------------------------------------------------------
 
 
@@ -154,13 +148,17 @@ Entity Scene::CreateEntity(const std::string& name) {
    return entity;
 }
 
+// Create an entity preserving the exact provided name (no suffixing). For deserialization.
 Entity Scene::CreateEntityExact(const std::string& name) {
    EntityID id = m_NextID++;
    EntityData data;
-   data.Name = name; // preserve exact name with no global collision checks
+   data.Name = name;
+
    m_Entities.emplace(id, std::move(data));
+
    Entity entity(id, this);
    m_EntityList.push_back(entity);
+
    return entity;
 }
 
@@ -293,83 +291,52 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
     if (ext == ".fbx" || ext == ".obj" || ext == ".gltf") {
-       EntityID id = InstantiateModel(path, position);
-       // After instantiation, look for assets/textures/<model>/ and set MPB albedo override if present
-       try {
-           fs::path src(path);
-           std::string modelName = src.stem().string();
-           fs::path proj = Project::GetProjectDirectory();
-           fs::path texDir = proj / "assets" / "textures" / modelName;
-           if (fs::exists(texDir)) {
-               for (auto& e : fs::directory_iterator(texDir)) {
-                   if (!e.is_regular_file()) continue;
-                   auto ext2 = e.path().extension().string();
-                   std::transform(ext2.begin(), ext2.end(), ext2.begin(), ::tolower);
-                   if (ext2 == ".png" || ext2 == ".jpg" || ext2 == ".jpeg" || ext2 == ".tga" || ext2 == ".bmp") {
-                       bgfx::TextureHandle tex = TextureLoader::Load2D(e.path().string());
-                       if (bgfx::isValid(tex)) {
-                           auto* d = GetEntityData(id);
-                           if (d && d->Mesh) {
-                               d->Mesh->PropertyBlock.Textures["s_albedo"] = tex;
-                               d->Mesh->PropertyBlockTexturePaths["s_albedo"] = e.path().string();
-                           }
-                       }
-                       break; // only first texture for now
-                   }
-               }
-           }
-       } catch(...) {}
-       return id;
+       return InstantiateModel(path, position);
        }
     else if (ext == ".prefab") {
-        // Prefer new subtree loader; fall back to legacy single-entity if needed
-        EntityID root = Serializer::LoadPrefabToScene(path, *this);
-        if (root == (EntityID)-1) {
-            EntityData prefabData;
-            if (!Serializer::LoadPrefabFromFile(path, prefabData, *this)) {
-                std::cerr << "[Scene] Failed to load prefab: " << path << std::endl;
-                return -1;
-            }
-            Entity entity = CreateEntity(prefabData.Name.empty() ? "Prefab" : prefabData.Name);
-            EntityData* dst = GetEntityData(entity.GetID());
-            if (!dst) return -1;
-            *dst = prefabData.DeepCopy(entity.GetID(), this);
-            dst->Transform.Position = position;
-            return entity.GetID();
-        } else {
-            if (auto* d = GetEntityData(root)) d->Transform.Position = position;
-            return root;
+        EntityData prefabData;
+        if (!Serializer::LoadPrefabFromFile(path, prefabData, *this)) {
+            std::cerr << "[Scene] Failed to load prefab: " << path << std::endl;
+            return -1;
         }
+        // Create a new entity and copy prefab data into it
+        Entity entity = CreateEntity(prefabData.Name.empty() ? "Prefab" : prefabData.Name);
+        EntityData* dst = GetEntityData(entity.GetID());
+        if (!dst) return -1;
+        // Use DeepCopy semantics from prefab data to ensure proper ownership
+        *dst = prefabData.DeepCopy(entity.GetID(), this);
+        dst->Transform.Position = position;
+        return entity.GetID();
     }
-    else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
-       // Create a simple textured quad
-       Entity entity = CreateEntity("ImageQuad");
-       auto* data = GetEntityData(entity.GetID());
-       if (!data) return -1;
+   else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
+      // Create a simple textured quad
+      Entity entity = CreateEntity("ImageQuad");
+      auto* data = GetEntityData(entity.GetID());
+      if (!data) return -1;
 
-       data->Transform.Position = glm::vec3(0.0f);
-       data->Transform.Rotation = glm::vec3(0.0f);
-       data->Transform.Scale = glm::vec3(1.0f);
+      data->Transform.Position = glm::vec3(0.0f);
+      data->Transform.Rotation = glm::vec3(0.0f);
+      data->Transform.Scale = glm::vec3(1.0f);
 
-       std::shared_ptr<Mesh> quadMesh = StandardMeshManager::Instance().GetPlaneMesh();
+      std::shared_ptr<Mesh> quadMesh = StandardMeshManager::Instance().GetPlaneMesh();
 
-       bgfx::TextureHandle tex = TextureLoader::Load2D(path);
+      bgfx::TextureHandle tex = TextureLoader::Load2D(path);
 
         data->Mesh = std::make_unique<MeshComponent>();
-       data->Mesh->mesh = quadMesh;
+      data->Mesh->mesh = quadMesh;
 
-       data->Mesh->MeshName = "ImageQuad";
+      data->Mesh->MeshName = "ImageQuad";
         data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
 
-       // TODO: if you want to store `tex`, create a TextureComponent or assign it in material.
+      // TODO: if you want to store `tex`, create a TextureComponent or assign it in material.
 
-       return entity.GetID();
-       }
-    else {
-       std::cerr << "[Scene] Unsupported asset type: " << ext << std::endl;
-       return -1;
-       }
-}
+      return entity.GetID();
+      }
+   else {
+      std::cerr << "[Scene] Unsupported asset type: " << ext << std::endl;
+      return -1;
+      }
+   }
 
 EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootPosition) {
     Assimp::Importer importer;
@@ -377,8 +344,8 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     const aiScene* aScene = importer.ReadFile(path,
         aiProcess_Triangulate |
         aiProcess_GenNormals |
+        aiProcess_FixInfacingNormals |
         aiProcess_CalcTangentSpace |
-        aiProcess_FlipWindingOrder |
         aiProcess_FlipUVs |
         aiProcess_JoinIdenticalVertices |
         aiProcess_ImproveCacheLocality |
@@ -398,9 +365,6 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     EntityID rootID = rootEntity.GetID();
     auto* rootData = GetEntityData(rootID);
     if (!rootData) return -1;
-    try {
-        std::cout << "[Create] guid=" << rootData->EntityGuid.ToString() << " name=" << rootData->Name << " src=Importer" << std::endl;
-    } catch(...) {}
     // Decompose FBX root node transform to preserve authored placement
     glm::vec3 rootT, rootS, rootSkew; glm::vec4 rootPersp; glm::quat rootR;
     glm::mat4 rootLocal   = glm::mat4(1.0f); // will be set below prior to traversal
@@ -511,9 +475,6 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         Entity skeletonRootEnt = CreateEntity("SkeletonRoot");
         skeletonRootID = skeletonRootEnt.GetID();
         SetParent(skeletonRootID, rootID);
-        if (auto* d = GetEntityData(skeletonRootID)) {
-            try { std::cout << "[Create] guid=" << d->EntityGuid.ToString() << " name=" << d->Name << " src=Importer" << std::endl; } catch(...) {}
-        }
 
         auto* skelData = GetEntityData(skeletonRootID);
         skelData->Skeleton = std::make_unique<SkeletonComponent>();
@@ -535,9 +496,6 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         for (size_t b = 0; b < model.BoneNames.size(); ++b) {
             Entity boneEnt = CreateEntity(model.BoneNames[b]);
             boneEntities[b] = boneEnt.GetID();
-            if (auto* d = GetEntityData(boneEntities[b])) {
-                try { std::cout << "[Create] guid=" << d->EntityGuid.ToString() << " name=" << d->Name << " src=Importer" << std::endl; } catch(...) {}
-            }
         }
 
         // Parent bones and set local transforms from inverse bind matrices
@@ -660,9 +618,6 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
 
         Entity meshEntity = CreateEntity(desiredName);
         EntityID meshID = meshEntity.GetID();
-        if (auto* d = GetEntityData(meshID)) {
-            try { std::cout << "[Create] guid=" << d->EntityGuid.ToString() << " name=" << d->Name << " src=Importer" << std::endl; } catch(...) {}
-        }
 
         // >>> CHANGE: parent skinned meshes to SkeletonRoot (not ImportedModel root)
         const bool isSkinned = meshPtr->HasSkinning();
@@ -711,32 +666,31 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     return rootID;
 }
 
+// Fast path for models imported via cached binaries (.meta/.meshbin/.skelbin)
 EntityID Scene::InstantiateModelFast(const std::string& metaPath, const glm::vec3& position) {
-    // Prefer VFS to read .meta (pak-aware)
     try {
-        std::string metaText;
         nlohmann::json j;
-        if (FileSystem::Instance().ReadTextFile(metaPath, metaText)) {
-            j = nlohmann::json::parse(metaText);
-        } else {
-            std::vector<uint8_t> bytes;
-            if (FileSystem::Instance().ReadFile(metaPath, bytes)) {
-                j = nlohmann::json::parse(std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size()));
-            } else {
-                // Fallback: try direct disk but log; keep behavior non-fatal
-                std::ifstream in(metaPath);
-                if (!in.is_open()) return -1;
-                in >> j; in.close();
-            }
+        std::ifstream in(metaPath);
+        if (!in.is_open()) {
+            std::cerr << "[Scene] InstantiateModelFast: failed to open meta '" << metaPath << "'" << std::endl;
+            return -1;
         }
-        if (j.contains("source") && j["source"].is_string()) {
-            std::string source = j["source"].get<std::string>();
-            return InstantiateModel(source, position);
+        in >> j;
+        in.close();
+
+        std::string source = j.value("source", std::string());
+        if (source.empty()) {
+            namespace fs = std::filesystem;
+            fs::path mp(metaPath);
+            fs::path guess = mp.parent_path() / (mp.stem().string() + ".fbx");
+            if (fs::exists(guess)) source = guess.string();
         }
+        if (source.empty()) return -1;
+        return InstantiateModel(source, position);
     } catch (const std::exception& e) {
-        std::cerr << "[Scene] InstantiateModelFast failed: " << e.what() << std::endl;
+        std::cerr << "[Scene] InstantiateModelFast error: " << e.what() << std::endl;
+        return -1;
     }
-    return -1;
 }
 
 
@@ -745,12 +699,7 @@ EntityID Scene::InstantiateModelFast(const std::string& metaPath, const glm::vec
 void Scene::SetParent(EntityID child, EntityID parent) {
    auto* childData = GetEntityData(child);
    auto* parentData = GetEntityData(parent);
-   if (!childData || !parentData) {
-      try {
-         std::cout << "[Parent] child=" << child << " -> parent=" << parent << " resolved=false" << std::endl;
-      } catch(...) {}
-      return;
-   }
+   if (!childData || !parentData) return;
 
    if (childData->Parent != -1) {
       auto* oldParent = GetEntityData(childData->Parent);
@@ -763,9 +712,6 @@ void Scene::SetParent(EntityID child, EntityID parent) {
    parentData->Children.push_back(child);
    // Mark child subtree dirty so transforms recompute relative to new parent
    MarkTransformDirty(child);
-   try {
-      std::cout << "[Parent] child=" << child << ":" << childData->Name << " -> parent=" << parent << ":" << parentData->Name << " resolved=true" << std::endl;
-   } catch(...) {}
    }
 
 
@@ -905,9 +851,6 @@ std::shared_ptr<Scene> Scene::RuntimeClone() {
       }
       }
 
-   // Ensure interop lookups (Scene::Get()) target the runtime clone during script initialization
-   Scene::CurrentScene = clone.get();
-
    // Apply reflected property values to managed scripts, then initialize
    for (auto& [scriptPtr, entity] : toInitialize) {
       if (scriptPtr && scriptPtr->Instance &&
@@ -987,8 +930,8 @@ void Scene::OnStop() {
     }
 
     // Destroy any bodies that are still tracked in the legacy map
-    for (auto [id, bodyID] : m_BodyMap)
-        Physics::Get().DestroyBody(bodyID);
+    for (const auto& kv : m_BodyMap)
+        Physics::Get().DestroyBody(kv.second);
     m_BodyMap.clear();
 }
 
@@ -1121,26 +1064,35 @@ void Scene::CreatePhysicsBody(EntityID id, const TransformComponent& transform, 
    }
 
 void Scene::Update(float dt) {
+   ScopedTimer tScene("Scene/Update Total");
    static bool once = (std::cout << "[C++] Scene::Update thread: " << GetCurrentThreadId() << "\n", true);
    // Ensure any queued deletions are processed at a safe point each frame
    ProcessPendingRemovals();
 
    // In play mode, evaluate animations before recomputing world transforms
    if (m_IsPlaying) {
+      ScopedTimer t("Animation");
       cm::animation::AnimationSystem::Update(*this, dt);
    }
 
    // Recompute world transforms after potential animation updates
-   UpdateTransforms();
+   {
+      ScopedTimer t("Transforms");
+      UpdateTransforms();
+   }
 
    // Update GPU skinning palette after transforms
    if (m_IsPlaying) {
       // Step skinning after animation so GPU palettes reflect latest pose
+      ScopedTimer t("Skinning");
       SkinningSystem::Update(*this);
    }
 
    // Update particle emitters so they preview both in edit and play mode
-   ecs::ParticleEmitterSystem::Get().Update(*this, dt);
+   {
+      ScopedTimer t("Particles");
+      ecs::ParticleEmitterSystem::Get().Update(*this, dt);
+   }
 
    extern void(__stdcall * EnsureInstalledPtr)();    // forward if needed, or capture in a singleton
    extern void(__stdcall * FlushSyncContextPtr)();
@@ -1160,7 +1112,10 @@ void Scene::Update(float dt) {
                    << " - Gravity: (" << gravity.x << ", " << gravity.y << ", " << gravity.z << ")" << std::endl;
       }
       
-      Physics::Get().Step(dt);
+      {
+         ScopedTimer t("Physics/Step");
+         Physics::Get().Step(dt);
+      }
 
       for (auto& [id, data] : m_Entities) {
          // Sync camera with transform
@@ -1207,9 +1162,14 @@ void Scene::Update(float dt) {
          }
 
          for (auto& script : data.Scripts) {
-            if (script.Instance)
+            if (script.Instance) {
+               auto scriptStart = std::chrono::high_resolution_clock::now();
                script.Instance->OnUpdate(dt);
+               auto scriptEnd = std::chrono::high_resolution_clock::now();
+               double ms = std::chrono::duration<double, std::milli>(scriptEnd - scriptStart).count();
+               Profiler::Get().RecordScriptSample(script.ClassName, ms);
             }
+         }
 
 
          }
@@ -1260,7 +1220,7 @@ Camera* Scene::GetActiveCamera() {
    int minPriority = std::numeric_limits<int>::max();
    EntityID selectedEntity = INVALID_ENTITY_ID;
 
-   for (auto entity : m_EntityList) {
+   for (const auto& entity : m_EntityList) {
       auto* data = GetEntityData(entity.GetID());
       if (data && data->Camera && data->Camera->Active) {
          if (data->Camera->priority < minPriority) {
