@@ -42,7 +42,10 @@ namespace fs = std::filesystem;
 #include "jobs/JobSystem.h"
 #include "jobs/ParallelFor.h"
 #include <jobs/Jobs.h>
-#include "pipeline/AssetLibrary.h"    
+#include "pipeline/AssetLibrary.h"
+
+#include "io/FileSystem.h"
+
 // --- Kernels --------------------------------------------------------------------------------
 
 
@@ -147,6 +150,16 @@ Entity Scene::CreateEntity(const std::string& name) {
    Entity entity(id, this);
    m_EntityList.push_back(entity);
 
+   return entity;
+}
+
+Entity Scene::CreateEntityExact(const std::string& name) {
+   EntityID id = m_NextID++;
+   EntityData data;
+   data.Name = name; // preserve exact name with no global collision checks
+   m_Entities.emplace(id, std::move(data));
+   Entity entity(id, this);
+   m_EntityList.push_back(entity);
    return entity;
 }
 
@@ -282,19 +295,24 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
        return InstantiateModel(path, position);
        }
     else if (ext == ".prefab") {
-        EntityData prefabData;
-        if (!Serializer::LoadPrefabFromFile(path, prefabData, *this)) {
-            std::cerr << "[Scene] Failed to load prefab: " << path << std::endl;
-            return -1;
+        // Prefer new subtree loader; fall back to legacy single-entity if needed
+        EntityID root = Serializer::LoadPrefabToScene(path, *this);
+        if (root == (EntityID)-1) {
+            EntityData prefabData;
+            if (!Serializer::LoadPrefabFromFile(path, prefabData, *this)) {
+                std::cerr << "[Scene] Failed to load prefab: " << path << std::endl;
+                return -1;
+            }
+            Entity entity = CreateEntity(prefabData.Name.empty() ? "Prefab" : prefabData.Name);
+            EntityData* dst = GetEntityData(entity.GetID());
+            if (!dst) return -1;
+            *dst = prefabData.DeepCopy(entity.GetID(), this);
+            dst->Transform.Position = position;
+            return entity.GetID();
+        } else {
+            if (auto* d = GetEntityData(root)) d->Transform.Position = position;
+            return root;
         }
-        // Create a new entity and copy prefab data into it
-        Entity entity = CreateEntity(prefabData.Name.empty() ? "Prefab" : prefabData.Name);
-        EntityData* dst = GetEntityData(entity.GetID());
-        if (!dst) return -1;
-        // Use DeepCopy semantics from prefab data to ensure proper ownership
-        *dst = prefabData.DeepCopy(entity.GetID(), this);
-        dst->Transform.Position = position;
-        return entity.GetID();
     }
    else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
       // Create a simple textured quad
@@ -353,6 +371,9 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     EntityID rootID = rootEntity.GetID();
     auto* rootData = GetEntityData(rootID);
     if (!rootData) return -1;
+    try {
+        std::cout << "[Create] guid=" << rootData->EntityGuid.ToString() << " name=" << rootData->Name << " src=Importer" << std::endl;
+    } catch(...) {}
     // Decompose FBX root node transform to preserve authored placement
     glm::vec3 rootT, rootS, rootSkew; glm::vec4 rootPersp; glm::quat rootR;
     glm::mat4 rootLocal   = glm::mat4(1.0f); // will be set below prior to traversal
@@ -463,6 +484,9 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         Entity skeletonRootEnt = CreateEntity("SkeletonRoot");
         skeletonRootID = skeletonRootEnt.GetID();
         SetParent(skeletonRootID, rootID);
+        if (auto* d = GetEntityData(skeletonRootID)) {
+            try { std::cout << "[Create] guid=" << d->EntityGuid.ToString() << " name=" << d->Name << " src=Importer" << std::endl; } catch(...) {}
+        }
 
         auto* skelData = GetEntityData(skeletonRootID);
         skelData->Skeleton = std::make_unique<SkeletonComponent>();
@@ -484,6 +508,9 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         for (size_t b = 0; b < model.BoneNames.size(); ++b) {
             Entity boneEnt = CreateEntity(model.BoneNames[b]);
             boneEntities[b] = boneEnt.GetID();
+            if (auto* d = GetEntityData(boneEntities[b])) {
+                try { std::cout << "[Create] guid=" << d->EntityGuid.ToString() << " name=" << d->Name << " src=Importer" << std::endl; } catch(...) {}
+            }
         }
 
         // Parent bones and set local transforms from inverse bind matrices
@@ -606,6 +633,9 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
 
         Entity meshEntity = CreateEntity(desiredName);
         EntityID meshID = meshEntity.GetID();
+        if (auto* d = GetEntityData(meshID)) {
+            try { std::cout << "[Create] guid=" << d->EntityGuid.ToString() << " name=" << d->Name << " src=Importer" << std::endl; } catch(...) {}
+        }
 
         // >>> CHANGE: parent skinned meshes to SkeletonRoot (not ImportedModel root)
         const bool isSkinned = meshPtr->HasSkinning();
@@ -655,16 +685,30 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
 }
 
 EntityID Scene::InstantiateModelFast(const std::string& metaPath, const glm::vec3& position) {
-    // Minimal stub: detect .meta and for now fall back to slow path using source inside meta
+    // Prefer VFS to read .meta (pak-aware)
     try {
-        std::ifstream in(metaPath);
-        if (!in.is_open()) return -1;
-        nlohmann::json j; in >> j; in.close();
+        std::string metaText;
+        nlohmann::json j;
+        if (FileSystem::Instance().ReadTextFile(metaPath, metaText)) {
+            j = nlohmann::json::parse(metaText);
+        } else {
+            std::vector<uint8_t> bytes;
+            if (FileSystem::Instance().ReadFile(metaPath, bytes)) {
+                j = nlohmann::json::parse(std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size()));
+            } else {
+                // Fallback: try direct disk but log; keep behavior non-fatal
+                std::ifstream in(metaPath);
+                if (!in.is_open()) return -1;
+                in >> j; in.close();
+            }
+        }
         if (j.contains("source") && j["source"].is_string()) {
             std::string source = j["source"].get<std::string>();
             return InstantiateModel(source, position);
         }
-    } catch (...) { }
+    } catch (const std::exception& e) {
+        std::cerr << "[Scene] InstantiateModelFast failed: " << e.what() << std::endl;
+    }
     return -1;
 }
 
@@ -674,7 +718,12 @@ EntityID Scene::InstantiateModelFast(const std::string& metaPath, const glm::vec
 void Scene::SetParent(EntityID child, EntityID parent) {
    auto* childData = GetEntityData(child);
    auto* parentData = GetEntityData(parent);
-   if (!childData || !parentData) return;
+   if (!childData || !parentData) {
+      try {
+         std::cout << "[Parent] child=" << child << " -> parent=" << parent << " resolved=false" << std::endl;
+      } catch(...) {}
+      return;
+   }
 
    if (childData->Parent != -1) {
       auto* oldParent = GetEntityData(childData->Parent);
@@ -687,6 +736,9 @@ void Scene::SetParent(EntityID child, EntityID parent) {
    parentData->Children.push_back(child);
    // Mark child subtree dirty so transforms recompute relative to new parent
    MarkTransformDirty(child);
+   try {
+      std::cout << "[Parent] child=" << child << ":" << childData->Name << " -> parent=" << parent << ":" << parentData->Name << " resolved=true" << std::endl;
+   } catch(...) {}
    }
 
 

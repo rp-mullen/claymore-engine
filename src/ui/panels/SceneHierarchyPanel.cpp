@@ -6,6 +6,10 @@
 #include <rendering/MaterialManager.h>
 #include <cstring>
 #include <editor/Input.h>
+#include "ui/utility/CreateEntityMenu.h"
+#include "serialization/Serializer.h"
+#include <editor/Project.h>
+#include <filesystem>
 
 SceneHierarchyPanel::SceneHierarchyPanel(Scene* scene, EntityID* selectedEntity)
    : m_SelectedEntity(selectedEntity) {
@@ -46,79 +50,8 @@ void SceneHierarchyPanel::DrawHierarchyContents() {
     // Background context menu for hierarchy window (only when not over an item)
     if (ImGui::BeginPopupContextWindow("HierarchyBlankCtx", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
         if (ImGui::BeginMenu("Create")) {
-            if (ImGui::MenuItem("Empty")) {
-                auto e = m_Context->CreateEntity("Empty Entity");
-                *m_SelectedEntity = e.GetID();
-            }
-            if (ImGui::MenuItem("Camera")) {
-                auto e = m_Context->CreateEntity("Camera");
-                if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Camera = std::make_unique<CameraComponent>();
-                }
-                *m_SelectedEntity = e.GetID();
-            }
-            if (ImGui::MenuItem("Cube")) {
-                auto e = m_Context->CreateEntity("Cube");
-                if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Mesh = std::make_unique<MeshComponent>();
-                    ed->Mesh->mesh = StandardMeshManager::Instance().GetCubeMesh();
-                    ed->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
-                    ed->Mesh->MeshName = "Cube";
-                }
-                *m_SelectedEntity = e.GetID();
-            }
-            if (ImGui::MenuItem("Sphere")) {
-                auto e = m_Context->CreateEntity("Sphere");
-                if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Mesh = std::make_unique<MeshComponent>();
-                    ed->Mesh->mesh = StandardMeshManager::Instance().GetSphereMesh();
-                    ed->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
-                    ed->Mesh->MeshName = "Sphere";
-                }
-                *m_SelectedEntity = e.GetID();
-            }
-            if (ImGui::MenuItem("Plane")) {
-                auto e = m_Context->CreateEntity("Plane");
-                if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Mesh = std::make_unique<MeshComponent>();
-                    ed->Mesh->mesh = StandardMeshManager::Instance().GetPlaneMesh();
-                    ed->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
-                    ed->Mesh->MeshName = "Plane";
-                }
-                *m_SelectedEntity = e.GetID();
-            }
-            if (ImGui::BeginMenu("Light")) {
-                if (ImGui::MenuItem("Directional")) {
-                    auto e = m_Context->CreateEntity("Directional Light");
-                    if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                        ed->Light = std::make_unique<LightComponent>(LightType::Directional, glm::vec3(1.0f), 1.0f);
-                    }
-                    *m_SelectedEntity = e.GetID();
-                }
-                if (ImGui::MenuItem("Point")) {
-                    auto e = m_Context->CreateEntity("Point Light");
-                    if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                        ed->Light = std::make_unique<LightComponent>(LightType::Point, glm::vec3(1.0f), 1.0f);
-                    }
-                    *m_SelectedEntity = e.GetID();
-                }
-                ImGui::EndMenu();
-            }
-            if (ImGui::MenuItem("Terrain")) {
-                auto e = m_Context->CreateEntity("Terrain");
-                if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Terrain = std::make_unique<TerrainComponent>();
-                    ed->Transform.Position = glm::vec3(-0.5f * ed->Terrain->Size, 0.0f, -0.5f * ed->Terrain->Size);
-                }
-                *m_SelectedEntity = e.GetID();
-            }
-            if (ImGui::MenuItem("Particle Emitter")) {
-                auto e = m_Context->CreateEntity("Particle Emitter");
-                if (auto* ed = m_Context->GetEntityData(e.GetID())) {
-                    ed->Emitter = std::make_unique<ParticleEmitterComponent>();
-                }
-                *m_SelectedEntity = e.GetID();
-            }
+            extern bool DrawCreateEntityMenuItems(Scene* context, EntityID* selectedEntityOut);
+            DrawCreateEntityMenuItems(m_Context, m_SelectedEntity);
             ImGui::EndMenu();
         }
         ImGui::EndPopup();
@@ -234,6 +167,29 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
             *m_SelectedEntity = -1;
          entityDeleted = true;
          }
+      if (ImGui::MenuItem("Convert to Prefab")) {
+         namespace fs = std::filesystem;
+         fs::path folder = Project::GetProjectDirectory() / "assets/prefabs";
+         std::error_code ec; fs::create_directories(folder, ec);
+         auto sanitize = [](std::string s){
+            const std::string invalid = "<>:\"/\\|?*";
+            for (char& c : s) if (invalid.find(c) != std::string::npos) c = '_';
+            size_t start = s.find_first_not_of(' ');
+            size_t end = s.find_last_not_of(' ');
+            if (start == std::string::npos) return std::string("Prefab");
+            return s.substr(start, end - start + 1);
+         };
+         std::string desired = sanitize(data->Name.empty() ? std::string("Prefab") : data->Name);
+         if (desired.empty()) desired = "Prefab";
+         fs::path out = folder / (desired + ".prefab");
+         int counter = 1;
+         while (fs::exists(out)) out = folder / (desired + "_" + std::to_string(counter++) + ".prefab");
+         if (Serializer::SavePrefabSubtreeToFile(*m_Context, id, out.string())) {
+            std::cout << "[Hierarchy] Prefab saved: " << out.string() << std::endl;
+         } else {
+            std::cerr << "[Hierarchy] Failed to save prefab: " << out.string() << std::endl;
+         }
+      }
       // No Create submenu on entity context menu
       ImGui::EndPopup();
       }

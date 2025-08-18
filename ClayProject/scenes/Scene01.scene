@@ -2,7 +2,8 @@
     "entities": [
         {
             "children": [],
-            "id": 78,
+            "guid": "30e1738e6864f00ad93a16b1d798bb4c",
+            "id": 3,
             "layer": 0,
             "light": {
                 "color": {
@@ -13,7 +14,7 @@
                 "intensity": 1.0,
                 "type": 0
             },
-            "name": "Default Light_2",
+            "name": "Light",
             "parent": 4294967295,
             "tag": "",
             "transform": {
@@ -89,7 +90,9 @@
                         "rootMotion": 0,
                         "singleClipPath": "assets/X Bot_mixamo.com.anim"
                     },
+                    "guid": "11f77bc45c1c3f4cca17d88947932d42",
                     "layer": 0,
+                    "name": "SkeletonRoot",
                     "scripts": [
                         {
                             "className": "MyTestScript"
@@ -144,16 +147,18 @@
                             0.0,
                             1.0,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             0.09121891856193542,
-                            10.156949996948242,
+                            9.430009841918945,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips",
+                    "guid": "79268950c33d1b0e62fe86201139462f",
                     "layer": 0,
+                    "name": "mixamorig:Hips",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -203,16 +208,18 @@
                             -0.012916453182697296,
                             0.9999163746833801,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.1339675188064575,
-                            10.172492980957031,
+                            9.445552825927734,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine",
+                    "guid": "3d9b959e70c0493edcc7679c5a28e6af",
                     "layer": 0,
+                    "name": "mixamorig:Spine",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -262,16 +269,18 @@
                             0.14703182876110077,
                             0.9891316890716553,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.235783576965332,
-                            10.173808097839355,
+                            9.446867942810059,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1",
+                    "guid": "222f9bcf2d89f434de2614194246e70e",
                     "layer": 0,
+                    "name": "mixamorig:Spine1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -321,16 +330,18 @@
                             0.14703182876110077,
                             0.9891316890716553,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.3347231149673462,
-                            10.159100532531738,
+                            9.432160377502441,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2",
+                    "guid": "30ba62f8c4a3a7649994cf86eff077d4",
                     "layer": 0,
+                    "name": "mixamorig:Spine2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -380,16 +391,18 @@
                             0.12149395048618317,
                             0.9925920963287354,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.4269309043884277,
-                            10.145394325256348,
+                            9.41845417022705,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:Neck",
+                    "guid": "33f3be3730029df2fad12afe2d3fa923",
                     "layer": 0,
+                    "name": "mixamorig:Neck",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -439,16 +452,18 @@
                             0.12149395048618317,
                             0.9925920963287354,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.5943348407745361,
-                            10.124903678894043,
+                            9.397963523864746,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:Neck/mixamorig:Head",
+                    "guid": "0d5c5fd06e4c539abf3013b5c9e1ced2",
                     "layer": 0,
+                    "name": "mixamorig:Head",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -498,16 +513,18 @@
                             0.12149395048618317,
                             0.9925920963287354,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.6905137300491333,
-                            10.141754150390625,
+                            9.414813995361328,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:Neck/mixamorig:Head/mixamorig:HeadTop_End",
+                    "guid": "b7c931d222191b5479473165af322f57",
                     "layer": 0,
+                    "name": "mixamorig:HeadTop_End",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -557,16 +574,18 @@
                             0.12149395048618317,
                             0.9925920963287354,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.9108874797821045,
-                            10.216765403747559,
+                            9.489825248718262,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder",
+                    "guid": "1409a823abaddf822fd2cc76879eb99f",
                     "layer": 0,
+                    "name": "mixamorig:RightShoulder",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -616,16 +635,18 @@
                             -0.9987747073173523,
                             -3.725290298461914e-08,
                             0.0,
-                            10.874710083007813,
+                            10.246072769165039,
                             1.5370800495147705,
-                            10.123785018920898,
+                            9.396844863891602,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm",
+                    "guid": "235b0e5f001f901980328f4a43ef89bb",
                     "layer": 0,
+                    "name": "mixamorig:RightArm",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -675,16 +696,18 @@
                             -0.9999998807907104,
                             -3.348198163166671e-08,
                             0.0,
-                            10.768781661987305,
+                            10.140144348144531,
                             1.531831979751587,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm",
+                    "guid": "493cb3b421e6160b719680f4adee8852",
                     "layer": 0,
+                    "name": "mixamorig:RightForeArm",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -734,16 +757,18 @@
                             -0.9999998807907104,
                             -3.348198163166671e-08,
                             0.0,
-                            10.490365982055664,
+                            9.86172866821289,
                             1.531831979751587,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand",
+                    "guid": "95716ade3d33508ea8fa005ea7102df4",
                     "layer": 0,
+                    "name": "mixamorig:RightHand",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -793,16 +818,18 @@
                             -0.9999998807907104,
                             -3.348198163166671e-08,
                             0.0,
-                            10.207077980041504,
+                            9.57844066619873,
                             1.531831979751587,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandThumb1",
+                    "guid": "6ad4afef6baf5f65f30ed1d5aa4740b1",
                     "layer": 0,
+                    "name": "mixamorig:RightHandThumb1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -852,16 +879,18 @@
                             -0.8641000986099243,
                             2.929982834132261e-08,
                             0.0,
-                            10.182429313659668,
+                            9.553791999816895,
                             1.5160918235778809,
-                            10.12828254699707,
+                            9.401342391967773,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandThumb1/mixamorig:RightHandThumb2",
+                    "guid": "bc2aba578cb548e508d72353c7fb21f8",
                     "layer": 0,
+                    "name": "mixamorig:RightHandThumb2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -911,16 +940,18 @@
                             -0.8667004108428955,
                             -5.3355449836089974e-08,
                             0.0,
-                            10.150278091430664,
+                            9.52164077758789,
                             1.4973639249801636,
-                            10.147525787353516,
+                            9.420585632324219,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandThumb1/mixamorig:RightHandThumb2/mixamorig:RightHandThumb3",
+                    "guid": "bc3cb86a3f831a0c4cfd2e040dbf08de",
                     "layer": 0,
+                    "name": "mixamorig:RightHandThumb3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -970,16 +1001,18 @@
                             -0.8685407042503357,
                             -5.405359004839738e-08,
                             0.0,
-                            10.123729705810547,
+                            9.495092391967773,
                             1.4820845127105713,
-                            10.162652015686035,
+                            9.435711860656738,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandThumb1/mixamorig:RightHandThumb2/mixamorig:RightHandThumb3/mixamorig:RightHandThumb4",
+                    "guid": "c5260e9963253caac1978a65862407ec",
                     "layer": 0,
+                    "name": "mixamorig:RightHandThumb4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1029,16 +1062,18 @@
                             -0.8943309783935547,
                             -0.2109270542860031,
                             0.0,
-                            10.103541374206543,
+                            9.47490406036377,
                             1.4705644845962524,
-                            10.17373275756836,
+                            9.446792602539063,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandIndex1",
+                    "guid": "7c7b3ee4b41f9253394e3279a5fbb201",
                     "layer": 0,
+                    "name": "mixamorig:RightHandIndex1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1088,16 +1123,18 @@
                             -0.9999998807907104,
                             -1.5269127118244796e-07,
                             0.0,
-                            10.115994453430176,
+                            9.487357139587402,
                             1.5266529321670532,
-                            10.124062538146973,
+                            9.397122383117676,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandIndex1/mixamorig:RightHandIndex2",
+                    "guid": "720550922f3f6cf52b4ab73d997ff537",
                     "layer": 0,
+                    "name": "mixamorig:RightHandIndex2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1147,16 +1184,18 @@
                             -0.9999998807907104,
                             -3.3481967420812e-08,
                             0.0,
-                            10.078994750976563,
+                            9.450357437133789,
                             1.5266532897949219,
-                            10.124074935913086,
+                            9.397134780883789,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandIndex1/mixamorig:RightHandIndex2/mixamorig:RightHandIndex3",
+                    "guid": "fa9e3588c0d9b22387d84ab667b93d1b",
                     "layer": 0,
+                    "name": "mixamorig:RightHandIndex3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1206,16 +1245,18 @@
                             -0.9999998807907104,
                             -3.348196386809832e-08,
                             0.0,
-                            10.050495147705078,
+                            9.421857833862305,
                             1.5266534090042114,
-                            10.124070167541504,
+                            9.397130012512207,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandIndex1/mixamorig:RightHandIndex2/mixamorig:RightHandIndex3/mixamorig:RightHandIndex4",
+                    "guid": "a0243e78e939e00313b2dd35cbe10e09",
                     "layer": 0,
+                    "name": "mixamorig:RightHandIndex4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1265,16 +1306,18 @@
                             -0.9999979734420776,
                             0.002005364978685975,
                             0.0,
-                            10.022772789001465,
+                            9.394135475158691,
                             1.5266534090042114,
-                            10.124070167541504,
+                            9.397130012512207,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandMiddle1",
+                    "guid": "f51bd9c50fa380563413b6c00cc11936",
                     "layer": 0,
+                    "name": "mixamorig:RightHandMiddle1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1324,16 +1367,18 @@
                             -0.9999998807907104,
                             -1.5269125697159325e-07,
                             0.0,
-                            10.1117525100708,
+                            9.483115196228027,
                             1.5318313837051392,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandMiddle1/mixamorig:RightHandMiddle2",
+                    "guid": "70303761fc503495e8ae8a6b3e7bf7f3",
                     "layer": 0,
+                    "name": "mixamorig:RightHandMiddle2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1383,16 +1428,18 @@
                             -0.9999998807907104,
                             -3.3481967420812e-08,
                             0.0,
-                            10.074752807617188,
+                            9.446115493774414,
                             1.5318317413330078,
-                            10.10150146484375,
+                            9.374561309814453,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandMiddle1/mixamorig:RightHandMiddle2/mixamorig:RightHandMiddle3",
+                    "guid": "3ff52240911bb2e196fd427d2613894a",
                     "layer": 0,
+                    "name": "mixamorig:RightHandMiddle3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1442,16 +1489,18 @@
                             -0.9999998807907104,
                             -3.348196031538464e-08,
                             0.0,
-                            10.045252799987793,
+                            9.41661548614502,
                             1.5318315029144287,
-                            10.101481437683105,
+                            9.374541282653809,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandMiddle1/mixamorig:RightHandMiddle2/mixamorig:RightHandMiddle3/mixamorig:RightHandMiddle4",
+                    "guid": "434c10cd631f690240882b13810abbfd",
                     "layer": 0,
+                    "name": "mixamorig:RightHandMiddle4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1501,16 +1550,18 @@
                             -0.9999982714653015,
                             0.001857665367424488,
                             0.0,
-                            10.015786170959473,
+                            9.3871488571167,
                             1.5318318605422974,
-                            10.101479530334473,
+                            9.374539375305176,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandRing1",
+                    "guid": "06ecb88607030bcfa2f049de1807a812",
                     "layer": 0,
+                    "name": "mixamorig:RightHandRing1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1560,16 +1611,18 @@
                             -0.9999998807907104,
                             -3.348198518438039e-08,
                             0.0,
-                            10.116042137145996,
+                            9.487404823303223,
                             1.5314009189605713,
-                            10.082813262939453,
+                            9.355873107910156,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandRing1/mixamorig:RightHandRing2",
+                    "guid": "02dbd6aaa156bdb77ab7771b6cda1ee4",
                     "layer": 0,
+                    "name": "mixamorig:RightHandRing2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1619,16 +1672,18 @@
                             -0.9999998807907104,
                             -3.348198518438039e-08,
                             0.0,
-                            10.08224868774414,
+                            9.453611373901367,
                             1.5314010381698608,
-                            10.082802772521973,
+                            9.355862617492676,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandRing1/mixamorig:RightHandRing2/mixamorig:RightHandRing3",
+                    "guid": "022056bcf7bcae029587b17ad7568036",
                     "layer": 0,
+                    "name": "mixamorig:RightHandRing3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1678,16 +1733,18 @@
                             -0.9999998807907104,
                             -1.5269127118244796e-07,
                             0.0,
-                            10.053352355957031,
+                            9.424715042114258,
                             1.5314009189605713,
-                            10.082806587219238,
+                            9.355866432189941,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandRing1/mixamorig:RightHandRing2/mixamorig:RightHandRing3/mixamorig:RightHandRing4",
+                    "guid": "728cec62904822ceb55f596327af1aef",
                     "layer": 0,
+                    "name": "mixamorig:RightHandRing4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1737,16 +1794,18 @@
                             -0.9999998211860657,
                             0.00029226773767732084,
                             0.0,
-                            10.02696418762207,
+                            9.398326873779297,
                             1.53140127658844,
-                            10.082816123962402,
+                            9.355875968933105,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandPinky1",
+                    "guid": "8bdfa97332cbdc1703cb41c1fac66906",
                     "layer": 0,
+                    "name": "mixamorig:RightHandPinky1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1796,16 +1855,18 @@
                             -0.9999998807907104,
                             -3.348213795106858e-08,
                             0.0,
-                            10.126311302185059,
+                            9.497673988342285,
                             1.526964783668518,
-                            10.063401222229004,
+                            9.336461067199707,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandPinky1/mixamorig:RightHandPinky2",
+                    "guid": "6db6e50a163c8df8a7c20e2aa1390d90",
                     "layer": 0,
+                    "name": "mixamorig:RightHandPinky2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1855,16 +1916,18 @@
                             -1.0000001192092896,
                             2.0493655483733164e-07,
                             0.0,
-                            10.090311050415039,
+                            9.461673736572266,
                             1.5269646644592285,
-                            10.063363075256348,
+                            9.33642292022705,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandPinky1/mixamorig:RightHandPinky2/mixamorig:RightHandPinky3",
+                    "guid": "351c6e87f2d15fbc61a9f5351cf6bce8",
                     "layer": 0,
+                    "name": "mixamorig:RightHandPinky3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1914,16 +1977,18 @@
                             -0.9999998807907104,
                             -3.348205268594029e-08,
                             0.0,
-                            10.069311141967773,
+                            9.440673828125,
                             1.5269643068313599,
-                            10.063305854797363,
+                            9.336365699768066,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandPinky1/mixamorig:RightHandPinky2/mixamorig:RightHandPinky3/mixamorig:RightHandPinky4",
+                    "guid": "fb685c7234544ac020fa0dc38d612e89",
                     "layer": 0,
+                    "name": "mixamorig:RightHandPinky4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -1973,16 +2038,18 @@
                             -0.9999948143959045,
                             0.0031389864161610603,
                             0.0,
-                            10.0481538772583,
+                            9.419516563415527,
                             1.5269641876220703,
-                            10.063268661499023,
+                            9.336328506469727,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder",
+                    "guid": "5a0433bc5b568fd7669d2d83be600d3d",
                     "layer": 0,
+                    "name": "mixamorig:LeftShoulder",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2032,16 +2099,18 @@
                             -0.9987760782241821,
                             -2.9802322387695313e-08,
                             0.0,
-                            10.96611499786377,
+                            10.337477684020996,
                             1.5370781421661377,
-                            10.123785972595215,
+                            9.396845817565918,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm",
+                    "guid": "441cfe8fb2439f648c3b23fce679889b",
                     "layer": 0,
+                    "name": "mixamorig:LeftArm",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2091,16 +2160,18 @@
                             -1.0,
                             -2.417790057052116e-08,
                             0.0,
-                            11.072038650512695,
+                            10.443401336669922,
                             1.531831979751587,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm",
+                    "guid": "f4ef49ebd596775edd2f8705a1bc95b5",
                     "layer": 0,
+                    "name": "mixamorig:LeftForeArm",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2150,16 +2221,18 @@
                             -1.0,
                             -2.417790057052116e-08,
                             0.0,
-                            11.350454330444336,
+                            10.721817016601563,
                             1.5318316221237183,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand",
+                    "guid": "f85c757ad7f2b9901720806bbbd7c840",
                     "layer": 0,
+                    "name": "mixamorig:LeftHand",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2209,16 +2282,18 @@
                             -1.0,
                             -2.417790057052116e-08,
                             0.0,
-                            11.633742332458496,
+                            11.005105018615723,
                             1.5318312644958496,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandThumb1",
+                    "guid": "498b7e580a95b0554593ac3b88cf3ab1",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandThumb1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2268,16 +2343,18 @@
                             -0.8643624782562256,
                             -1.0620286161611148e-07,
                             0.0,
-                            11.658403396606445,
+                            11.029766082763672,
                             1.5160692930221558,
-                            10.128281593322754,
+                            9.401341438293457,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandThumb1/mixamorig:LeftHandThumb2",
+                    "guid": "1fa5b12b772b3b4e6711377e31c5a454",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandThumb2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2327,16 +2404,18 @@
                             -0.866681694984436,
                             -8.769169568267898e-08,
                             0.0,
-                            11.690581321716309,
+                            11.061944007873535,
                             1.4973487854003906,
-                            10.147446632385254,
+                            9.420506477355957,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandThumb1/mixamorig:LeftHandThumb2/mixamorig:LeftHandThumb3",
+                    "guid": "5d99cf7027053d381bb2a0280c7b5bf1",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandThumb3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2386,16 +2465,18 @@
                             -0.8683755397796631,
                             -1.0084610124749815e-07,
                             0.0,
-                            11.717141151428223,
+                            11.08850383758545,
                             1.4820605516433716,
-                            10.162591934204102,
+                            9.435651779174805,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandThumb1/mixamorig:LeftHandThumb2/mixamorig:LeftHandThumb3/mixamorig:LeftHandThumb4",
+                    "guid": "f5ccaa89c82a1a5e31458cb08182b50a",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandThumb4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2445,16 +2526,18 @@
                             -0.8944182991981506,
                             -0.2197933793067932,
                             0.0,
-                            11.737350463867188,
+                            11.108713150024414,
                             1.47052001953125,
-                            10.17374324798584,
+                            9.446803092956543,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandIndex1",
+                    "guid": "c165841de5b8f3696397fa2752d8d2f5",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandIndex1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2504,16 +2587,18 @@
                             -1.0,
                             -2.4178087087989297e-08,
                             0.0,
-                            11.724835395812988,
+                            11.096198081970215,
                             1.5266509056091309,
-                            10.124063491821289,
+                            9.397123336791992,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandIndex1/mixamorig:LeftHandIndex2",
+                    "guid": "fdd10f6fdad7f61f12752f1e188b1276",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandIndex2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2563,16 +2648,18 @@
                             -1.0,
                             -2.4178179458544946e-08,
                             0.0,
-                            11.761835098266602,
+                            11.133197784423828,
                             1.5266507863998413,
-                            10.12406063079834,
+                            9.397120475769043,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandIndex1/mixamorig:LeftHandIndex2/mixamorig:LeftHandIndex3",
+                    "guid": "3c2681210da5d7a946402de50e9639f4",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandIndex3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2622,16 +2709,18 @@
                             -1.0,
                             -1.4338756670895236e-07,
                             0.0,
-                            11.790334701538086,
+                            11.161697387695313,
                             1.5266506671905518,
-                            10.124064445495605,
+                            9.397124290466309,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandIndex1/mixamorig:LeftHandIndex2/mixamorig:LeftHandIndex3/mixamorig:LeftHandIndex4",
+                    "guid": "e0bacbb94dac57aaecb4529d20804837",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandIndex4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2681,16 +2770,18 @@
                             -0.9999997019767761,
                             0.0007550476584583521,
                             0.0,
-                            11.818083763122559,
+                            11.189446449279785,
                             1.5266505479812622,
-                            10.124064445495605,
+                            9.397124290466309,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandMiddle1",
+                    "guid": "090e6a34e8d7c0ca567deeb85c60d232",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandMiddle1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2740,16 +2831,18 @@
                             -1.0,
                             -1.433873251244222e-07,
                             0.0,
-                            11.729076385498047,
+                            11.100439071655273,
                             1.5318317413330078,
-                            10.101465225219727,
+                            9.37452507019043,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandMiddle1/mixamorig:LeftHandMiddle2",
+                    "guid": "24d1491ddbc68016715dafdd99dfdcff",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandMiddle2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2799,16 +2892,18 @@
                             -1.0,
                             -2.417799294107681e-08,
                             0.0,
-                            11.76607608795166,
+                            11.137438774108887,
                             1.5318313837051392,
-                            10.101463317871094,
+                            9.374523162841797,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandMiddle1/mixamorig:LeftHandMiddle2/mixamorig:LeftHandMiddle3",
+                    "guid": "8ab188e469174a57fc8ee817698d3f77",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandMiddle3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2858,16 +2953,18 @@
                             -1.0,
                             -2.417787570152541e-08,
                             0.0,
-                            11.795576095581055,
+                            11.166938781738281,
                             1.5318315029144287,
-                            10.101462364196777,
+                            9.37452220916748,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandMiddle1/mixamorig:LeftHandMiddle2/mixamorig:LeftHandMiddle3/mixamorig:LeftHandMiddle4",
+                    "guid": "488be033b3528b716ebc2ded39c45086",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandMiddle4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2917,16 +3014,18 @@
                             -0.9999979138374329,
                             0.0020482302643358707,
                             0.0,
-                            11.825104713439941,
+                            11.196467399597168,
                             1.5318315029144287,
-                            10.101463317871094,
+                            9.374523162841797,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandRing1",
+                    "guid": "cde4d91d662bcc642f20dab558dcd8ae",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandRing1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -2976,16 +3075,18 @@
                             -1.0,
                             -2.417807998256194e-08,
                             0.0,
-                            11.724787712097168,
+                            11.096150398254395,
                             1.5314009189605713,
-                            10.082813262939453,
+                            9.355873107910156,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandRing1/mixamorig:LeftHandRing2",
+                    "guid": "5752abe47790d07bf7e6cb63d78b8ca6",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandRing2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3035,16 +3136,18 @@
                             -1.0,
                             -2.417807998256194e-08,
                             0.0,
-                            11.756287574768066,
+                            11.127650260925293,
                             1.5314006805419922,
-                            10.082813262939453,
+                            9.355873107910156,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandRing1/mixamorig:LeftHandRing2/mixamorig:LeftHandRing3",
+                    "guid": "0490351920c11b6c8d9511e301a19bec",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandRing3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3094,16 +3197,18 @@
                             -1.0,
                             -2.417807998256194e-08,
                             0.0,
-                            11.785787582397461,
+                            11.157150268554688,
                             1.5314006805419922,
-                            10.082813262939453,
+                            9.355873107910156,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandRing1/mixamorig:LeftHandRing2/mixamorig:LeftHandRing3/mixamorig:LeftHandRing4",
+                    "guid": "0ddf9c6668d95c97db4fc442c0f4c95e",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandRing4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3153,16 +3258,18 @@
                             -0.9999995231628418,
                             -0.0009869580389931798,
                             0.0,
-                            11.812231063842773,
+                            11.18359375,
                             1.5314007997512817,
-                            10.08281421661377,
+                            9.355874061584473,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandPinky1",
+                    "guid": "0006f350de242fb6a7fa7c764af89303",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandPinky1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3212,16 +3319,18 @@
                             -1.0,
                             -2.417654343389586e-08,
                             0.0,
-                            11.714520454406738,
+                            11.085883140563965,
                             1.526962399482727,
-                            10.06340217590332,
+                            9.336462020874023,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandPinky1/mixamorig:LeftHandPinky2",
+                    "guid": "e748d76f99fbb4879bf5a86959ca82bf",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandPinky2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3271,16 +3380,18 @@
                             -1.0,
                             -2.4176722845936638e-08,
                             0.0,
-                            11.750519752502441,
+                            11.121882438659668,
                             1.5269631147384644,
-                            10.063549041748047,
+                            9.33660888671875,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandPinky1/mixamorig:LeftHandPinky2/mixamorig:LeftHandPinky3",
+                    "guid": "c6cefeca67e65099a092a8d403c48290",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandPinky3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3330,16 +3441,18 @@
                             -1.0,
                             -2.4176754820359747e-08,
                             0.0,
-                            11.771519660949707,
+                            11.142882347106934,
                             1.5269627571105957,
-                            10.063626289367676,
+                            9.336686134338379,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandPinky1/mixamorig:LeftHandPinky2/mixamorig:LeftHandPinky3/mixamorig:LeftHandPinky4",
+                    "guid": "07882366776b7c746584e18cf2232a41",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandPinky4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3389,16 +3502,18 @@
                             -0.9999985098838806,
                             0.0015667431289330125,
                             0.0,
-                            11.792774200439453,
+                            11.16413688659668,
                             1.5269629955291748,
-                            10.063701629638672,
+                            9.336761474609375,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:RightUpLeg",
+                    "guid": "38bf09ca6901f3f09fc0e2bfdeaf9ea8",
                     "layer": 0,
+                    "name": "mixamorig:RightUpLeg",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3448,16 +3563,18 @@
                             0.007796428166329861,
                             0.999969482421875,
                             0.0,
-                            10.838332176208496,
+                            10.209694862365723,
                             1.066451072692871,
-                            10.15649700164795,
+                            9.429556846618652,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg",
+                    "guid": "62fbc0e2a6fdc373fe65476efe957380",
                     "layer": 0,
+                    "name": "mixamorig:RightLeg",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3507,16 +3624,18 @@
                             -0.06835135817527771,
                             0.9976611733436584,
                             0.0,
-                            10.838332176208496,
+                            10.209694862365723,
                             0.622749924659729,
-                            10.159955978393555,
+                            9.433015823364258,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot",
+                    "guid": "b154d63999c74fc42da1ce84cc94545a",
                     "layer": 0,
+                    "name": "mixamorig:RightFoot",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3566,16 +3685,18 @@
                             0.775179922580719,
                             0.631740152835846,
                             0.0,
-                            10.838332176208496,
+                            10.209694862365723,
                             0.1785132884979248,
-                            10.129520416259766,
+                            9.402580261230469,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot/mixamorig:RightToeBase",
+                    "guid": "91becd03fcf1929618368604bf071634",
                     "layer": 0,
+                    "name": "mixamorig:RightToeBase",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3625,16 +3746,18 @@
                             0.9999996423721313,
                             7.30752944946289e-05,
                             0.0,
-                            10.838332176208496,
+                            10.209694862365723,
                             0.09122659265995026,
-                            10.236625671386719,
+                            9.509685516357422,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot/mixamorig:RightToeBase/mixamorig:RightToe_End",
+                    "guid": "f9e36e51383929f8bb185c98aa23ecf6",
                     "layer": 0,
+                    "name": "mixamorig:RightToe_End",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3684,16 +3807,18 @@
                             0.999730110168457,
                             7.301566802198067e-05,
                             0.0,
-                            10.838332176208496,
+                            10.209694862365723,
                             0.09121980518102646,
-                            10.32940673828125,
+                            9.602466583251953,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:LeftUpLeg",
+                    "guid": "cb50324b879eedf062767bcc104cd3ea",
                     "layer": 0,
+                    "name": "mixamorig:LeftUpLeg",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3743,16 +3868,18 @@
                             0.007819393649697304,
                             0.9999694228172302,
                             0.0,
-                            11.002488136291504,
+                            10.37385082244873,
                             1.066450595855713,
-                            10.15649700164795,
+                            9.429556846618652,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg",
+                    "guid": "40617578c992965a37401ccf6fcb1a4f",
                     "layer": 0,
+                    "name": "mixamorig:LeftLeg",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3802,16 +3929,18 @@
                             -0.0683705136179924,
                             0.9976599812507629,
                             0.0,
-                            11.002488136291504,
+                            10.37385082244873,
                             0.6227503418922424,
-                            10.159966468811035,
+                            9.433026313781738,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot",
+                    "guid": "c36b58faeb5ff05ea4a992c07aca4f05",
                     "layer": 0,
+                    "name": "mixamorig:LeftFoot",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3861,16 +3990,18 @@
                             0.7751802802085876,
                             0.6317400932312012,
                             0.0,
-                            11.002488136291504,
+                            10.37385082244873,
                             0.17851382493972778,
-                            10.129522323608398,
+                            9.402582168579102,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot/mixamorig:LeftToeBase",
+                    "guid": "4239f095f5687d49af8b22585b96d898",
                     "layer": 0,
+                    "name": "mixamorig:LeftToeBase",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3920,16 +4051,18 @@
                             0.9999998807907104,
                             7.304549217224121e-05,
                             0.0,
-                            11.002488136291504,
+                            10.37385082244873,
                             0.09122710675001144,
-                            10.236627578735352,
+                            9.509687423706055,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot/mixamorig:LeftToeBase/mixamorig:LeftToe_End",
+                    "guid": "01705f7834df6918d32f41eeb5dd053f",
                     "layer": 0,
+                    "name": "mixamorig:LeftToe_End",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -3979,15 +4112,16 @@
                             0.9997181296348572,
                             7.292627560673282e-05,
                             0.0,
-                            11.002488136291504,
+                            10.37385082244873,
                             0.09122033417224884,
-                            10.329408645629883,
+                            9.602468490600586,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/Beta_Surface",
+                    "guid": "2be6eac41ed6905b930cb0c1d80e8492",
                     "layer": 0,
                     "mesh": {
                         "fileID": 0,
@@ -4002,6 +4136,7 @@
                         },
                         "uniqueMaterial": false
                     },
+                    "name": "Beta_Surface",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4051,15 +4186,16 @@
                             0.0,
                             1.0,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             0.09121891856193542,
-                            10.156949996948242,
+                            9.430009841918945,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "SkeletonRoot/Beta_Joints",
+                    "guid": "4bfe561e21cb0d4762526c1a4da22725",
                     "layer": 0,
                     "mesh": {
                         "fileID": 1,
@@ -4074,6 +4210,7 @@
                         },
                         "uniqueMaterial": false
                     },
+                    "name": "Beta_Joints",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4123,17 +4260,87 @@
                             0.0,
                             1.0,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             0.09121891856193542,
-                            10.156949996948242,
+                            9.430009841918945,
+                            1.0
+                        ]
+                    }
+                },
+                {
+                    "_modelNodePath": "SkeletonRoot/Camera",
+                    "camera": {
+                        "active": true,
+                        "farClip": 1000.0,
+                        "fov": 60.0,
+                        "isPerspective": true,
+                        "nearClip": 0.10000000149011612,
+                        "priority": 0
+                    },
+                    "guid": "4f1cf5ff1f1defbb00cf86365b1a467a",
+                    "layer": 0,
+                    "name": "Camera",
+                    "tag": "",
+                    "transform": {
+                        "localMatrix": [
+                            -1.0,
+                            0.0,
+                            8.742277657347586e-08,
+                            0.0,
+                            0.0,
+                            1.0,
+                            0.0,
+                            0.0,
+                            -8.742277657347586e-08,
+                            0.0,
+                            -1.0,
+                            0.0,
+                            0.0,
+                            1.5,
+                            -3.0,
+                            1.0
+                        ],
+                        "position": {
+                            "x": 0.0,
+                            "y": 1.5,
+                            "z": -3.0
+                        },
+                        "rotation": {
+                            "x": 0.0,
+                            "y": 180.0,
+                            "z": 0.0
+                        },
+                        "scale": {
+                            "x": 1.0,
+                            "y": 1.0,
+                            "z": 1.0
+                        },
+                        "transformDirty": false,
+                        "worldMatrix": [
+                            -1.0,
+                            0.0,
+                            8.742277657347586e-08,
+                            0.0,
+                            0.0,
+                            1.0,
+                            0.0,
+                            0.0,
+                            -8.742277657347586e-08,
+                            0.0,
+                            -1.0,
+                            0.0,
+                            10.291772842407227,
+                            1.5912189483642578,
+                            6.430009841918945,
                             1.0
                         ]
                     }
                 }
             ],
-            "id": 79,
+            "guid": "c2390a7127f9a8fb2eb5f1bd0eb66eb0",
+            "id": 4,
             "layer": 0,
-            "name": "ImportedModel",
+            "name": "Player",
             "parent": 4294967295,
             "tag": "",
             "transform": {
@@ -4150,15 +4357,15 @@
                     0.0,
                     1.0,
                     0.0,
-                    10.92041015625,
+                    10.291772842407227,
                     0.09121891856193542,
-                    10.156949996948242,
+                    9.430009841918945,
                     1.0
                 ],
                 "position": {
-                    "x": 10.92041015625,
+                    "x": 10.291772842407227,
                     "y": 0.09121891856193542,
-                    "z": 10.156949996948242
+                    "z": 9.430009841918945
                 },
                 "rotation": {
                     "x": 0.0,
@@ -4184,9 +4391,9 @@
                     0.0,
                     1.0,
                     0.0,
-                    10.92041015625,
+                    10.291772842407227,
                     0.09121891856193542,
-                    10.156949996948242,
+                    9.430009841918945,
                     1.0
                 ]
             }
@@ -4209,7 +4416,9 @@
             "children": [
                 {
                     "_modelNodePath": "mixamorig:Hips",
+                    "guid": "79268950c33d1b0e62fe86201139462f",
                     "layer": 0,
+                    "name": "mixamorig:Hips",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4259,16 +4468,18 @@
                             -0.012916453182697296,
                             0.9999163746833801,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.1339675188064575,
-                            10.172492980957031,
+                            9.445552825927734,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine",
+                    "guid": "3d9b959e70c0493edcc7679c5a28e6af",
                     "layer": 0,
+                    "name": "mixamorig:Spine",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4318,16 +4529,18 @@
                             0.14703182876110077,
                             0.9891316890716553,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.235783576965332,
-                            10.173808097839355,
+                            9.446867942810059,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1",
+                    "guid": "222f9bcf2d89f434de2614194246e70e",
                     "layer": 0,
+                    "name": "mixamorig:Spine1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4377,16 +4590,18 @@
                             0.14703182876110077,
                             0.9891316890716553,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.3347231149673462,
-                            10.159100532531738,
+                            9.432160377502441,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2",
+                    "guid": "30ba62f8c4a3a7649994cf86eff077d4",
                     "layer": 0,
+                    "name": "mixamorig:Spine2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4436,16 +4651,18 @@
                             0.12149395048618317,
                             0.9925920963287354,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.4269309043884277,
-                            10.145394325256348,
+                            9.41845417022705,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:Neck",
+                    "guid": "33f3be3730029df2fad12afe2d3fa923",
                     "layer": 0,
+                    "name": "mixamorig:Neck",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4495,16 +4712,18 @@
                             0.12149395048618317,
                             0.9925920963287354,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.5943348407745361,
-                            10.124903678894043,
+                            9.397963523864746,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:Neck/mixamorig:Head",
+                    "guid": "0d5c5fd06e4c539abf3013b5c9e1ced2",
                     "layer": 0,
+                    "name": "mixamorig:Head",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4554,16 +4773,18 @@
                             0.12149395048618317,
                             0.9925920963287354,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.6905137300491333,
-                            10.141754150390625,
+                            9.414813995361328,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:Neck/mixamorig:Head/mixamorig:HeadTop_End",
+                    "guid": "b7c931d222191b5479473165af322f57",
                     "layer": 0,
+                    "name": "mixamorig:HeadTop_End",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4613,16 +4834,18 @@
                             0.12149395048618317,
                             0.9925920963287354,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             1.9108874797821045,
-                            10.216765403747559,
+                            9.489825248718262,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder",
+                    "guid": "1409a823abaddf822fd2cc76879eb99f",
                     "layer": 0,
+                    "name": "mixamorig:RightShoulder",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4672,16 +4895,18 @@
                             -0.9987747073173523,
                             -3.725290298461914e-08,
                             0.0,
-                            10.874710083007813,
+                            10.246072769165039,
                             1.5370800495147705,
-                            10.123785018920898,
+                            9.396844863891602,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm",
+                    "guid": "235b0e5f001f901980328f4a43ef89bb",
                     "layer": 0,
+                    "name": "mixamorig:RightArm",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4731,16 +4956,18 @@
                             -0.9999998807907104,
                             -3.348198163166671e-08,
                             0.0,
-                            10.768781661987305,
+                            10.140144348144531,
                             1.531831979751587,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm",
+                    "guid": "493cb3b421e6160b719680f4adee8852",
                     "layer": 0,
+                    "name": "mixamorig:RightForeArm",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4790,16 +5017,18 @@
                             -0.9999998807907104,
                             -3.348198163166671e-08,
                             0.0,
-                            10.490365982055664,
+                            9.86172866821289,
                             1.531831979751587,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand",
+                    "guid": "95716ade3d33508ea8fa005ea7102df4",
                     "layer": 0,
+                    "name": "mixamorig:RightHand",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4849,16 +5078,18 @@
                             -0.9999998807907104,
                             -3.348198163166671e-08,
                             0.0,
-                            10.207077980041504,
+                            9.57844066619873,
                             1.531831979751587,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandThumb1",
+                    "guid": "6ad4afef6baf5f65f30ed1d5aa4740b1",
                     "layer": 0,
+                    "name": "mixamorig:RightHandThumb1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4908,16 +5139,18 @@
                             -0.8641000986099243,
                             2.929982834132261e-08,
                             0.0,
-                            10.182429313659668,
+                            9.553791999816895,
                             1.5160918235778809,
-                            10.12828254699707,
+                            9.401342391967773,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandThumb1/mixamorig:RightHandThumb2",
+                    "guid": "bc2aba578cb548e508d72353c7fb21f8",
                     "layer": 0,
+                    "name": "mixamorig:RightHandThumb2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -4967,16 +5200,18 @@
                             -0.8667004108428955,
                             -5.3355449836089974e-08,
                             0.0,
-                            10.150278091430664,
+                            9.52164077758789,
                             1.4973639249801636,
-                            10.147525787353516,
+                            9.420585632324219,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandThumb1/mixamorig:RightHandThumb2/mixamorig:RightHandThumb3",
+                    "guid": "bc3cb86a3f831a0c4cfd2e040dbf08de",
                     "layer": 0,
+                    "name": "mixamorig:RightHandThumb3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5026,16 +5261,18 @@
                             -0.8685407042503357,
                             -5.405359004839738e-08,
                             0.0,
-                            10.123729705810547,
+                            9.495092391967773,
                             1.4820845127105713,
-                            10.162652015686035,
+                            9.435711860656738,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandThumb1/mixamorig:RightHandThumb2/mixamorig:RightHandThumb3/mixamorig:RightHandThumb4",
+                    "guid": "c5260e9963253caac1978a65862407ec",
                     "layer": 0,
+                    "name": "mixamorig:RightHandThumb4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5085,16 +5322,18 @@
                             -0.8943309783935547,
                             -0.2109270542860031,
                             0.0,
-                            10.103541374206543,
+                            9.47490406036377,
                             1.4705644845962524,
-                            10.17373275756836,
+                            9.446792602539063,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandIndex1",
+                    "guid": "7c7b3ee4b41f9253394e3279a5fbb201",
                     "layer": 0,
+                    "name": "mixamorig:RightHandIndex1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5144,16 +5383,18 @@
                             -0.9999998807907104,
                             -1.5269127118244796e-07,
                             0.0,
-                            10.115994453430176,
+                            9.487357139587402,
                             1.5266529321670532,
-                            10.124062538146973,
+                            9.397122383117676,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandIndex1/mixamorig:RightHandIndex2",
+                    "guid": "720550922f3f6cf52b4ab73d997ff537",
                     "layer": 0,
+                    "name": "mixamorig:RightHandIndex2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5203,16 +5444,18 @@
                             -0.9999998807907104,
                             -3.3481967420812e-08,
                             0.0,
-                            10.078994750976563,
+                            9.450357437133789,
                             1.5266532897949219,
-                            10.124074935913086,
+                            9.397134780883789,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandIndex1/mixamorig:RightHandIndex2/mixamorig:RightHandIndex3",
+                    "guid": "fa9e3588c0d9b22387d84ab667b93d1b",
                     "layer": 0,
+                    "name": "mixamorig:RightHandIndex3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5262,16 +5505,18 @@
                             -0.9999998807907104,
                             -3.348196386809832e-08,
                             0.0,
-                            10.050495147705078,
+                            9.421857833862305,
                             1.5266534090042114,
-                            10.124070167541504,
+                            9.397130012512207,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandIndex1/mixamorig:RightHandIndex2/mixamorig:RightHandIndex3/mixamorig:RightHandIndex4",
+                    "guid": "a0243e78e939e00313b2dd35cbe10e09",
                     "layer": 0,
+                    "name": "mixamorig:RightHandIndex4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5321,16 +5566,18 @@
                             -0.9999979734420776,
                             0.002005364978685975,
                             0.0,
-                            10.022772789001465,
+                            9.394135475158691,
                             1.5266534090042114,
-                            10.124070167541504,
+                            9.397130012512207,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandMiddle1",
+                    "guid": "f51bd9c50fa380563413b6c00cc11936",
                     "layer": 0,
+                    "name": "mixamorig:RightHandMiddle1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5380,16 +5627,18 @@
                             -0.9999998807907104,
                             -1.5269125697159325e-07,
                             0.0,
-                            10.1117525100708,
+                            9.483115196228027,
                             1.5318313837051392,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandMiddle1/mixamorig:RightHandMiddle2",
+                    "guid": "70303761fc503495e8ae8a6b3e7bf7f3",
                     "layer": 0,
+                    "name": "mixamorig:RightHandMiddle2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5439,16 +5688,18 @@
                             -0.9999998807907104,
                             -3.3481967420812e-08,
                             0.0,
-                            10.074752807617188,
+                            9.446115493774414,
                             1.5318317413330078,
-                            10.10150146484375,
+                            9.374561309814453,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandMiddle1/mixamorig:RightHandMiddle2/mixamorig:RightHandMiddle3",
+                    "guid": "3ff52240911bb2e196fd427d2613894a",
                     "layer": 0,
+                    "name": "mixamorig:RightHandMiddle3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5498,16 +5749,18 @@
                             -0.9999998807907104,
                             -3.348196031538464e-08,
                             0.0,
-                            10.045252799987793,
+                            9.41661548614502,
                             1.5318315029144287,
-                            10.101481437683105,
+                            9.374541282653809,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandMiddle1/mixamorig:RightHandMiddle2/mixamorig:RightHandMiddle3/mixamorig:RightHandMiddle4",
+                    "guid": "434c10cd631f690240882b13810abbfd",
                     "layer": 0,
+                    "name": "mixamorig:RightHandMiddle4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5557,16 +5810,18 @@
                             -0.9999982714653015,
                             0.001857665367424488,
                             0.0,
-                            10.015786170959473,
+                            9.3871488571167,
                             1.5318318605422974,
-                            10.101479530334473,
+                            9.374539375305176,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandRing1",
+                    "guid": "06ecb88607030bcfa2f049de1807a812",
                     "layer": 0,
+                    "name": "mixamorig:RightHandRing1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5616,16 +5871,18 @@
                             -0.9999998807907104,
                             -3.348198518438039e-08,
                             0.0,
-                            10.116042137145996,
+                            9.487404823303223,
                             1.5314009189605713,
-                            10.082813262939453,
+                            9.355873107910156,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandRing1/mixamorig:RightHandRing2",
+                    "guid": "02dbd6aaa156bdb77ab7771b6cda1ee4",
                     "layer": 0,
+                    "name": "mixamorig:RightHandRing2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5675,16 +5932,18 @@
                             -0.9999998807907104,
                             -3.348198518438039e-08,
                             0.0,
-                            10.08224868774414,
+                            9.453611373901367,
                             1.5314010381698608,
-                            10.082802772521973,
+                            9.355862617492676,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandRing1/mixamorig:RightHandRing2/mixamorig:RightHandRing3",
+                    "guid": "022056bcf7bcae029587b17ad7568036",
                     "layer": 0,
+                    "name": "mixamorig:RightHandRing3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5734,16 +5993,18 @@
                             -0.9999998807907104,
                             -1.5269127118244796e-07,
                             0.0,
-                            10.053352355957031,
+                            9.424715042114258,
                             1.5314009189605713,
-                            10.082806587219238,
+                            9.355866432189941,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandRing1/mixamorig:RightHandRing2/mixamorig:RightHandRing3/mixamorig:RightHandRing4",
+                    "guid": "728cec62904822ceb55f596327af1aef",
                     "layer": 0,
+                    "name": "mixamorig:RightHandRing4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5793,16 +6054,18 @@
                             -0.9999998211860657,
                             0.00029226773767732084,
                             0.0,
-                            10.02696418762207,
+                            9.398326873779297,
                             1.53140127658844,
-                            10.082816123962402,
+                            9.355875968933105,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandPinky1",
+                    "guid": "8bdfa97332cbdc1703cb41c1fac66906",
                     "layer": 0,
+                    "name": "mixamorig:RightHandPinky1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5852,16 +6115,18 @@
                             -0.9999998807907104,
                             -3.348213795106858e-08,
                             0.0,
-                            10.126311302185059,
+                            9.497673988342285,
                             1.526964783668518,
-                            10.063401222229004,
+                            9.336461067199707,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandPinky1/mixamorig:RightHandPinky2",
+                    "guid": "6db6e50a163c8df8a7c20e2aa1390d90",
                     "layer": 0,
+                    "name": "mixamorig:RightHandPinky2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5911,16 +6176,18 @@
                             -1.0000001192092896,
                             2.0493655483733164e-07,
                             0.0,
-                            10.090311050415039,
+                            9.461673736572266,
                             1.5269646644592285,
-                            10.063363075256348,
+                            9.33642292022705,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandPinky1/mixamorig:RightHandPinky2/mixamorig:RightHandPinky3",
+                    "guid": "351c6e87f2d15fbc61a9f5351cf6bce8",
                     "layer": 0,
+                    "name": "mixamorig:RightHandPinky3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -5970,16 +6237,18 @@
                             -0.9999998807907104,
                             -3.348205268594029e-08,
                             0.0,
-                            10.069311141967773,
+                            9.440673828125,
                             1.5269643068313599,
-                            10.063305854797363,
+                            9.336365699768066,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:RightShoulder/mixamorig:RightArm/mixamorig:RightForeArm/mixamorig:RightHand/mixamorig:RightHandPinky1/mixamorig:RightHandPinky2/mixamorig:RightHandPinky3/mixamorig:RightHandPinky4",
+                    "guid": "fb685c7234544ac020fa0dc38d612e89",
                     "layer": 0,
+                    "name": "mixamorig:RightHandPinky4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6029,16 +6298,18 @@
                             -0.9999948143959045,
                             0.0031389864161610603,
                             0.0,
-                            10.0481538772583,
+                            9.419516563415527,
                             1.5269641876220703,
-                            10.063268661499023,
+                            9.336328506469727,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder",
+                    "guid": "5a0433bc5b568fd7669d2d83be600d3d",
                     "layer": 0,
+                    "name": "mixamorig:LeftShoulder",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6088,16 +6359,18 @@
                             -0.9987760782241821,
                             -2.9802322387695313e-08,
                             0.0,
-                            10.96611499786377,
+                            10.337477684020996,
                             1.5370781421661377,
-                            10.123785972595215,
+                            9.396845817565918,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm",
+                    "guid": "441cfe8fb2439f648c3b23fce679889b",
                     "layer": 0,
+                    "name": "mixamorig:LeftArm",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6147,16 +6420,18 @@
                             -1.0,
                             -2.417790057052116e-08,
                             0.0,
-                            11.072038650512695,
+                            10.443401336669922,
                             1.531831979751587,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm",
+                    "guid": "f4ef49ebd596775edd2f8705a1bc95b5",
                     "layer": 0,
+                    "name": "mixamorig:LeftForeArm",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6206,16 +6481,18 @@
                             -1.0,
                             -2.417790057052116e-08,
                             0.0,
-                            11.350454330444336,
+                            10.721817016601563,
                             1.5318316221237183,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand",
+                    "guid": "f85c757ad7f2b9901720806bbbd7c840",
                     "layer": 0,
+                    "name": "mixamorig:LeftHand",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6265,16 +6542,18 @@
                             -1.0,
                             -2.417790057052116e-08,
                             0.0,
-                            11.633742332458496,
+                            11.005105018615723,
                             1.5318312644958496,
-                            10.10146427154541,
+                            9.374524116516113,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandThumb1",
+                    "guid": "498b7e580a95b0554593ac3b88cf3ab1",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandThumb1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6324,16 +6603,18 @@
                             -0.8643624782562256,
                             -1.0620286161611148e-07,
                             0.0,
-                            11.658403396606445,
+                            11.029766082763672,
                             1.5160692930221558,
-                            10.128281593322754,
+                            9.401341438293457,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandThumb1/mixamorig:LeftHandThumb2",
+                    "guid": "1fa5b12b772b3b4e6711377e31c5a454",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandThumb2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6383,16 +6664,18 @@
                             -0.866681694984436,
                             -8.769169568267898e-08,
                             0.0,
-                            11.690581321716309,
+                            11.061944007873535,
                             1.4973487854003906,
-                            10.147446632385254,
+                            9.420506477355957,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandThumb1/mixamorig:LeftHandThumb2/mixamorig:LeftHandThumb3",
+                    "guid": "5d99cf7027053d381bb2a0280c7b5bf1",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandThumb3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6442,16 +6725,18 @@
                             -0.8683755397796631,
                             -1.0084610124749815e-07,
                             0.0,
-                            11.717141151428223,
+                            11.08850383758545,
                             1.4820605516433716,
-                            10.162591934204102,
+                            9.435651779174805,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandThumb1/mixamorig:LeftHandThumb2/mixamorig:LeftHandThumb3/mixamorig:LeftHandThumb4",
+                    "guid": "f5ccaa89c82a1a5e31458cb08182b50a",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandThumb4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6501,16 +6786,18 @@
                             -0.8944182991981506,
                             -0.2197933793067932,
                             0.0,
-                            11.737350463867188,
+                            11.108713150024414,
                             1.47052001953125,
-                            10.17374324798584,
+                            9.446803092956543,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandIndex1",
+                    "guid": "c165841de5b8f3696397fa2752d8d2f5",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandIndex1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6560,16 +6847,18 @@
                             -1.0,
                             -2.4178087087989297e-08,
                             0.0,
-                            11.724835395812988,
+                            11.096198081970215,
                             1.5266509056091309,
-                            10.124063491821289,
+                            9.397123336791992,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandIndex1/mixamorig:LeftHandIndex2",
+                    "guid": "fdd10f6fdad7f61f12752f1e188b1276",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandIndex2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6619,16 +6908,18 @@
                             -1.0,
                             -2.4178179458544946e-08,
                             0.0,
-                            11.761835098266602,
+                            11.133197784423828,
                             1.5266507863998413,
-                            10.12406063079834,
+                            9.397120475769043,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandIndex1/mixamorig:LeftHandIndex2/mixamorig:LeftHandIndex3",
+                    "guid": "3c2681210da5d7a946402de50e9639f4",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandIndex3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6678,16 +6969,18 @@
                             -1.0,
                             -1.4338756670895236e-07,
                             0.0,
-                            11.790334701538086,
+                            11.161697387695313,
                             1.5266506671905518,
-                            10.124064445495605,
+                            9.397124290466309,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandIndex1/mixamorig:LeftHandIndex2/mixamorig:LeftHandIndex3/mixamorig:LeftHandIndex4",
+                    "guid": "e0bacbb94dac57aaecb4529d20804837",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandIndex4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6737,16 +7030,18 @@
                             -0.9999997019767761,
                             0.0007550476584583521,
                             0.0,
-                            11.818083763122559,
+                            11.189446449279785,
                             1.5266505479812622,
-                            10.124064445495605,
+                            9.397124290466309,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandMiddle1",
+                    "guid": "090e6a34e8d7c0ca567deeb85c60d232",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandMiddle1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6796,16 +7091,18 @@
                             -1.0,
                             -1.433873251244222e-07,
                             0.0,
-                            11.729076385498047,
+                            11.100439071655273,
                             1.5318317413330078,
-                            10.101465225219727,
+                            9.37452507019043,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandMiddle1/mixamorig:LeftHandMiddle2",
+                    "guid": "24d1491ddbc68016715dafdd99dfdcff",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandMiddle2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6855,16 +7152,18 @@
                             -1.0,
                             -2.417799294107681e-08,
                             0.0,
-                            11.76607608795166,
+                            11.137438774108887,
                             1.5318313837051392,
-                            10.101463317871094,
+                            9.374523162841797,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandMiddle1/mixamorig:LeftHandMiddle2/mixamorig:LeftHandMiddle3",
+                    "guid": "8ab188e469174a57fc8ee817698d3f77",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandMiddle3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6914,16 +7213,18 @@
                             -1.0,
                             -2.417787570152541e-08,
                             0.0,
-                            11.795576095581055,
+                            11.166938781738281,
                             1.5318315029144287,
-                            10.101462364196777,
+                            9.37452220916748,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandMiddle1/mixamorig:LeftHandMiddle2/mixamorig:LeftHandMiddle3/mixamorig:LeftHandMiddle4",
+                    "guid": "488be033b3528b716ebc2ded39c45086",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandMiddle4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -6973,16 +7274,18 @@
                             -0.9999979138374329,
                             0.0020482302643358707,
                             0.0,
-                            11.825104713439941,
+                            11.196467399597168,
                             1.5318315029144287,
-                            10.101463317871094,
+                            9.374523162841797,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandRing1",
+                    "guid": "cde4d91d662bcc642f20dab558dcd8ae",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandRing1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7032,16 +7335,18 @@
                             -1.0,
                             -2.417807998256194e-08,
                             0.0,
-                            11.724787712097168,
+                            11.096150398254395,
                             1.5314009189605713,
-                            10.082813262939453,
+                            9.355873107910156,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandRing1/mixamorig:LeftHandRing2",
+                    "guid": "5752abe47790d07bf7e6cb63d78b8ca6",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandRing2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7091,16 +7396,18 @@
                             -1.0,
                             -2.417807998256194e-08,
                             0.0,
-                            11.756287574768066,
+                            11.127650260925293,
                             1.5314006805419922,
-                            10.082813262939453,
+                            9.355873107910156,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandRing1/mixamorig:LeftHandRing2/mixamorig:LeftHandRing3",
+                    "guid": "0490351920c11b6c8d9511e301a19bec",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandRing3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7150,16 +7457,18 @@
                             -1.0,
                             -2.417807998256194e-08,
                             0.0,
-                            11.785787582397461,
+                            11.157150268554688,
                             1.5314006805419922,
-                            10.082813262939453,
+                            9.355873107910156,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandRing1/mixamorig:LeftHandRing2/mixamorig:LeftHandRing3/mixamorig:LeftHandRing4",
+                    "guid": "0ddf9c6668d95c97db4fc442c0f4c95e",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandRing4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7209,16 +7518,18 @@
                             -0.9999995231628418,
                             -0.0009869580389931798,
                             0.0,
-                            11.812231063842773,
+                            11.18359375,
                             1.5314007997512817,
-                            10.08281421661377,
+                            9.355874061584473,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandPinky1",
+                    "guid": "0006f350de242fb6a7fa7c764af89303",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandPinky1",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7268,16 +7579,18 @@
                             -1.0,
                             -2.417654343389586e-08,
                             0.0,
-                            11.714520454406738,
+                            11.085883140563965,
                             1.526962399482727,
-                            10.06340217590332,
+                            9.336462020874023,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandPinky1/mixamorig:LeftHandPinky2",
+                    "guid": "e748d76f99fbb4879bf5a86959ca82bf",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandPinky2",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7327,16 +7640,18 @@
                             -1.0,
                             -2.4176722845936638e-08,
                             0.0,
-                            11.750519752502441,
+                            11.121882438659668,
                             1.5269631147384644,
-                            10.063549041748047,
+                            9.33660888671875,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandPinky1/mixamorig:LeftHandPinky2/mixamorig:LeftHandPinky3",
+                    "guid": "c6cefeca67e65099a092a8d403c48290",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandPinky3",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7386,16 +7701,18 @@
                             -1.0,
                             -2.4176754820359747e-08,
                             0.0,
-                            11.771519660949707,
+                            11.142882347106934,
                             1.5269627571105957,
-                            10.063626289367676,
+                            9.336686134338379,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:Spine/mixamorig:Spine1/mixamorig:Spine2/mixamorig:LeftShoulder/mixamorig:LeftArm/mixamorig:LeftForeArm/mixamorig:LeftHand/mixamorig:LeftHandPinky1/mixamorig:LeftHandPinky2/mixamorig:LeftHandPinky3/mixamorig:LeftHandPinky4",
+                    "guid": "07882366776b7c746584e18cf2232a41",
                     "layer": 0,
+                    "name": "mixamorig:LeftHandPinky4",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7445,16 +7762,18 @@
                             -0.9999985098838806,
                             0.0015667431289330125,
                             0.0,
-                            11.792774200439453,
+                            11.16413688659668,
                             1.5269629955291748,
-                            10.063701629638672,
+                            9.336761474609375,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:RightUpLeg",
+                    "guid": "38bf09ca6901f3f09fc0e2bfdeaf9ea8",
                     "layer": 0,
+                    "name": "mixamorig:RightUpLeg",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7504,16 +7823,18 @@
                             0.007796428166329861,
                             0.999969482421875,
                             0.0,
-                            10.838332176208496,
+                            10.209694862365723,
                             1.066451072692871,
-                            10.15649700164795,
+                            9.429556846618652,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg",
+                    "guid": "62fbc0e2a6fdc373fe65476efe957380",
                     "layer": 0,
+                    "name": "mixamorig:RightLeg",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7563,16 +7884,18 @@
                             -0.06835135817527771,
                             0.9976611733436584,
                             0.0,
-                            10.838332176208496,
+                            10.209694862365723,
                             0.622749924659729,
-                            10.159955978393555,
+                            9.433015823364258,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot",
+                    "guid": "b154d63999c74fc42da1ce84cc94545a",
                     "layer": 0,
+                    "name": "mixamorig:RightFoot",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7622,16 +7945,18 @@
                             0.775179922580719,
                             0.631740152835846,
                             0.0,
-                            10.838332176208496,
+                            10.209694862365723,
                             0.1785132884979248,
-                            10.129520416259766,
+                            9.402580261230469,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot/mixamorig:RightToeBase",
+                    "guid": "91becd03fcf1929618368604bf071634",
                     "layer": 0,
+                    "name": "mixamorig:RightToeBase",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7681,16 +8006,18 @@
                             0.9999996423721313,
                             7.30752944946289e-05,
                             0.0,
-                            10.838332176208496,
+                            10.209694862365723,
                             0.09122659265995026,
-                            10.236625671386719,
+                            9.509685516357422,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:RightUpLeg/mixamorig:RightLeg/mixamorig:RightFoot/mixamorig:RightToeBase/mixamorig:RightToe_End",
+                    "guid": "f9e36e51383929f8bb185c98aa23ecf6",
                     "layer": 0,
+                    "name": "mixamorig:RightToe_End",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7740,16 +8067,18 @@
                             0.999730110168457,
                             7.301566802198067e-05,
                             0.0,
-                            10.838332176208496,
+                            10.209694862365723,
                             0.09121980518102646,
-                            10.32940673828125,
+                            9.602466583251953,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:LeftUpLeg",
+                    "guid": "cb50324b879eedf062767bcc104cd3ea",
                     "layer": 0,
+                    "name": "mixamorig:LeftUpLeg",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7799,16 +8128,18 @@
                             0.007819393649697304,
                             0.9999694228172302,
                             0.0,
-                            11.002488136291504,
+                            10.37385082244873,
                             1.066450595855713,
-                            10.15649700164795,
+                            9.429556846618652,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg",
+                    "guid": "40617578c992965a37401ccf6fcb1a4f",
                     "layer": 0,
+                    "name": "mixamorig:LeftLeg",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7858,16 +8189,18 @@
                             -0.0683705136179924,
                             0.9976599812507629,
                             0.0,
-                            11.002488136291504,
+                            10.37385082244873,
                             0.6227503418922424,
-                            10.159966468811035,
+                            9.433026313781738,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot",
+                    "guid": "c36b58faeb5ff05ea4a992c07aca4f05",
                     "layer": 0,
+                    "name": "mixamorig:LeftFoot",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7917,16 +8250,18 @@
                             0.7751802802085876,
                             0.6317400932312012,
                             0.0,
-                            11.002488136291504,
+                            10.37385082244873,
                             0.17851382493972778,
-                            10.129522323608398,
+                            9.402582168579102,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot/mixamorig:LeftToeBase",
+                    "guid": "4239f095f5687d49af8b22585b96d898",
                     "layer": 0,
+                    "name": "mixamorig:LeftToeBase",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -7976,16 +8311,18 @@
                             0.9999998807907104,
                             7.304549217224121e-05,
                             0.0,
-                            11.002488136291504,
+                            10.37385082244873,
                             0.09122710675001144,
-                            10.236627578735352,
+                            9.509687423706055,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "mixamorig:Hips/mixamorig:LeftUpLeg/mixamorig:LeftLeg/mixamorig:LeftFoot/mixamorig:LeftToeBase/mixamorig:LeftToe_End",
+                    "guid": "01705f7834df6918d32f41eeb5dd053f",
                     "layer": 0,
+                    "name": "mixamorig:LeftToe_End",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -8035,15 +8372,16 @@
                             0.9997181296348572,
                             7.292627560673282e-05,
                             0.0,
-                            11.002488136291504,
+                            10.37385082244873,
                             0.09122033417224884,
-                            10.329408645629883,
+                            9.602468490600586,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "Beta_Surface",
+                    "guid": "2be6eac41ed6905b930cb0c1d80e8492",
                     "layer": 0,
                     "mesh": {
                         "fileID": 0,
@@ -8058,6 +8396,7 @@
                         },
                         "uniqueMaterial": false
                     },
+                    "name": "Beta_Surface",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -8107,15 +8446,16 @@
                             0.0,
                             1.0,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             0.09121891856193542,
-                            10.156949996948242,
+                            9.430009841918945,
                             1.0
                         ]
                     }
                 },
                 {
                     "_modelNodePath": "Beta_Joints",
+                    "guid": "4bfe561e21cb0d4762526c1a4da22725",
                     "layer": 0,
                     "mesh": {
                         "fileID": 1,
@@ -8130,6 +8470,7 @@
                         },
                         "uniqueMaterial": false
                     },
+                    "name": "Beta_Joints",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -8179,18 +8520,88 @@
                             0.0,
                             1.0,
                             0.0,
-                            10.92041015625,
+                            10.291772842407227,
                             0.09121891856193542,
-                            10.156949996948242,
+                            9.430009841918945,
+                            1.0
+                        ]
+                    }
+                },
+                {
+                    "_modelNodePath": "Camera",
+                    "camera": {
+                        "active": true,
+                        "farClip": 1000.0,
+                        "fov": 60.0,
+                        "isPerspective": true,
+                        "nearClip": 0.10000000149011612,
+                        "priority": 0
+                    },
+                    "guid": "4f1cf5ff1f1defbb00cf86365b1a467a",
+                    "layer": 0,
+                    "name": "Camera",
+                    "tag": "",
+                    "transform": {
+                        "localMatrix": [
+                            -1.0,
+                            0.0,
+                            8.742277657347586e-08,
+                            0.0,
+                            0.0,
+                            1.0,
+                            0.0,
+                            0.0,
+                            -8.742277657347586e-08,
+                            0.0,
+                            -1.0,
+                            0.0,
+                            0.0,
+                            1.5,
+                            -3.0,
+                            1.0
+                        ],
+                        "position": {
+                            "x": 0.0,
+                            "y": 1.5,
+                            "z": -3.0
+                        },
+                        "rotation": {
+                            "x": 0.0,
+                            "y": 180.0,
+                            "z": 0.0
+                        },
+                        "scale": {
+                            "x": 1.0,
+                            "y": 1.0,
+                            "z": 1.0
+                        },
+                        "transformDirty": false,
+                        "worldMatrix": [
+                            -1.0,
+                            0.0,
+                            8.742277657347586e-08,
+                            0.0,
+                            0.0,
+                            1.0,
+                            0.0,
+                            0.0,
+                            -8.742277657347586e-08,
+                            0.0,
+                            -1.0,
+                            0.0,
+                            10.291772842407227,
+                            1.5912189483642578,
+                            6.430009841918945,
                             1.0
                         ]
                     }
                 }
             ],
-            "id": 80,
+            "guid": "11f77bc45c1c3f4cca17d88947932d42",
+            "id": 5,
             "layer": 0,
             "name": "SkeletonRoot",
-            "parent": 79,
+            "parent": 4,
             "scripts": [
                 {
                     "className": "MyTestScript"
@@ -8245,9 +8656,9 @@
                     0.0,
                     1.0,
                     0.0,
-                    10.92041015625,
+                    10.291772842407227,
                     0.09121891856193542,
-                    10.156949996948242,
+                    9.430009841918945,
                     1.0
                 ]
             }
@@ -8260,7 +8671,8 @@
             },
             "children": [
                 {
-                    "_modelNodePath": "Plane",
+                    "_modelNodePath": "Floor",
+                    "guid": "cae3caeaaf91ac484b0cca2d828c2c4f",
                     "layer": 0,
                     "mesh": {
                         "fileID": 0,
@@ -8275,6 +8687,7 @@
                         },
                         "uniqueMaterial": false
                     },
+                    "name": "Floor",
                     "tag": "",
                     "transform": {
                         "localMatrix": [
@@ -8332,9 +8745,10 @@
                     }
                 }
             ],
-            "id": 148,
+            "guid": "7f46c0daddbd15b71493a421caf7285c",
+            "id": 73,
             "layer": 0,
-            "name": "ImportedModel_148",
+            "name": "Level",
             "parent": 4294967295,
             "tag": "",
             "transform": {
@@ -8388,76 +8802,6 @@
                     -1.8559095859527588,
                     0.0,
                     1.0,
-                    1.0
-                ]
-            }
-        },
-        {
-            "camera": {
-                "active": true,
-                "farClip": 1000.0,
-                "fov": 60.0,
-                "isPerspective": true,
-                "nearClip": 0.10000000149011612,
-                "priority": 0
-            },
-            "children": [],
-            "id": 150,
-            "layer": 0,
-            "name": "Camera",
-            "parent": 4294967295,
-            "tag": "",
-            "transform": {
-                "localMatrix": [
-                    -1.0,
-                    0.0,
-                    8.742277657347586e-08,
-                    0.0,
-                    0.0,
-                    1.0,
-                    0.0,
-                    0.0,
-                    -8.742277657347586e-08,
-                    0.0,
-                    -1.0,
-                    0.0,
-                    10.534528732299805,
-                    1.5,
-                    0.0,
-                    1.0
-                ],
-                "position": {
-                    "x": 10.534528732299805,
-                    "y": 1.5,
-                    "z": 0.0
-                },
-                "rotation": {
-                    "x": 0.0,
-                    "y": 180.0,
-                    "z": 0.0
-                },
-                "scale": {
-                    "x": 1.0,
-                    "y": 1.0,
-                    "z": 1.0
-                },
-                "transformDirty": false,
-                "worldMatrix": [
-                    -1.0,
-                    0.0,
-                    8.742277657347586e-08,
-                    0.0,
-                    0.0,
-                    1.0,
-                    0.0,
-                    0.0,
-                    -8.742277657347586e-08,
-                    0.0,
-                    -1.0,
-                    0.0,
-                    10.534528732299805,
-                    1.5,
-                    0.0,
                     1.0
                 ]
             }

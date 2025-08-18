@@ -2,12 +2,16 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <bgfx/bgfx.h>
 #include <algorithm>
 #include "rendering/Renderer.h"
 #include "ecs/EntityData.h"
 #include "../UILayer.h"
+#include "pipeline/AssetLibrary.h"
+#include "pipeline/AssetMetadata.h"
+#include <editor/Project.h>
 
 namespace fs = std::filesystem;
 
@@ -40,6 +44,9 @@ void PrefabEditorPanel::LoadPrefab(const std::string& path)
     }
 
     m_SelectedEntity = prefabEntity.GetID();
+    // Ensure transforms are up-to-date in the isolated prefab scene
+    m_Scene.MarkTransformDirty(m_SelectedEntity);
+    m_Scene.UpdateTransforms();
 }
 
 void PrefabEditorPanel::OnImGuiRender()
@@ -51,9 +58,8 @@ void PrefabEditorPanel::OnImGuiRender()
         ImGui::End();
         return;
     }
-    // Track whether this window should drive the shared hierarchy/inspector
-    m_IsFocusedOrHovered = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) ||
-                           ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+    // Track whether this window should drive the shared hierarchy/inspector (focus only to avoid flicker)
+    m_IsFocusedOrHovered = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
     // Optional: menu bar for future features
     if (ImGui::BeginMenuBar()) {
@@ -62,7 +68,30 @@ void PrefabEditorPanel::OnImGuiRender()
             if (m_SelectedEntity != -1) {
                 EntityData* data = m_Scene.GetEntityData(m_SelectedEntity);
                 if (data) {
-                    Serializer::SavePrefabToFile(*data, m_Scene, m_PrefabPath);
+                    if (Serializer::SavePrefabToFile(*data, m_Scene, m_PrefabPath)) {
+                        // Ensure prefab is registered and has a .meta
+                        try {
+                            std::filesystem::path p(m_PrefabPath);
+                            std::string name = p.filename().string();
+                            std::error_code ec;
+                            std::filesystem::path rel = std::filesystem::relative(p, Project::GetProjectDirectory(), ec);
+                            std::string vpath = (ec ? p.string() : rel.string());
+                            std::replace(vpath.begin(), vpath.end(), '\\', '/');
+                            size_t pos = vpath.find("assets/"); if (pos != std::string::npos) vpath = vpath.substr(pos);
+                            std::filesystem::path metaPath = p; metaPath += ".meta";
+                            AssetMetadata meta; bool hasMeta = false;
+                            if (std::filesystem::exists(metaPath)) {
+                                std::ifstream in(metaPath.string()); if (in) { nlohmann::json j; in >> j; in.close(); meta = j.get<AssetMetadata>(); hasMeta = true; }
+                            }
+                            if (!hasMeta) {
+                                meta.guid = ClaymoreGUID::Generate();
+                                meta.type = "prefab";
+                                nlohmann::json j = meta; std::ofstream out(metaPath.string()); out << j.dump(4); out.close();
+                            }
+                            AssetLibrary::Instance().RegisterAsset(AssetReference(meta.guid, 0, (int)AssetType::Prefab), AssetType::Prefab, vpath, name);
+                            AssetLibrary::Instance().RegisterPathAlias(meta.guid, m_PrefabPath);
+                        } catch(...) {}
+                    }
                 }
             }
         }
@@ -84,6 +113,8 @@ void PrefabEditorPanel::OnImGuiRender()
     // Single child: embedded viewport only; hierarchy/inspector are shared global panels
     ImGui::BeginChild("PrefabViewport", ImVec2(0, fullHeight), true);
     {
+        // Update transforms for the isolated prefab scene before rendering
+        m_Scene.UpdateTransforms();
         // Render this panel's private scene to its own offscreen texture
         bgfx::TextureHandle tex = Renderer::Get().RenderSceneToTexture(&m_Scene,
             (uint32_t)ImGui::GetContentRegionAvail().x,

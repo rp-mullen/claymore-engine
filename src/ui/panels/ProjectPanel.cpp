@@ -9,6 +9,9 @@
 #include <nlohmann/json.hpp>
 #include "ecs/EntityData.h"
 #include "../UILayer.h"
+#include "pipeline/AssetLibrary.h"
+#include "pipeline/AssetMetadata.h"
+#include <editor/Project.h>
 
 namespace fs = std::filesystem;
 
@@ -89,6 +92,12 @@ void ProjectPanel::OnImGuiRender() {
             std::string desired = sanitize(baseName);
             if (desired.empty()) desired = "Prefab";
 
+            // Ensure we have a valid folder; default to assets/prefabs in project root
+            if (m_CurrentFolder.empty()) {
+                std::string def = (Project::GetProjectDirectory() / "assets/prefabs").string();
+                std::error_code ec; std::filesystem::create_directories(def, ec);
+                m_CurrentFolder = def;
+            }
             // Ensure unique prefab path in current folder
             std::string prefabName = desired + ".prefab";
             std::string prefabPath = m_CurrentFolder + "/" + prefabName;
@@ -146,7 +155,7 @@ void ProjectPanel::OnImGuiRender() {
        // RIGHT PANEL
    ImGui::BeginChild("FileGrid", ImVec2(fullWidth - leftWidth - splitterSize, fullHeight), true);
    
-    // Grid-level prefab drop target (background only)
+    // Grid-level prefab drop target (background)
     if (ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
             EntityID draggedID = *(EntityID*)payload->Data;
@@ -179,6 +188,12 @@ void ProjectPanel::OnImGuiRender() {
             std::string desired = sanitize(baseName);
             if (desired.empty()) desired = "Prefab";
 
+            // Ensure valid folder default
+            if (m_CurrentFolder.empty()) {
+                std::string def = (Project::GetProjectDirectory() / "assets/prefabs").string();
+                std::error_code ec; std::filesystem::create_directories(def, ec);
+                m_CurrentFolder = def;
+            }
             // Ensure unique prefab path in current folder
             std::string prefabName = desired + ".prefab";
             std::string prefabPath = m_CurrentFolder + "/" + prefabName;
@@ -317,6 +332,38 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
          ImGui::EndDragDropSource();
          }
 
+      // Accept ENTITY_ID drops on items too (alternate drop target)
+      if (ImGui::BeginDragDropTarget()) {
+          if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
+              EntityID draggedID = *(EntityID*)payload->Data;
+              // If dropping onto a file, prefer current folder; default if empty
+              if (m_CurrentFolder.empty()) {
+                  std::string def = (Project::GetProjectDirectory() / "assets/prefabs").string();
+                  std::error_code ec; std::filesystem::create_directories(def, ec);
+                  m_CurrentFolder = def;
+              }
+              // Use file name stem as base
+              std::string baseName = fs::path(fileName).stem().string();
+              auto sanitize = [](std::string s) {
+                  const std::string invalid = "<>:\"/\\|?*";
+                  for (char& c : s) { if (invalid.find(c) != std::string::npos) c = '_'; }
+                  size_t start = s.find_first_not_of(' ');
+                  size_t end = s.find_last_not_of(' ');
+                  if (start == std::string::npos) return std::string("Prefab");
+                  return s.substr(start, end - start + 1);
+              };
+              std::string desired = sanitize(baseName);
+              if (desired.empty()) desired = "Prefab";
+              std::string prefabPath = m_CurrentFolder + "/" + desired + ".prefab";
+              int counter = 1;
+              while (fs::exists(prefabPath)) {
+                  prefabPath = m_CurrentFolder + "/" + desired + "_" + std::to_string(counter++) + ".prefab";
+              }
+              CreatePrefabFromEntity(draggedID, prefabPath);
+          }
+          ImGui::EndDragDropTarget();
+      }
+
       // --- Filename: single-line centered under icon, with ellipsis if overflow ---
       std::string clipped = TruncateWithEllipsis(fileName, textWrapWidth);
       float textWidth = ImGui::CalcTextSize(clipped.c_str()).x;
@@ -417,6 +464,28 @@ void ProjectPanel::CreatePrefabFromEntity(EntityID entityId, const std::string& 
       std::cout << "[ProjectPanel] Successfully created prefab: " << prefabPath << std::endl;
       // Refresh the file tree to show the new prefab
       m_ProjectRoot = BuildFileTree(m_ProjectPath);
+      // Also register prefab in AssetLibrary and emit .meta if missing, so it appears in the Asset Registry
+      try {
+         fs::path p(prefabPath);
+         std::string name = p.filename().string();
+         std::error_code ec;
+         fs::path rel = fs::relative(p, Project::GetProjectDirectory(), ec);
+         std::string vpath = (ec ? p.string() : rel.string());
+         std::replace(vpath.begin(), vpath.end(), '\\', '/');
+         size_t pos = vpath.find("assets/"); if (pos != std::string::npos) vpath = vpath.substr(pos);
+         fs::path metaPath = p; metaPath += ".meta";
+         AssetMetadata meta; bool hasMeta = false;
+         if (fs::exists(metaPath)) {
+            std::ifstream in(metaPath.string()); if (in) { nlohmann::json j; in >> j; in.close(); meta = j.get<AssetMetadata>(); hasMeta = true; }
+         }
+         if (!hasMeta) {
+            meta.guid = ClaymoreGUID::Generate();
+            meta.type = "prefab";
+            nlohmann::json j = meta; std::ofstream out(metaPath.string()); out << j.dump(4); out.close();
+         }
+         AssetLibrary::Instance().RegisterAsset(AssetReference(meta.guid, 0, (int)AssetType::Prefab), AssetType::Prefab, vpath, name);
+         AssetLibrary::Instance().RegisterPathAlias(meta.guid, prefabPath);
+      } catch(...) {}
    } else {
       std::cerr << "[ProjectPanel] Failed to create prefab: " << prefabPath << std::endl;
    }

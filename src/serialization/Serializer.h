@@ -22,11 +22,17 @@ public:
     static bool SaveSceneToFile(Scene& scene, const std::string& filepath);
     static bool LoadSceneFromFile(const std::string& filepath, Scene& scene);
 
-    // Prefab serialization
+    // Prefab serialization (legacy single-entity)
     static json SerializePrefab(const EntityData& entityData, Scene& scene);
     static bool DeserializePrefab(const json& data, EntityData& entityData, Scene& scene);
     static bool SavePrefabToFile(const EntityData& entityData, Scene& scene, const std::string& filepath);
     static bool LoadPrefabFromFile(const std::string& filepath, EntityData& entityData, Scene& scene);
+
+    // Prefab subtree (preferred): serializes an entity and all children recursively
+    static json SerializePrefabSubtree(EntityID rootId, Scene& scene);
+    static bool SavePrefabSubtreeToFile(Scene& scene, EntityID rootId, const std::string& filepath);
+    // Load a prefab into an existing scene, returning the new root entity id (or -1 on failure)
+    static EntityID LoadPrefabToScene(const std::string& filepath, Scene& scene);
 
     // Individual component serialization
     static json SerializeTransform(const TransformComponent& transform);

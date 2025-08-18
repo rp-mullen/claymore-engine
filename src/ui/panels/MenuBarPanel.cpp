@@ -16,6 +16,7 @@
 #include <nlohmann/json.hpp>  // JSON serialization
 #include <rendering/StandardMeshManager.h>
 #include <rendering/MaterialManager.h>
+#include "ui/utility/CreateEntityMenu.h"
 #include <rendering/Environment.h>
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -384,122 +385,9 @@ void MenuBarPanel::OnImGuiRender() {
     // ENTITY MENU
     if (ImGui::BeginMenu("Entity")) {
         if (ImGui::BeginMenu("Create")) {
-            if (ImGui::MenuItem("Empty")) {
-                auto entity = m_Context->CreateEntity("Empty Entity");
-                *m_SelectedEntity = entity.GetID();
-            }
-
-            if (ImGui::MenuItem("Camera")) {
-                auto entity = m_Context->CreateEntity("Camera");
-                if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-                    data->Camera = std::make_unique<CameraComponent>();
-                }
-                *m_SelectedEntity = entity.GetID();
-            }
-
-			if (ImGui::MenuItem("Cube")) {
-				auto entity = m_Context->CreateEntity("Cube");
-				if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-					data->Mesh = std::make_unique<MeshComponent>();
-					data->Mesh->mesh = StandardMeshManager::Instance().GetCubeMesh();
-					data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
-					data->Mesh->MeshName = "Cube";
-				}
-				*m_SelectedEntity = entity.GetID();
-			}
-
-			if (ImGui::MenuItem("Plane")) {
-				auto entity = m_Context->CreateEntity("Plane");
-				if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-					data->Mesh = std::make_unique<MeshComponent>();
-					data->Mesh->mesh = StandardMeshManager::Instance().GetPlaneMesh();
-					data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
-					data->Mesh->MeshName = "Plane";
-				}
-				*m_SelectedEntity = entity.GetID();
-			}
-
-							if (ImGui::MenuItem("Sphere")) {
-					auto entity = m_Context->CreateEntity("Sphere");
-					if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-						data->Mesh = std::make_unique<MeshComponent>();
-						data->Mesh->mesh = StandardMeshManager::Instance().GetSphereMesh();
-						data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
-						data->Mesh->MeshName = "Sphere";
-					}
-					*m_SelectedEntity = entity.GetID();
-				}
-
-                if (ImGui::MenuItem("Terrain")) {
-                    auto entity = m_Context->CreateEntity("Terrain");
-                    if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-                        data->Terrain = std::make_unique<TerrainComponent>();
-                        // Center terrain by offsetting transform so that terrain lies around origin
-                        data->Transform.Position = glm::vec3(-0.5f * data->Terrain->Size, 0.0f, -0.5f * data->Terrain->Size);
-                    }
-                    *m_SelectedEntity = entity.GetID();
-                }
-
-                if (ImGui::MenuItem("Particle Emitter")) {
-                    auto entity = m_Context->CreateEntity("Particle Emitter");
-                    if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-                        data->Emitter = std::make_unique<ParticleEmitterComponent>();
-                    }
-                    *m_SelectedEntity = entity.GetID();
-                }
-
-            if (ImGui::BeginMenu("UI")) {
-                if (ImGui::MenuItem("Canvas")) {
-                    auto e = m_Context->CreateEntity("Canvas");
-                    if (auto* d = m_Context->GetEntityData(e.GetID())) {
-                        d->Canvas = std::make_unique<CanvasComponent>();
-                    }
-                    *m_SelectedEntity = e.GetID();
-                }
-                if (ImGui::MenuItem("Panel")) {
-                    auto e = m_Context->CreateEntity("Panel");
-                    if (auto* d = m_Context->GetEntityData(e.GetID())) {
-                        d->Panel = std::make_unique<PanelComponent>();
-                    }
-                    *m_SelectedEntity = e.GetID();
-                }
-                if (ImGui::MenuItem("Button")) {
-                    auto e = m_Context->CreateEntity("Button");
-                    if (auto* d = m_Context->GetEntityData(e.GetID())) {
-                        d->Panel = std::make_unique<PanelComponent>();
-                        d->Button = std::make_unique<ButtonComponent>();
-                    }
-                    *m_SelectedEntity = e.GetID();
-                }
-                if (ImGui::MenuItem("Text")) {
-                    auto e = m_Context->CreateEntity("Text");
-                    if (auto* d = m_Context->GetEntityData(e.GetID())) {
-                        d->Text = std::make_unique<TextRendererComponent>();
-                        d->Text->WorldSpace = false;
-                    }
-                    *m_SelectedEntity = e.GetID();
-                }
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("Light")) {
-                if (ImGui::MenuItem("Directional")) {
-                    auto entity = m_Context->CreateEntity("Directional Light");
-                    if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-                        data->Light = std::make_unique<LightComponent>(LightType::Directional, glm::vec3(1.0f), 1.0f);
-                    }
-                    *m_SelectedEntity = entity.GetID();
-                }
-                if (ImGui::MenuItem("Point")) {
-                    auto entity = m_Context->CreateEntity("Point Light");
-                    if (auto* data = m_Context->GetEntityData(entity.GetID())) {
-                        data->Light = std::make_unique<LightComponent>(LightType::Point, glm::vec3(1.0f), 1.0f);
-                    }
-                    *m_SelectedEntity = entity.GetID();
-                }
-                ImGui::EndMenu(); // Light submenu
-            }
-            ImGui::EndMenu(); // Create submenu
+            extern bool DrawCreateEntityMenuItems(Scene* context, EntityID* selectedEntityOut);
+            DrawCreateEntityMenuItems(m_Context, m_SelectedEntity);
+            ImGui::EndMenu();
         }
         ImGui::EndMenu();
     }

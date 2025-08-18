@@ -8,6 +8,8 @@
 #include <scripting/ScriptComponent.h>
 #include "UIComponents.h"
 #include <memory>
+#include <nlohmann/json.hpp>
+#include "pipeline/AssetReference.h"
 
 // Forward declaration
 class Scene;
@@ -55,6 +57,13 @@ struct EntityData {
 
    EntityID Parent = INVALID_ENTITY_ID;
    std::vector<EntityID> Children;
+
+   // Stable identity for forward/backward compatibility across saves
+   ClaymoreGUID EntityGuid = ClaymoreGUID::Generate();
+   // Optional: record prefab source vpath used to instantiate this entity (advisory)
+   std::string PrefabSource;
+   // Preserve unknown JSON so forward-compat fields survive round-trips
+   nlohmann::json Extra; // keys not recognized by current serializer
 
    
    /// ----------------------------------------------------------------------

@@ -23,6 +23,8 @@ public:
     Scene() = default;
 
    Entity CreateEntity(const std::string& name = "Entity");
+   // Create an entity preserving the exact provided name (no suffixing). For deserialization.
+   Entity CreateEntityExact(const std::string& name);
    void RemoveEntity(EntityID id);
 
    EntityData* GetEntityData(EntityID id);

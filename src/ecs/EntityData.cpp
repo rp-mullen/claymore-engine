@@ -12,6 +12,9 @@ EntityData EntityData::DeepCopy(EntityID ID, Scene* newScene) const {
    copy.Visible = Visible;
    copy.Parent = Parent;
    copy.Children = Children;
+   copy.EntityGuid = EntityGuid; // preserve stable identity
+   copy.PrefabSource = PrefabSource;
+   copy.Extra = Extra; // carry unknown fields
 
    // Deep copy MeshComponent
    if (Mesh)

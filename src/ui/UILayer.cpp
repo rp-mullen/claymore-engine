@@ -200,9 +200,9 @@ void UILayer::OnUIRender() {
 
     // Global shortcuts scoped to active 3D editing surface: main viewport or any prefab viewport
     {
-        bool viewportFocused = m_ViewportPanel.IsWindowFocusedOrHovered();
-        // If sticky source is prefab editor, consider it active even if hierarchy is focused
-        if (m_ActiveEditorScene && m_ActiveEditorScene != activeScene) viewportFocused = true;
+        // Use focus only (not hover) to avoid flickering between contexts
+        bool viewportFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && m_ViewportPanel.IsWindowFocusedOrHovered();
+        // If sticky source is prefab editor, keep shortcuts active for it only when that editor window is focused
         if (viewportFocused) {
             bool ctrl = ImGui::GetIO().KeyCtrl;
             if (ctrl && Input::WasKeyPressedThisFrame(GLFW_KEY_S)) {
@@ -234,7 +234,7 @@ void UILayer::OnUIRender() {
         // Render the panel and return whether it is open
         panel->OnImGuiRender();
 
-        // After rendering, check if its window is focused/hovered via a helper on the panel
+        // After rendering, check if its window is focused (not hovered) via a helper on the panel
         wantsFocus = panel->IsWindowFocusedOrHovered();
         if (wantsFocus && !madeStickyThisFrame) {
             m_ActiveEditorScene = panel->GetScene();
@@ -252,8 +252,8 @@ void UILayer::OnUIRender() {
             ++it;
         }
     }
-    // If the main viewport tab becomes active, switch sticky source back to main scene
-    if (m_ViewportPanel.IsWindowFocusedOrHovered()) {
+    // If the main viewport window is focused, switch sticky source back to main scene
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && m_ViewportPanel.IsWindowFocusedOrHovered()) {
         m_ActiveEditorScene = activeScene;
         m_ActiveSelectedEntityPtr = &m_SelectedEntity;
         m_SceneHierarchyPanel.SetContext(m_ActiveEditorScene);
