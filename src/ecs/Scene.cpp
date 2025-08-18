@@ -45,6 +45,7 @@ namespace fs = std::filesystem;
 #include "pipeline/AssetLibrary.h"
 
 #include "io/FileSystem.h"
+#include <editor/Project.h>
 
 // --- Kernels --------------------------------------------------------------------------------
 
@@ -292,7 +293,33 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
     if (ext == ".fbx" || ext == ".obj" || ext == ".gltf") {
-       return InstantiateModel(path, position);
+       EntityID id = InstantiateModel(path, position);
+       // After instantiation, look for assets/textures/<model>/ and set MPB albedo override if present
+       try {
+           fs::path src(path);
+           std::string modelName = src.stem().string();
+           fs::path proj = Project::GetProjectDirectory();
+           fs::path texDir = proj / "assets" / "textures" / modelName;
+           if (fs::exists(texDir)) {
+               for (auto& e : fs::directory_iterator(texDir)) {
+                   if (!e.is_regular_file()) continue;
+                   auto ext2 = e.path().extension().string();
+                   std::transform(ext2.begin(), ext2.end(), ext2.begin(), ::tolower);
+                   if (ext2 == ".png" || ext2 == ".jpg" || ext2 == ".jpeg" || ext2 == ".tga" || ext2 == ".bmp") {
+                       bgfx::TextureHandle tex = TextureLoader::Load2D(e.path().string());
+                       if (bgfx::isValid(tex)) {
+                           auto* d = GetEntityData(id);
+                           if (d && d->Mesh) {
+                               d->Mesh->PropertyBlock.Textures["s_albedo"] = tex;
+                               d->Mesh->PropertyBlockTexturePaths["s_albedo"] = e.path().string();
+                           }
+                       }
+                       break; // only first texture for now
+                   }
+               }
+           }
+       } catch(...) {}
+       return id;
        }
     else if (ext == ".prefab") {
         // Prefer new subtree loader; fall back to legacy single-entity if needed
@@ -314,35 +341,35 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
             return root;
         }
     }
-   else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
-      // Create a simple textured quad
-      Entity entity = CreateEntity("ImageQuad");
-      auto* data = GetEntityData(entity.GetID());
-      if (!data) return -1;
+    else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
+       // Create a simple textured quad
+       Entity entity = CreateEntity("ImageQuad");
+       auto* data = GetEntityData(entity.GetID());
+       if (!data) return -1;
 
-      data->Transform.Position = glm::vec3(0.0f);
-      data->Transform.Rotation = glm::vec3(0.0f);
-      data->Transform.Scale = glm::vec3(1.0f);
+       data->Transform.Position = glm::vec3(0.0f);
+       data->Transform.Rotation = glm::vec3(0.0f);
+       data->Transform.Scale = glm::vec3(1.0f);
 
-      std::shared_ptr<Mesh> quadMesh = StandardMeshManager::Instance().GetPlaneMesh();
+       std::shared_ptr<Mesh> quadMesh = StandardMeshManager::Instance().GetPlaneMesh();
 
-      bgfx::TextureHandle tex = TextureLoader::Load2D(path);
+       bgfx::TextureHandle tex = TextureLoader::Load2D(path);
 
         data->Mesh = std::make_unique<MeshComponent>();
-      data->Mesh->mesh = quadMesh;
+       data->Mesh->mesh = quadMesh;
 
-      data->Mesh->MeshName = "ImageQuad";
+       data->Mesh->MeshName = "ImageQuad";
         data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
 
-      // TODO: if you want to store `tex`, create a TextureComponent or assign it in material.
+       // TODO: if you want to store `tex`, create a TextureComponent or assign it in material.
 
-      return entity.GetID();
-      }
-   else {
-      std::cerr << "[Scene] Unsupported asset type: " << ext << std::endl;
-      return -1;
-      }
-   }
+       return entity.GetID();
+       }
+    else {
+       std::cerr << "[Scene] Unsupported asset type: " << ext << std::endl;
+       return -1;
+       }
+}
 
 EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootPosition) {
     Assimp::Importer importer;

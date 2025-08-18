@@ -10,6 +10,8 @@
 #include "ecs/EntityData.h"
 #include "ecs/ComponentUtils.h"
 #include "rendering/PBRMaterial.h"
+#include "rendering/MaterialManager.h"
+#include "rendering/MaterialAsset.h"
 #include "rendering/TextureLoader.h"
 #include <bgfx/bgfx.h>
 #include "animation/AnimatorController.h"
@@ -349,6 +351,47 @@ void InspectorPanel::DrawComponents(EntityID entity) {
     }
 
     if (data->Mesh && ImGui::CollapsingHeader("Mesh")) {
+        // Material view: choose between built-in and user materials
+        {
+            ImGui::TextDisabled("Material View");
+            // Collect materials from AssetLibrary (user-defined)
+            struct MatOpt { std::string name; std::string path; bool isBuiltIn; };
+            static std::vector<MatOpt> s_options;
+            s_options.clear();
+            // Built-in
+            s_options.push_back({"Default PBR", "<builtin:DefaultPBR>", true});
+            s_options.push_back({"Skinned PBR", "<builtin:SkinnedPBR>", true});
+            // User-defined: scan assets/*.mat (quick scan)
+            auto root = Project::GetAssetDirectory(); if (root.empty()) root = std::filesystem::path("assets");
+            if (std::filesystem::exists(root)) {
+                for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
+                    if (!p.is_regular_file()) continue; auto ext = p.path().extension().string(); std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext == ".mat") s_options.push_back({ p.path().stem().string(), p.path().string(), false });
+                }
+            }
+            // Current selection label
+            std::string curLabel = data->Mesh->material ? data->Mesh->material->GetName() : std::string("<none>");
+            if (ImGui::BeginCombo("Material", curLabel.c_str())) {
+                for (int i = 0; i < (int)s_options.size(); ++i) {
+                    bool sel = false;
+                    if (ImGui::Selectable(s_options[i].name.c_str(), sel)) {
+                        if (s_options[i].isBuiltIn) {
+                            if (s_options[i].name == "Default PBR") {
+                                data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+                            } else if (s_options[i].name == "Skinned PBR") {
+                                data->Mesh->material = MaterialManager::Instance().CreateSkinnedPBRMaterial();
+                            }
+                        } else {
+                            // Load or create a PBR material from JSON defaults (legacy path for now)
+                            MaterialAssetDesc desc; if (LoadMaterialAsset(s_options[i].path, desc)) {
+                                data->Mesh->material = CreateMaterialFromAsset(desc);
+                            }
+                        }
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        }
         registry.DrawComponentUI("Mesh", data->Mesh.get());
 
         // Unique material toggle
@@ -389,7 +432,7 @@ void InspectorPanel::DrawComponents(EntityID entity) {
 
             // Albedo texture override via drag-drop
             bgfx::TextureHandle overrideTex = BGFX_INVALID_HANDLE;
-            auto itTex = data->Mesh->PropertyBlock.Textures.find("u_AlbedoSampler");
+            auto itTex = data->Mesh->PropertyBlock.Textures.find("s_albedo");
             if (itTex != data->Mesh->PropertyBlock.Textures.end())
                 overrideTex = itTex->second;
 
@@ -405,8 +448,8 @@ void InspectorPanel::DrawComponents(EntityID entity) {
                     if (path) {
                         bgfx::TextureHandle tex = TextureLoader::Load2D(path);
                         if (bgfx::isValid(tex)) {
-                            data->Mesh->PropertyBlock.Textures["u_AlbedoSampler"] = tex;
-                            data->Mesh->PropertyBlockTexturePaths["u_AlbedoSampler"] = std::string(path);
+                            data->Mesh->PropertyBlock.Textures["s_albedo"] = tex;
+                            data->Mesh->PropertyBlockTexturePaths["s_albedo"] = std::string(path);
                         }
                     }
                 }

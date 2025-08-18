@@ -12,6 +12,9 @@
 #include "pipeline/AssetLibrary.h"
 #include "pipeline/AssetMetadata.h"
 #include <editor/Project.h>
+#include "pipeline/MaterialImporter.h"
+#include "pipeline/ShaderImporter.h"
+#include <glm/glm.hpp>
 
 namespace fs = std::filesystem;
 
@@ -117,6 +120,13 @@ void ProjectPanel::OnImGuiRender() {
     }
     ImGui::SameLine();
     ImGui::TextUnformatted(m_CurrentFolder.c_str());
+    ImGui::SameLine();
+    if (ImGui::Button("New Material")) {
+        std::string base = "Material";
+        std::string outPath = m_CurrentFolder + "/" + base + ".mat";
+        int c = 1; while (fs::exists(outPath)) outPath = m_CurrentFolder + "/" + base + "_" + std::to_string(c++) + ".mat";
+        CreateMaterialAt(outPath, "");
+    }
     ImGui::Separator();
 
     // --- Search Bar ---
@@ -222,6 +232,57 @@ void ProjectPanel::OnImGuiRender() {
 
 
 
+void ProjectPanel::CreateMaterialAt(const std::string& materialPath, const std::string& shaderPath) {
+    // Seed a material JSON. If shaderPath provided and points to .shader, set shader and pre-populate defaults via meta when available.
+    MaterialAssetUnified mat; mat.name = fs::path(materialPath).stem().string();
+    if (!shaderPath.empty()) {
+        mat.shaderPath = shaderPath;
+        // Prefill params from shader meta defaults
+        cm::ShaderMeta meta; std::string err;
+        if (cm::ShaderImporter::ExtractMetaFromSource(shaderPath, meta, err)) {
+            for (const auto& p : meta.params) {
+                glm::vec4 v(0.0f);
+                if (!p.defaultValue.empty()) {
+                    // parse comma-separated floats
+                    std::stringstream ss(p.defaultValue); std::string tok; int idx=0; while (std::getline(ss, tok, ',') && idx<4) {
+                        try { v[idx++] = std::stof(tok); } catch(...) {}
+                    }
+                    if (p.type == "float") { v.y=v.z=v.w=0.0f; }
+                }
+                mat.params[p.name] = v;
+            }
+            for (const auto& s : meta.samplers) {
+                std::string key = !s.tag.empty() ? s.tag : s.name;
+                mat.textures[key] = std::string();
+            }
+        }
+    }
+    // Save file
+    if (MaterialImporter::Save(materialPath, mat)) {
+        std::cout << "[ProjectPanel] Created material: " << materialPath << std::endl;
+        // Emit .meta and register in AssetLibrary
+        try {
+            fs::path p(materialPath);
+            fs::path metaPath = p; metaPath += ".meta";
+            AssetMetadata meta; bool hasMeta = false;
+            if (fs::exists(metaPath)) {
+                std::ifstream in(metaPath.string()); if (in) { nlohmann::json j; in >> j; in.close(); meta = j.get<AssetMetadata>(); hasMeta = true; }
+            }
+            if (!hasMeta) { meta.guid = ClaymoreGUID::Generate(); meta.type = "material"; nlohmann::json j = meta; std::ofstream out(metaPath.string()); out << j.dump(4); }
+            std::string name = p.filename().string();
+            std::error_code ec; fs::path rel = fs::relative(p, Project::GetProjectDirectory(), ec);
+            std::string vpath = (ec ? p.string() : rel.string()); std::replace(vpath.begin(), vpath.end(), '\\', '/');
+            size_t pos = vpath.find("assets/"); if (pos != std::string::npos) vpath = vpath.substr(pos);
+            AssetLibrary::Instance().RegisterAsset(AssetReference(meta.guid, 0, (int)AssetType::Material), AssetType::Material, vpath, name);
+            AssetLibrary::Instance().RegisterPathAlias(meta.guid, materialPath);
+        } catch(...) {}
+        // Refresh tree
+        m_ProjectRoot = BuildFileTree(m_ProjectPath);
+    } else {
+        std::cerr << "[ProjectPanel] Failed to create material: " << materialPath << std::endl;
+    }
+}
+
 FileNode ProjectPanel::BuildFileTree(const std::string& path) {
    FileNode node;
    node.name = fs::path(path).filename().string();
@@ -295,6 +356,16 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
       ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1,1,1,0.12f));
       ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1,1,1,0.20f));
       ImGui::ImageButton(fileName.c_str(), icon, ImVec2(thumbnailSize, thumbnailSize));
+      if (ImGui::BeginPopupContextItem("file_ctx")) {
+          if (ImGui::MenuItem("Create Material")) {
+              std::string destFolder = isDir ? entry.path().string() : fs::path(entry.path()).parent_path().string();
+              std::string base = "Material";
+              std::string outPath = destFolder + "/" + base + ".mat";
+              int c=1; while (fs::exists(outPath)) outPath = destFolder + "/" + base + "_" + std::to_string(c++) + ".mat";
+              CreateMaterialAt(outPath, "");
+          }
+          ImGui::EndPopup();
+      }
       ImGui::PopStyleColor(3);
       ImGui::PopStyleVar();
 
@@ -332,7 +403,7 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
          ImGui::EndDragDropSource();
          }
 
-      // Accept ENTITY_ID drops on items too (alternate drop target)
+      // Accept ENTITY_ID or .shader drops on items too (alternate drop target)
       if (ImGui::BeginDragDropTarget()) {
           if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
               EntityID draggedID = *(EntityID*)payload->Data;
@@ -361,6 +432,20 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
               }
               CreatePrefabFromEntity(draggedID, prefabPath);
           }
+          if (const ImGuiPayload* payload2 = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+              const char* dpath = (const char*)payload2->Data;
+              if (dpath) {
+                  std::string ext2 = fs::path(dpath).extension().string();
+                  std::transform(ext2.begin(), ext2.end(), ext2.begin(), ::tolower);
+                  if (ext2 == ".shader") {
+                      std::string destFolder = isDir ? entry.path().string() : fs::path(entry.path()).parent_path().string();
+                      std::string base = fs::path(dpath).stem().string();
+                      std::string outPath = destFolder + "/" + base + ".mat";
+                      int c=1; while (fs::exists(outPath)) outPath = destFolder + "/" + base + "_" + std::to_string(c++) + ".mat";
+                      CreateMaterialAt(outPath, dpath);
+                  }
+              }
+          }
           ImGui::EndDragDropTarget();
       }
 
@@ -384,6 +469,7 @@ ImTextureID ProjectPanel::GetFileIconForPath(const std::string& path) const {
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     if (ext == ".fbx" || ext == ".obj" || ext == ".gltf" || ext == ".glb") return m_Icon3DModel ? m_Icon3DModel : m_FileIcon;
     if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" || ext == ".bmp" || ext == ".hdr") return m_IconImage ? m_IconImage : m_FileIcon;
+    if (ext == ".mat") return m_IconMaterial ? m_IconMaterial : m_FileIcon;
     if (ext == ".scene") return m_FileIcon;
     if (ext == ".prefab") return m_FileIcon;
     return m_FileIcon;
@@ -395,6 +481,88 @@ void ProjectPanel::DrawSelectedInspector() {
     const std::string ext = std::filesystem::path(m_SelectedItemPath).extension().string();
     if (IsSceneFile(m_SelectedItemPath)) {
         DrawScenePreviewInspector(m_SelectedItemPath);
+        return;
+    }
+    // Material inspector (.mat)
+    {
+        std::string lower = ext; std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+        if (lower == ".mat") {
+            ImGui::Separator();
+            ImGui::Text("Material: %s", std::filesystem::path(m_SelectedItemPath).filename().string().c_str());
+            MaterialAssetUnified mat{};
+            bool ok = MaterialImporter::Load(m_SelectedItemPath, mat);
+            if (!ok) {
+                ImGui::TextColored(ImVec4(1,0.4f,0.4f,1), "Failed to load material JSON");
+                return;
+            }
+            // Shader path field with drag-drop of .shader
+            char shaderBuf[512];
+            strncpy(shaderBuf, mat.shaderPath.c_str(), sizeof(shaderBuf)); shaderBuf[sizeof(shaderBuf)-1]=0;
+            ImGui::InputText("Shader", shaderBuf, sizeof(shaderBuf));
+            if (ImGui::BeginDragDropTarget()) {
+                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+                    const char* p = (const char*)payload->Data;
+                    if (p) {
+                        std::string e = fs::path(p).extension().string(); std::transform(e.begin(), e.end(), e.begin(), ::tolower);
+                        if (e == ".shader") {
+                            strncpy(shaderBuf, p, sizeof(shaderBuf)); shaderBuf[sizeof(shaderBuf)-1]=0;
+                        }
+                    }
+                }
+                ImGui::EndDragDropTarget();
+            }
+            mat.shaderPath = shaderBuf;
+            // If shader set, extract meta to drive UI
+            cm::ShaderMeta meta; std::string perr;
+            if (!mat.shaderPath.empty()) {
+                cm::ShaderImporter::ExtractMetaFromSource(mat.shaderPath, meta, perr);
+            }
+            // Params UI
+            if (!meta.params.empty()) {
+                ImGui::Separator();
+                ImGui::TextDisabled("Parameters");
+                for (const auto& p : meta.params) {
+                    glm::vec4 v = glm::vec4(0.0f);
+                    auto it = mat.params.find(p.name);
+                    if (it != mat.params.end()) v = it->second;
+                    if (p.uiHint.find("Color") != std::string::npos) {
+                        if (ImGui::ColorEdit4(p.name.c_str(), &v.x)) mat.params[p.name] = v;
+                    } else {
+                        // scalar vs vec4 heuristic
+                        if (p.type == "float") {
+                            float f = v.x; if (ImGui::DragFloat(p.name.c_str(), &f, 0.01f)) { v.x = f; mat.params[p.name] = v; }
+                        } else {
+                            if (ImGui::DragFloat4(p.name.c_str(), &v.x, 0.01f)) mat.params[p.name] = v;
+                        }
+                    }
+                }
+            }
+            // Textures UI
+            if (!meta.samplers.empty()) {
+                ImGui::Separator();
+                ImGui::TextDisabled("Textures");
+                for (const auto& s : meta.samplers) {
+                    std::string key = !s.tag.empty() ? s.tag : s.name;
+                    std::string& path = mat.textures[key]; // ensures key exists
+                    ImGui::Text("%s", key.c_str()); ImGui::SameLine();
+                    char tbuf[512]; strncpy(tbuf, path.c_str(), sizeof(tbuf)); tbuf[sizeof(tbuf)-1]=0;
+                    ImGui::InputText((std::string("##tex_") + key).c_str(), tbuf, sizeof(tbuf));
+                    if (ImGui::BeginDragDropTarget()) {
+                        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+                            const char* p = (const char*)payload->Data; if (p) { std::string ext2 = fs::path(p).extension().string(); std::transform(ext2.begin(), ext2.end(), ext2.begin(), ::tolower); if (ext2 == ".png" || ext2 == ".jpg" || ext2 == ".jpeg" || ext2 == ".tga" || ext2 == ".bmp" || ext2 == ".hdr") { strncpy(tbuf, p, sizeof(tbuf)); tbuf[sizeof(tbuf)-1]=0; } }
+                        }
+                        ImGui::EndDragDropTarget();
+                    }
+                    path = tbuf;
+                }
+            }
+            // Save button
+            if (ImGui::Button("Save Material")) {
+                MaterialImporter::Save(m_SelectedItemPath, mat);
+                std::cout << "[Material] Saved: " << m_SelectedItemPath << std::endl;
+            }
+            return;
+        }
     }
 }
 
@@ -430,7 +598,7 @@ void ProjectPanel::EnsureExtraIconsLoaded() const {
     if (m_IconsLoaded) return;
     m_Icon3DModel = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/3d_model.svg"));
     m_IconImage   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/image.svg"));
-    // Optional future: material icon when a material asset type exists
+    m_IconMaterial= TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/material.svg"));
     m_IconsLoaded = true;
 }
 

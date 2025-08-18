@@ -8,6 +8,8 @@
 #include "animation/AnimationImporter.h"
 #include "animation/AnimationSerializer.h"
 #include "ModelImportCache.h"
+#include "ShaderImporter.h"
+#include <rendering/ShaderBundle.h>
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -186,6 +188,10 @@ void AssetPipeline::ImportAsset(const std::string& path) {
         ImportShader(path);
         meta.type = "shader";
     }
+    else if (ext == ".mat") {
+        ImportMaterial(path);
+        meta.type = "material";
+    }
     else if (ext == ".cs") {
        ImportScript(path);
        meta.type = "script";
@@ -218,6 +224,13 @@ void AssetPipeline::ImportAsset(const std::string& path) {
         fs::path(path).filename().string());
 
     std::cout << "[AssetPipeline] Imported: " << path << " (GUID: " << meta.guid.ToString() << ")" << std::endl;
+}
+
+void AssetPipeline::ImportMaterial(const std::string& path) {
+    EnqueueMainThreadTask([path]() {
+        std::cout << "[AssetPipeline] Material reloaded: " << path << std::endl;
+        // Future: notify inspector/renderer of material changes
+    });
 }
 
 
@@ -341,6 +354,44 @@ void AssetPipeline::ImportModel(const std::string& path) {
             // Non-fatal
         } 
 
+        // --------- Capture external textures into assets/textures/<model>/ and register ---------
+        try {
+            fs::path src(path);
+            std::string modelName = src.stem().string();
+            fs::path proj = Project::GetProjectDirectory();
+            fs::path texRoot = proj / "assets" / "textures" / modelName;
+            std::error_code ec; fs::create_directories(texRoot, ec);
+
+            Assimp::Importer aimport2;
+            const aiScene* s2 = aimport2.ReadFile(path, aiProcess_Triangulate | aiProcess_GenNormals);
+            if (s2 && s2->HasMaterials()) {
+                for (unsigned mi = 0; mi < s2->mNumMaterials; ++mi) {
+                    const aiMaterial* aim = s2->mMaterials[mi];
+                    auto get = [&](aiTextureType t)->std::string {
+                        aiString str; if (aim->GetTextureCount(t)>0 && aim->GetTexture(t,0,&str)==AI_SUCCESS) return std::string(str.C_Str()); return std::string(); };
+                    std::vector<std::string> texPaths;
+                    std::string albedo = get(aiTextureType_BASE_COLOR); if (albedo.empty()) albedo = get(aiTextureType_DIFFUSE);
+                    if (!albedo.empty()) texPaths.push_back(albedo);
+                    std::string normal = get(aiTextureType_NORMALS); if (normal.empty()) normal = get(aiTextureType_HEIGHT); if (!normal.empty()) texPaths.push_back(normal);
+                    std::string mr = get(aiTextureType_UNKNOWN); if (mr.empty()) mr = get(aiTextureType_METALNESS); if (!mr.empty()) texPaths.push_back(mr);
+
+                    for (const auto& tpath : texPaths) {
+                        fs::path psrc = tpath;
+                        if (!fs::exists(psrc)) psrc = src.parent_path() / tpath;
+                        if (!fs::exists(psrc)) continue;
+                        fs::path pdst = texRoot / psrc.filename();
+                        fs::copy_file(psrc, pdst, fs::copy_options::overwrite_existing, ec);
+                        std::string vpath = pdst.string(); std::replace(vpath.begin(), vpath.end(), '\\', '/');
+                        size_t pos = vpath.find("assets/"); if (pos != std::string::npos) vpath = vpath.substr(pos);
+                        AssetMetadata tmeta; tmeta.guid = ClaymoreGUID::Generate(); tmeta.type = "texture"; tmeta.sourcePath = vpath; tmeta.processedPath = vpath;
+                        nlohmann::json tj = tmeta; std::ofstream outm((pdst.string()+".meta").c_str()); if (outm) outm << tj.dump(4);
+                        AssetLibrary::Instance().RegisterAsset(AssetReference(tmeta.guid, 0, (int)AssetType::Texture), AssetType::Texture, vpath, pdst.filename().string());
+                        std::cout << "[FBXImport] Copied texture to: " << pdst << std::endl;
+                    }
+                }
+            }
+        } catch(...) { std::cerr << "[FBXImport] Texture capture step failed: " << path << std::endl; }
+
         // --------- Extract animations (unified .anim as primary) ---------
         using namespace cm::animation;
         auto clips = AnimationImporter::ImportFromModel(path);
@@ -461,14 +512,35 @@ void AssetPipeline::ImportTextureCPU(const std::string& path) {
 // SHADER IMPORT (CPU compile -> GPU upload)
 // ---------------------------------------
 void AssetPipeline::ImportShader(const std::string& path) {
-    ShaderType type = ShaderType::Fragment;
-    if (path.find("vs_") != std::string::npos) type = ShaderType::Vertex;
-    else if (path.find("fs_") != std::string::npos) type = ShaderType::Fragment;
-
-    EnqueueMainThreadTask([path, type]() {
-        ShaderManager::Instance().CompileAndCache(path, type);
-        std::cout << "[AssetPipeline] Shader compiled and loaded: " << path << std::endl;
+    // Dispatch based on extension: unified .shader vs legacy .sc/.glsl
+    std::string ext = std::filesystem::path(path).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext == ".shader") {
+        // Unified path: run ShaderImporter to compile both stages and emit meta
+        EnqueueMainThreadTask([path]() {
+            cm::ShaderImporterContext ctx;
+            ctx.projectRoot = std::filesystem::current_path().string();
+            ctx.toolsDir = (std::filesystem::current_path() / "tools").string();
+            ctx.shadersOutRoot = (std::filesystem::current_path() / "shaders").string();
+            ctx.platform = "windows";
+            cm::ShaderMeta meta; std::string err;
+            if (!cm::ShaderImporter::ImportShader(path, ctx, meta, err)) {
+                std::cerr << "[AssetPipeline] Shader import failed: " << err << std::endl;
+                return;
+            }
+            // Invalidate cached program for this base name
+            ShaderBundle::Instance().Invalidate(meta.baseName);
+            std::cout << "[AssetPipeline] Shader imported: " << path << std::endl;
         });
+    } else {
+        ShaderType type = ShaderType::Fragment;
+        if (path.find("vs_") != std::string::npos) type = ShaderType::Vertex;
+        else if (path.find("fs_") != std::string::npos) type = ShaderType::Fragment;
+        EnqueueMainThreadTask([path, type]() {
+            ShaderManager::Instance().CompileAndCache(path, type);
+            std::cout << "[AssetPipeline] Shader compiled and loaded: " << path << std::endl;
+        });
+    }
 }
 
 // ---------------------------------------
@@ -502,6 +574,7 @@ bool AssetPipeline::IsSupportedAsset(const std::string& ext) const {
         ".fbx", ".obj", ".gltf", ".glb", // Models
         ".png", ".jpg", ".jpeg", ".tga", // Textures
         ".sc", ".shader", ".glsl",         // Shaders
+        ".mat",                                // Materials
         ".cs"
     };
     return supported.find(ext) != supported.end();
@@ -511,6 +584,7 @@ std::string AssetPipeline::DetermineType(const std::string& ext) {
     if (ext == ".obj" || ext == ".fbx" || ext == ".gltf" || ext == ".glb") return "model";
     if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga") return "texture";
     if (ext == ".sc" || ext == ".shader" || ext == ".glsl") return "shader";
+    if (ext == ".mat") return "material";
     if (ext == ".cs") return "script";
 
     return "unknown";

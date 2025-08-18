@@ -2,6 +2,7 @@
     "entities": [
         {
             "children": [],
+            "guid": "936d006fc918ffc88a636f1f80192dfa",
             "id": 1,
             "layer": 0,
             "mesh": {
@@ -12,15 +13,22 @@
                     "fileID": 0,
                     "guid": "00000000000000000000000000000000",
                     "type": 0
-                }
+                },
+                "propertyBlockTextures": {
+                    "s_albedo": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\debug_grid.png"
+                },
+                "propertyBlockVec4": {
+                    "u_ColorTint": [
+                        0.7821782231330872,
+                        0.14197953045368195,
+                        0.14197953045368195,
+                        1.0
+                    ]
+                },
+                "uniqueMaterial": false
             },
-            "name": "Debug Cube_1",
+            "name": "Debug Cube",
             "parent": 4294967295,
-            "scripts": [
-                {
-                    "className": "MyTestScript"
-                }
-            ],
             "tag": "",
             "transform": {
                 "localMatrix": [
@@ -56,7 +64,7 @@
                     "y": 1.0,
                     "z": 1.0
                 },
-                "transformDirty": true,
+                "transformDirty": false,
                 "worldMatrix": [
                     1.0,
                     0.0,
@@ -79,6 +87,7 @@
         },
         {
             "children": [],
+            "guid": "b509d79e8d62b51d5028d76406e67e4f",
             "id": 2,
             "layer": 0,
             "light": {
@@ -90,7 +99,7 @@
                 "intensity": 1.0,
                 "type": 0
             },
-            "name": "Default Light_2",
+            "name": "Default Light",
             "parent": 4294967295,
             "tag": "",
             "transform": {
@@ -127,7 +136,7 @@
                     "y": 1.0,
                     "z": 1.0
                 },
-                "transformDirty": true,
+                "transformDirty": false,
                 "worldMatrix": [
                     1.0,
                     0.0,

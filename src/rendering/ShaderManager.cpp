@@ -6,6 +6,7 @@
 #include <chrono>
 #include <thread>
 #include "io/FileSystem.h"
+#include "ShaderBundle.h"
 
 namespace fs = std::filesystem;
 
@@ -162,6 +163,25 @@ bgfx::ProgramHandle ShaderManager::LoadProgram(const std::string& vsName, const 
    }
    return program;
    }
+
+bgfx::ProgramHandle ShaderManager::LoadProgramFromBundle(const std::string& baseName)
+{
+    return ShaderBundle::Instance().Load(baseName);
+}
+
+void ShaderManager::InvalidateProgram(const std::string& key)
+{
+    // For legacy programs we keep m_Programs map; for bundles we forward to ShaderBundle
+    {
+        std::lock_guard<std::mutex> lock(m_ProgramMutex);
+        auto it = m_Programs.find(key);
+        if (it != m_Programs.end()) {
+            if (bgfx::isValid(it->second)) bgfx::destroy(it->second);
+            m_Programs.erase(it);
+        }
+    }
+    ShaderBundle::Instance().Invalidate(key);
+}
 
 // ------------------- New: CompileAllShaders -------------------
 void ShaderManager::CompileAllShaders()

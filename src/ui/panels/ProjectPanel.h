@@ -41,6 +41,7 @@ public:
 private:
    void DrawFolderTree(FileNode& node);
    void DrawFileList(const std::string& folderPath);
+   void CreateMaterialAt(const std::string& materialPath, const std::string& shaderPath);
    void DrawSelectedInspector();
    void DrawScenePreviewInspector(const std::string& scenePath);
    FileNode BuildFileTree(const std::string& path);

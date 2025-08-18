@@ -21,6 +21,9 @@ class ShaderManager
 
       bgfx::ShaderHandle LoadShader(const std::string& name, ShaderType type);
       bgfx::ProgramHandle LoadProgram(const std::string& vsName, const std::string& fsName);
+      // Load a unified program from shaders/meta/<Name>.json and compiled bins
+      bgfx::ProgramHandle LoadProgramFromBundle(const std::string& baseName);
+      void InvalidateProgram(const std::string& key);
 
       // Compile all shaders found in the executable's shaders directory if out-of-date or missing bin.
       void CompileAllShaders();

@@ -718,9 +718,7 @@ void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material
     else
         bgfx::setVertexBuffer(0, mesh.vbh);
     bgfx::setIndexBuffer(mesh.ibh);
-    if (propertyBlock && !propertyBlock->Empty()) {
-        material.ApplyPropertyBlock(*propertyBlock);
-    }
+    // Bind shared material defaults first, then overlay per-entity overrides
     // Provide normal matrix to shaders that use it (skinned shader expects u_normalMat)
     // Compute transpose(inverse(mat3(model))) once on CPU
     glm::mat4 modelMtx = glm::make_mat4(transform);
@@ -732,6 +730,9 @@ void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material
     bgfx::setUniform(u_normalMat, glm::value_ptr(normalMat4));
 
     material.BindUniforms();
+    if (propertyBlock && !propertyBlock->Empty()) {
+        material.ApplyPropertyBlock(*propertyBlock);
+    }
     // Use the material’s depth state as-is
     bgfx::setState(material.GetStateFlags());
 	auto materialProgram = material.GetProgram();
@@ -765,12 +766,14 @@ void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material
         bgfx::setVertexBuffer(0, mesh.vbh);
     }
     bgfx::setIndexBuffer(mesh.ibh);
-    if (propertyBlock && !propertyBlock->Empty()) material.ApplyPropertyBlock(*propertyBlock);
+    // Bind shared material defaults then overlay overrides so they win
+    // Note: normal matrix set below applies regardless
     glm::mat4 modelMtx = glm::make_mat4(transform);
     glm::mat3 n3 = glm::transpose(glm::inverse(glm::mat3(modelMtx)));
     glm::mat4 normalMat4(1.0f); normalMat4[0] = glm::vec4(n3[0], 0.0f); normalMat4[1] = glm::vec4(n3[1], 0.0f); normalMat4[2] = glm::vec4(n3[2], 0.0f);
     bgfx::setUniform(u_normalMat, glm::value_ptr(normalMat4));
     material.BindUniforms();
+    if (propertyBlock && !propertyBlock->Empty()) material.ApplyPropertyBlock(*propertyBlock);
     bgfx::setState(material.GetStateFlags());
     if (!bgfx::isValid(material.GetProgram())) { std::cerr << "Invalid material program" << std::endl; return; }
     bgfx::submit(viewId, material.GetProgram());

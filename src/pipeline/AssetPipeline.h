@@ -11,6 +11,7 @@
 #include <deque>
 
 #include "ModelImportCache.h"
+#include "ShaderImporter.h"
 
 // ---------------------------
 // GPU Upload Job Struct
@@ -76,6 +77,7 @@ public:
     void ImportModel(const std::string& path);
     void ImportTexture(const std::string& path);
     void ImportShader(const std::string& path);
+    void ImportMaterial(const std::string& path);
 
     void ImportScript(const std::string& path);
 
