@@ -802,6 +802,24 @@ json Serializer::SerializeScene( Scene& scene) {
     json sceneData;
     sceneData["version"] = "1.0";
     sceneData["entities"] = json::array();
+    // Environment
+    try {
+        const Environment& env = scene.GetEnvironment();
+        json jenv;
+        jenv["ambientMode"] = (env.Ambient == Environment::AmbientMode::FlatColor) ? "FlatColor" : "Skybox";
+        jenv["ambientColor"] = SerializeVec3(env.AmbientColor);
+        jenv["ambientIntensity"] = env.AmbientIntensity;
+        jenv["useSkybox"] = env.UseSkybox;
+        // Skybox texture path not serialized yet (TextureCube asset system pending)
+        jenv["exposure"] = env.Exposure;
+        jenv["fogEnabled"] = env.EnableFog;
+        jenv["fogColor"] = SerializeVec3(env.FogColor);
+        jenv["fogDensity"] = env.FogDensity;
+        jenv["proceduralSky"] = env.ProceduralSky;
+        jenv["skyZenithColor"] = SerializeVec3(env.SkyZenithColor);
+        jenv["skyHorizonColor"] = SerializeVec3(env.SkyHorizonColor);
+        sceneData["environment"] = std::move(jenv);
+    } catch(...) {}
     // Optional: include an asset map to help resolve GUIDs across different working copies
     // We serialize all known AssetLibrary mappings as a portable hint.
     try {
@@ -944,6 +962,26 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
                   << " guid_missing=" << guidMissing
                   << " guid_dupes=" << guidDup << std::endl;
     } catch(...) {}
+
+    // Apply environment if present
+    if (data.contains("environment") && data["environment"].is_object()) {
+        try {
+            Environment& env = scene.GetEnvironment();
+            const json& jenv = data["environment"];
+            std::string mode = jenv.value("ambientMode", "FlatColor");
+            env.Ambient = (mode == "Skybox") ? Environment::AmbientMode::Skybox : Environment::AmbientMode::FlatColor;
+            if (jenv.contains("ambientColor")) env.AmbientColor = DeserializeVec3(jenv["ambientColor"]);
+            env.AmbientIntensity = jenv.value("ambientIntensity", env.AmbientIntensity);
+            env.UseSkybox = jenv.value("useSkybox", env.UseSkybox);
+            env.Exposure = jenv.value("exposure", env.Exposure);
+            env.EnableFog = jenv.value("fogEnabled", env.EnableFog);
+            if (jenv.contains("fogColor")) env.FogColor = DeserializeVec3(jenv["fogColor"]);
+            env.FogDensity = jenv.value("fogDensity", env.FogDensity);
+            env.ProceduralSky = jenv.value("proceduralSky", env.ProceduralSky);
+            if (jenv.contains("skyZenithColor")) env.SkyZenithColor = DeserializeVec3(jenv["skyZenithColor"]);
+            if (jenv.contains("skyHorizonColor")) env.SkyHorizonColor = DeserializeVec3(jenv["skyHorizonColor"]);
+        } catch(...) {}
+    }
 
     // Clear existing scene by removing all entities
     std::vector<EntityID> entitiesToRemove;

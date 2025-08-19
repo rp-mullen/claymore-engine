@@ -13,6 +13,7 @@ uniform vec4 u_lightParams[4];     // x = range (for point lights), y = constant
 uniform vec4 u_cameraPos;          // camera position in world space
 uniform vec4 u_ambientFog;         // xyz = ambient color * intensity, w = flags (bit0: fog enabled)
 uniform vec4 u_fogParams;          // x = fogDensity, yzw = fog color
+uniform vec4 u_skyParams;          // x = proceduralSky flag
 
 // PBR lighting calculation function
 vec3 CalculatePBRLighting(vec3 N, vec3 V, vec3 L, vec3 baseColor, float metallic, float roughness, vec3 lightColor, float lightIntensity) {

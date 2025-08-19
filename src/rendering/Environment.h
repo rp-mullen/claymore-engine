@@ -24,4 +24,9 @@ struct Environment {
     bool EnableFog = false;
     glm::vec3 FogColor = glm::vec3(0.5f, 0.6f, 0.7f);
     float FogDensity = 0.02f; // exponential fog density
+
+    // Procedural skybox
+    bool ProceduralSky = false;
+    glm::vec3 SkyZenithColor = glm::vec3(0.2f, 0.35f, 0.6f);
+    glm::vec3 SkyHorizonColor = glm::vec3(0.7f, 0.85f, 1.0f);
 };

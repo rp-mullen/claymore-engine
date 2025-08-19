@@ -159,7 +159,6 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         aiProcess_GenNormals |
         aiProcess_CalcTangentSpace |
         aiProcess_FlipUVs |
-       aiProcess_FixInfacingNormals |
         aiProcess_JoinIdenticalVertices |
         aiProcess_ImproveCacheLocality |
 		aiProcess_LimitBoneWeights |

@@ -188,12 +188,18 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
     u_normalMat = bgfx::createUniform("u_normalMat", bgfx::UniformType::Mat4);
     u_AmbientFog = bgfx::createUniform("u_ambientFog", bgfx::UniformType::Vec4);
     u_FogParams  = bgfx::createUniform("u_fogParams",  bgfx::UniformType::Vec4);
+    u_SkyParams  = bgfx::createUniform("u_skyParams",  bgfx::UniformType::Vec4);
+    u_SkyZenith  = bgfx::createUniform("u_skyZenith",  bgfx::UniformType::Vec4);
+    u_SkyHorizon = bgfx::createUniform("u_skyHorizon", bgfx::UniformType::Vec4);
 
 
     // Terrain resources
     m_TerrainProgram = ShaderManager::Instance().LoadProgram("vs_pbr", "fs_pbr");
     m_TerrainHeightTexProgram = ShaderManager::Instance().LoadProgram("vs_terrain_height_texture", "fs_terrain");
     s_TerrainHeightTexture = bgfx::createUniform("s_heightTexture", bgfx::UniformType::Sampler);
+
+    // Procedural sky program (fullscreen triangle)
+    m_SkyProgram = ShaderManager::Instance().LoadProgram("vs_sky", "fs_sky");
 
     // Initialize text renderer (self-contained, stb-based)
     m_TextRenderer = std::make_unique<TextRenderer>();
@@ -308,6 +314,33 @@ void Renderer::RenderScene(Scene& scene) {
 
     // Upload environment
     UploadEnvironmentToShader(scene.GetEnvironment());
+    // Optional procedural sky pass before geometry
+    const Environment& envForSky = scene.GetEnvironment();
+    if (envForSky.ProceduralSky) {
+        // Fullscreen triangle for background on view 0
+        float id[16]; bx::mtxIdentity(id);
+        bgfx::setTransform(id);
+        // No geometry buffers; use screen-space triangle trick via transient buffers
+        struct PosCoord { float x, y, z; };
+        const PosCoord verts[3] = { {-1.0f,-1.0f,0.0f}, {3.0f,-1.0f,0.0f}, {-1.0f,3.0f,0.0f} };
+        const uint16_t idx[3] = {0,1,2};
+        bgfx::TransientVertexBuffer tvb; bgfx::TransientIndexBuffer tib;
+        bgfx::VertexLayout layout; layout.begin().add(bgfx::Attrib::Position,3,bgfx::AttribType::Float).end();
+        const uint32_t needVerts = 3u;
+        const uint32_t needIdx   = 3u;
+        const uint32_t availVerts = bgfx::getAvailTransientVertexBuffer(needVerts, layout);
+        const uint32_t availIdx   = bgfx::getAvailTransientIndexBuffer(needIdx);
+        if (availVerts >= needVerts && availIdx >= needIdx) {
+            bgfx::allocTransientVertexBuffer(&tvb, needVerts, layout);
+            bgfx::allocTransientIndexBuffer(&tib, needIdx);
+            memcpy(tvb.data, verts, sizeof(verts));
+            memcpy(tib.data, idx, sizeof(idx));
+            bgfx::setVertexBuffer(0, &tvb);
+            bgfx::setIndexBuffer(&tib);
+            bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_ALWAYS);
+            bgfx::submit(0, m_SkyProgram);
+        }
+    }
 
     // --------------------------------------
     // Collect lights from ECS
@@ -924,6 +957,14 @@ void Renderer::UploadEnvironmentToShader(const Environment& env)
     // Fog params: x = density, yzw = fog color
     glm::vec4 fogParams(env.FogDensity, env.FogColor.r, env.FogColor.g, env.FogColor.b);
     bgfx::setUniform(u_FogParams, &fogParams);
+
+    // Sky params: x = proceduralSky flag
+    glm::vec4 skyParams(env.ProceduralSky ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
+    bgfx::setUniform(u_SkyParams, &skyParams);
+    glm::vec4 zen(env.SkyZenithColor, 1.0f);
+    glm::vec4 hor(env.SkyHorizonColor, 1.0f);
+    bgfx::setUniform(u_SkyZenith, &zen);
+    bgfx::setUniform(u_SkyHorizon, &hor);
 }
 
 void Renderer::DrawGrid() {

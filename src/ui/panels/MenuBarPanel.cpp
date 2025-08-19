@@ -274,14 +274,27 @@ void MenuBarPanel::OnImGuiRender() {
     if (ImGui::BeginMenu("Scene")) {
         if (ImGui::BeginMenu("Environment")) {
             Environment& env = m_Context->GetEnvironment();
-            ImGui::Checkbox("Enable Fog", &env.EnableFog);
-            ImGui::ColorEdit3("Fog Color", (float*)&env.FogColor);
-            ImGui::SliderFloat("Fog Density", &env.FogDensity, 0.0f, 0.2f, "%.3f");
-            ImGui::Separator();
-            ImGui::ColorEdit3("Ambient Color", (float*)&env.AmbientColor);
-            ImGui::SliderFloat("Ambient Intensity", &env.AmbientIntensity, 0.0f, 5.0f, "%.2f");
-            ImGui::Separator();
-            ImGui::SliderFloat("Exposure", &env.Exposure, 0.1f, 5.0f, "%.2f");
+            if (ImGui::BeginTabBar("##envtabs")) {
+                if (ImGui::BeginTabItem("Fog & Ambient")) {
+                    ImGui::Checkbox("Enable Fog", &env.EnableFog);
+                    ImGui::ColorEdit3("Fog Color", (float*)&env.FogColor);
+                    ImGui::SliderFloat("Fog Density", &env.FogDensity, 0.0f, 0.2f, "%.3f");
+                    ImGui::Separator();
+                    ImGui::ColorEdit3("Ambient Color", (float*)&env.AmbientColor);
+                    ImGui::SliderFloat("Ambient Intensity", &env.AmbientIntensity, 0.0f, 5.0f, "%.2f");
+                    ImGui::Separator();
+                    ImGui::SliderFloat("Exposure", &env.Exposure, 0.1f, 5.0f, "%.2f");
+                    ImGui::EndTabItem();
+                }
+                if (ImGui::BeginTabItem("Sky")) {
+                    ImGui::Checkbox("Use Skybox (Texture)", &env.UseSkybox);
+                    ImGui::Checkbox("Procedural Sky", &env.ProceduralSky);
+                    ImGui::ColorEdit3("Zenith Color", (float*)&env.SkyZenithColor);
+                    ImGui::ColorEdit3("Horizon Color", (float*)&env.SkyHorizonColor);
+                    ImGui::EndTabItem();
+                }
+                ImGui::EndTabBar();
+            }
             ImGui::EndMenu();
         }
         ImGui::EndMenu();

@@ -107,6 +107,10 @@ private:
 	    bgfx::UniformHandle u_cameraPos = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_AmbientFog   = BGFX_INVALID_HANDLE; // xyz=color/intensity, w=flags
     bgfx::UniformHandle u_FogParams    = BGFX_INVALID_HANDLE; // x=fogDensity, y=unused
+    // u_SkyParams: x = proceduralSky (1.0 or 0.0)
+    bgfx::UniformHandle u_SkyParams    = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_SkyZenith    = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_SkyHorizon   = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_normalMat    = BGFX_INVALID_HANDLE; // CPU-provided normal matrix
 
 
@@ -119,6 +123,7 @@ private:
     bgfx::ProgramHandle m_TerrainProgram = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle m_TerrainHeightTexProgram = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle s_TerrainHeightTexture = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle m_SkyProgram = BGFX_INVALID_HANDLE;
 
     bgfx::VertexBufferHandle m_GridVB = BGFX_INVALID_HANDLE;
     uint32_t m_GridVertexCount = 0;

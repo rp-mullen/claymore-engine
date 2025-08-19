@@ -344,7 +344,6 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     const aiScene* aScene = importer.ReadFile(path,
         aiProcess_Triangulate |
         aiProcess_GenNormals |
-        aiProcess_FixInfacingNormals |
         aiProcess_CalcTangentSpace |
         aiProcess_FlipUVs |
         aiProcess_JoinIdenticalVertices |
@@ -800,6 +799,8 @@ std::shared_ptr<Scene> Scene::RuntimeClone() {
    clone->m_EntityList.clear();
    clone->m_BodyMap.clear();
    clone->m_NextID = m_NextID;
+   // Copy environment so play mode preserves edit-time settings
+   clone->m_Environment = this->m_Environment;
 
    // Clone entities
    for (const Entity& e : m_EntityList) {
