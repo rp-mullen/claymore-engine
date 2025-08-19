@@ -85,6 +85,14 @@ public:
     // Editor helpers
     void DrawEntityOutline(Scene& scene, EntityID selectedEntity);
 
+    // Debug draw toggles
+    void SetShowGrid(bool v) { m_ShowGrid = v; }
+    bool GetShowGrid() const { return m_ShowGrid; }
+    void SetShowColliders(bool v) { m_ShowColliders = v; }
+    bool GetShowColliders() const { return m_ShowColliders; }
+    void SetShowAABBs(bool v) { m_ShowAABBs = v; }
+    bool GetShowAABBs() const { return m_ShowAABBs; }
+
 
 private:
     Renderer() = default;
@@ -151,5 +159,12 @@ public:
     void SetUIMode(bool enabled){ m_ShowUIOverlay = enabled; }
     void SetUIMousePosition(float x, float y, bool valid){ m_UIMouseX = x; m_UIMouseY = y; m_UIMouseValid = valid; }
 
- 
+ private:
+    // Helper: draw world-space axis-aligned bounding box on a given view (default debug view 0)
+    void DrawAABB(const glm::vec3& worldMin, const glm::vec3& worldMax, uint16_t viewId = 0);
+
+    // Debug draw flags (editor)
+    bool m_ShowGrid = true;
+    bool m_ShowColliders = true;   // enabled by default per requirement
+    bool m_ShowAABBs = false;
 };

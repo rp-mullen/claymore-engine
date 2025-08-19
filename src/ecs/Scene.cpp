@@ -294,19 +294,17 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
        return InstantiateModel(path, position);
        }
     else if (ext == ".prefab") {
-        EntityData prefabData;
-        if (!Serializer::LoadPrefabFromFile(path, prefabData, *this)) {
+        // Support both legacy single-entity and subtree prefab formats
+        EntityID rootId = Serializer::LoadPrefabToScene(path, *this);
+        if (rootId == -1 || rootId == 0) {
             std::cerr << "[Scene] Failed to load prefab: " << path << std::endl;
             return -1;
         }
-        // Create a new entity and copy prefab data into it
-        Entity entity = CreateEntity(prefabData.Name.empty() ? "Prefab" : prefabData.Name);
-        EntityData* dst = GetEntityData(entity.GetID());
-        if (!dst) return -1;
-        // Use DeepCopy semantics from prefab data to ensure proper ownership
-        *dst = prefabData.DeepCopy(entity.GetID(), this);
-        dst->Transform.Position = position;
-        return entity.GetID();
+        if (auto* d = GetEntityData(rootId)) {
+            d->Transform.Position = position;
+            MarkTransformDirty(rootId);
+        }
+        return rootId;
     }
    else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
       // Create a simple textured quad

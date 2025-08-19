@@ -23,6 +23,7 @@
 
 #include <core/application.h>
 #include "Terrain.h"
+#include <limits>
 
 
 // ---------------- Initialization ----------------
@@ -317,7 +318,7 @@ void Renderer::RenderScene(Scene& scene) {
       if (lights.size() == 4) break; // Hard limit
       }
 
-   if (Application::Get().m_RunEditorUI) {
+   if (Application::Get().m_RunEditorUI && m_ShowGrid) {
       DrawGrid();
       }
 
@@ -419,13 +420,40 @@ void Renderer::RenderScene(Scene& scene) {
    // Draw colliders in editor mode
    // --------------------------------------
    if (!scene.m_IsPlaying) {
-      for (auto& entity : scene.GetEntities()) {
-         auto* data = scene.GetEntityData(entity.GetID());
-         if (!data || !data->Visible || !data->Collider) continue;
+      // Colliders
+      if (m_ShowColliders) {
+         for (auto& entity : scene.GetEntities()) {
+            auto* data = scene.GetEntityData(entity.GetID());
+            if (!data || !data->Visible || !data->Collider) continue;
+            DrawCollider(*data->Collider, data->Transform);
+            }
+         }
 
-         DrawCollider(*data->Collider, data->Transform);
+      // Picking AABBs (world-space) around meshes
+      if (m_ShowAABBs) {
+         for (auto& entity : scene.GetEntities()) {
+            auto* data = scene.GetEntityData(entity.GetID());
+            if (!data || !data->Visible || !data->Mesh || !data->Mesh->mesh) continue;
+            std::shared_ptr<Mesh> meshPtr = data->Mesh->mesh;
+            if (!meshPtr) continue;
+            // Transform local AABB to world-space by transforming the 8 corners and recomputing min/max
+            const glm::vec3 lmin = meshPtr->BoundsMin;
+            const glm::vec3 lmax = meshPtr->BoundsMax;
+            glm::vec3 corners[8] = {
+               {lmin.x, lmin.y, lmin.z}, {lmax.x, lmin.y, lmin.z}, {lmin.x, lmax.y, lmin.z}, {lmax.x, lmax.y, lmin.z},
+               {lmin.x, lmin.y, lmax.z}, {lmax.x, lmin.y, lmax.z}, {lmin.x, lmax.y, lmax.z}, {lmax.x, lmax.y, lmax.z}
+            };
+            glm::vec3 wmin( std::numeric_limits<float>::max());
+            glm::vec3 wmax(-std::numeric_limits<float>::max());
+            for (int i = 0; i < 8; ++i) {
+               glm::vec3 w = glm::vec3(data->Transform.WorldMatrix * glm::vec4(corners[i], 1.0f));
+               wmin = glm::min(wmin, w);
+               wmax = glm::max(wmax, w);
+            }
+            DrawAABB(wmin, wmax, 0);
          }
       }
+   }
 
    // --------------------------------------
    // Draw text components (world or screen space)
@@ -683,7 +711,9 @@ void Renderer::RenderScene(Scene& scene, uint16_t viewId)
       lights.push_back(ld); if (lights.size() == 4) break;
       }
 
-   DrawGrid(viewId);
+   if (m_ShowGrid) {
+      DrawGrid(viewId);
+   }
    UploadLightsToShader(lights);
 
    std::vector<EntityID> entityIds; entityIds.reserve(scene.GetEntities().size());
@@ -1068,6 +1098,51 @@ void Renderer::DrawCollider(const ColliderComponent & collider, const TransformC
          }
       }
    }
+
+void Renderer::DrawAABB(const glm::vec3& worldMin, const glm::vec3& worldMax, uint16_t viewId) {
+   glm::vec3 v000 = {worldMin.x, worldMin.y, worldMin.z};
+   glm::vec3 v100 = {worldMax.x, worldMin.y, worldMin.z};
+   glm::vec3 v010 = {worldMin.x, worldMax.y, worldMin.z};
+   glm::vec3 v110 = {worldMax.x, worldMax.y, worldMin.z};
+   glm::vec3 v001 = {worldMin.x, worldMin.y, worldMax.z};
+   glm::vec3 v101 = {worldMax.x, worldMin.y, worldMax.z};
+   glm::vec3 v011 = {worldMin.x, worldMax.y, worldMax.z};
+   glm::vec3 v111 = {worldMax.x, worldMax.y, worldMax.z};
+
+   std::vector<GridVertex> lines = {
+      {v000.x, v000.y, v000.z}, {v100.x, v100.y, v100.z},
+      {v100.x, v100.y, v100.z}, {v110.x, v110.y, v110.z},
+      {v110.x, v110.y, v110.z}, {v010.x, v010.y, v010.z},
+      {v010.x, v010.y, v010.z}, {v000.x, v000.y, v000.z},
+
+      {v001.x, v001.y, v001.z}, {v101.x, v101.y, v101.z},
+      {v101.x, v101.y, v101.z}, {v111.x, v111.y, v111.z},
+      {v111.x, v111.y, v111.z}, {v011.x, v011.y, v011.z},
+      {v011.x, v011.y, v011.z}, {v001.x, v001.y, v001.z},
+
+      {v000.x, v000.y, v000.z}, {v001.x, v001.y, v001.z},
+      {v100.x, v100.y, v100.z}, {v101.x, v101.y, v101.z},
+      {v110.x, v110.y, v110.z}, {v111.x, v111.y, v111.z},
+      {v010.x, v010.y, v010.z}, {v011.x, v011.y, v011.z},
+   };
+
+   const bgfx::Memory* mem = bgfx::copy(lines.data(), (uint32_t)(lines.size() * sizeof(GridVertex)));
+   bgfx::VertexBufferHandle vbh = bgfx::createVertexBuffer(mem, GridVertex::layout);
+   float identity[16]; bx::mtxIdentity(identity);
+   bgfx::setTransform(identity);
+   bgfx::setVertexBuffer(0, vbh);
+
+   auto debugMat = MaterialManager::Instance().CreateDefaultDebugMaterial();
+   debugMat->BindUniforms();
+   bgfx::setState(
+      BGFX_STATE_WRITE_RGB |
+      BGFX_STATE_DEPTH_TEST_LEQUAL |
+      BGFX_STATE_PT_LINES |
+      BGFX_STATE_BLEND_ALPHA
+   );
+   bgfx::submit(viewId, debugMat->GetProgram());
+   bgfx::destroy(vbh);
+}
 
 // --------------------------------------
 // Draw simple wireframe outline around selected entity's mesh (editor only)

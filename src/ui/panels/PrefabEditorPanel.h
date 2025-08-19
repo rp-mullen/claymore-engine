@@ -22,18 +22,24 @@ public:
     // Accessors to expose scene/selection so UILayer can point panels at this editor when active
     Scene* GetScene() { return &m_Scene; }
     EntityID* GetSelectedEntityPtr() { return &m_SelectedEntity; }
+    // Prefab path and focus request for UILayer dedup/focus behavior
+    const std::string& GetPrefabPath() const { return m_PrefabPath; }
+    void RequestFocus() { m_FocusNextFrame = true; }
 private:
     // Helper to load prefab file into the internal scene
     void LoadPrefab(const std::string& path);
+    void EnsureEditorLighting();
 
 private:
     std::string m_PrefabPath;
     bool m_IsOpen = true;
     bool m_Docked = false;
     mutable bool m_IsFocusedOrHovered = false;
+    bool m_FocusNextFrame = false;
 
     Scene m_Scene;
     EntityID m_SelectedEntity = -1;
+    EntityID m_EditorLight = -1;
 
     // Embedded viewport for editing
     ViewportPanel m_ViewportPanel;

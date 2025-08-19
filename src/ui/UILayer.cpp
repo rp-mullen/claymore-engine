@@ -179,6 +179,7 @@ void UILayer::OnUIRender() {
     m_SceneHierarchyPanel.SetContext(m_ActiveEditorScene);
     m_SceneHierarchyPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr ? m_ActiveSelectedEntityPtr : &m_SelectedEntity);
     m_InspectorPanel.SetContext(m_ActiveEditorScene);
+    m_InspectorPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr ? m_ActiveSelectedEntityPtr : &m_SelectedEntity);
 
     // Render other panels first
     m_ProjectPanel.OnImGuiRender();
@@ -244,22 +245,33 @@ void UILayer::OnUIRender() {
             m_SceneHierarchyPanel.SetContext(m_ActiveEditorScene);
             m_SceneHierarchyPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
             m_InspectorPanel.SetContext(m_ActiveEditorScene);
+            m_InspectorPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
             madeStickyThisFrame = true;
         }
 
         if (!panel->IsOpen()) {
+            // If the closing panel was the sticky source, revert to main scene
+            if (m_ActiveEditorScene == panel->GetScene() || m_ActiveSelectedEntityPtr == panel->GetSelectedEntityPtr()) {
+                m_ActiveEditorScene = activeScene;
+                m_ActiveSelectedEntityPtr = &m_SelectedEntity;
+                m_SceneHierarchyPanel.SetContext(m_ActiveEditorScene);
+                m_SceneHierarchyPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
+                m_InspectorPanel.SetContext(m_ActiveEditorScene);
+                m_InspectorPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
+            }
             it = m_PrefabEditors.erase(it);
         } else {
             ++it;
         }
     }
     // If the main viewport window is focused, switch sticky source back to main scene
-    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && m_ViewportPanel.IsWindowFocusedOrHovered()) {
+    if (m_ViewportPanel.IsWindowFocusedOrHovered()) {
         m_ActiveEditorScene = activeScene;
         m_ActiveSelectedEntityPtr = &m_SelectedEntity;
         m_SceneHierarchyPanel.SetContext(m_ActiveEditorScene);
         m_SceneHierarchyPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
         m_InspectorPanel.SetContext(m_ActiveEditorScene);
+        m_InspectorPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
     }
 
     // If no prefab editor claimed focus this frame, keep whatever sticky source we had
@@ -442,6 +454,58 @@ void UILayer::BeginDockspace() {
         }
     }
 
+    // Right-aligned View dropdown (combo)
+    {
+        float rightRegion = ImGui::GetContentRegionAvail().x;
+        if (rightRegion > 0) {
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + rightRegion - 140.0f);
+        }
+        ImGui::SetNextItemWidth(120.0f);
+        if (ImGui::BeginCombo("##ViewOptions", "View")) {
+            bool showGrid = Renderer::Get().GetShowGrid();
+            bool showAABBs = Renderer::Get().GetShowAABBs();
+            bool showColliders = Renderer::Get().GetShowColliders();
+            if (ImGui::Checkbox("Debug Grid", &showGrid)) {
+                Renderer::Get().SetShowGrid(showGrid);
+            }
+            if (ImGui::Checkbox("Picking AABBs", &showAABBs)) {
+                Renderer::Get().SetShowAABBs(showAABBs);
+            }
+            if (ImGui::Checkbox("Colliders", &showColliders)) {
+                Renderer::Get().SetShowColliders(showColliders);
+            }
+            ImGui::EndCombo();
+        }
+    }
+
+    // Right-aligned View/Gizmo options
+    ImGui::SameLine();
+    float rightAvail = ImGui::GetContentRegionAvail().x;
+    if (rightAvail > 0) {
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + rightAvail - 220.0f);
+    }
+    bool showGizmos = m_ToolbarPanel.IsShowGizmosEnabled();
+    if (ImGui::Checkbox("Gizmos", &showGizmos)) {
+        // Apply to main viewport
+        m_ViewportPanel.SetShowGizmos(showGizmos);
+        // Apply to any prefab editor viewports
+        for (auto& ed : m_PrefabEditors) {
+            if (ed) ed->GetScene(); // ensure alive
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::BeginCombo("##GizmoMode", "Options")) {
+        // Additional toggles can be added here in the future
+        bool grid = Renderer::Get().GetShowGrid();
+        if (ImGui::Checkbox("Debug Grid", &grid)) Renderer::Get().SetShowGrid(grid);
+        bool aabbs = Renderer::Get().GetShowAABBs();
+        if (ImGui::Checkbox("Picking AABBs", &aabbs)) Renderer::Get().SetShowAABBs(aabbs);
+        bool colliders = Renderer::Get().GetShowColliders();
+        if (ImGui::Checkbox("Colliders", &colliders)) Renderer::Get().SetShowColliders(colliders);
+        ImGui::EndCombo();
+    }
+
     ImGui::EndChild();
     ImGui::PopStyleVar();
 
@@ -523,6 +587,13 @@ void UILayer::TogglePlayMode() {
 // Prefab Editor Management
 // =============================
 void UILayer::OpenPrefabEditor(const std::string& prefabPath) {
+    // If an editor for this prefab already exists, focus it instead of opening another
+    for (auto& ed : m_PrefabEditors) {
+        if (ed && ed->GetPrefabPath() == prefabPath) {
+            ed->RequestFocus();
+            return;
+        }
+    }
     m_PrefabEditors.emplace_back(std::make_unique<PrefabEditorPanel>(prefabPath, this));
 }
 

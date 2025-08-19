@@ -12,6 +12,8 @@
 #include "pipeline/AssetLibrary.h"
 #include "pipeline/AssetMetadata.h"
 #include <editor/Project.h>
+#include "rendering/MaterialManager.h"
+#include "rendering/StandardMeshManager.h"
 
 namespace fs = std::filesystem;
 
@@ -30,30 +32,30 @@ void PrefabEditorPanel::LoadPrefab(const std::string& path)
         return;
     }
 
-    EntityData prefabData;
-    if (!Serializer::LoadPrefabFromFile(path, prefabData, m_Scene)) {
-        std::cerr << "[PrefabEditor] Failed to deserialize prefab: " << path << std::endl;
+    // Load prefab into this panel's private scene using scene-style logic
+    // Supports both legacy single-entity and subtree formats without changing serialization
+    EntityID root = Serializer::LoadPrefabToScene(path, m_Scene);
+    if (root == (EntityID)-1 || root == 0) {
+        std::cerr << "[PrefabEditor] Failed to load prefab into scene: " << path << std::endl;
         return;
     }
 
-    // Instantiate entity into the internal scene
-    Entity prefabEntity = m_Scene.CreateEntity(prefabData.Name.empty() ? "PrefabEntity" : prefabData.Name);
-    EntityData* dstData = m_Scene.GetEntityData(prefabEntity.GetID());
-    if (dstData) {
-        *dstData = prefabData.DeepCopy(prefabEntity.GetID(), &m_Scene);
-    }
-
-    m_SelectedEntity = prefabEntity.GetID();
+    m_SelectedEntity = root;
     // Ensure transforms are up-to-date in the isolated prefab scene
     m_Scene.MarkTransformDirty(m_SelectedEntity);
     m_Scene.UpdateTransforms();
+    // Add non-serialized editor lighting/environment
+    EnsureEditorLighting();
 }
 
 void PrefabEditorPanel::OnImGuiRender()
 {
     if (!m_IsOpen) return;
 
-    std::string windowTitle = "Prefab Editor - " + fs::path(m_PrefabPath).filename().string();
+    // Visible title plus hidden unique ID to avoid collisions when opening same-named prefabs
+    std::string displayName = "Prefab Editor - " + fs::path(m_PrefabPath).filename().string();
+    std::string windowTitle = displayName + std::string("###PrefabEditor|") + m_PrefabPath;
+    if (m_FocusNextFrame) { ImGui::SetNextWindowFocus(); m_FocusNextFrame = false; }
     if (!ImGui::Begin(windowTitle.c_str(), &m_IsOpen, ImGuiWindowFlags_MenuBar)) {
         ImGui::End();
         return;
@@ -64,11 +66,9 @@ void PrefabEditorPanel::OnImGuiRender()
     // Optional: menu bar for future features
     if (ImGui::BeginMenuBar()) {
         if (ImGui::MenuItem("Save")) {
-            // Reserialize current selected entity back to file
+            // Save the selected entity and its subtree to preserve hierarchy
             if (m_SelectedEntity != -1) {
-                EntityData* data = m_Scene.GetEntityData(m_SelectedEntity);
-                if (data) {
-                    if (Serializer::SavePrefabToFile(*data, m_Scene, m_PrefabPath)) {
+                if (Serializer::SavePrefabSubtreeToFile(m_Scene, m_SelectedEntity, m_PrefabPath)) {
                         // Ensure prefab is registered and has a .meta
                         try {
                             std::filesystem::path p(m_PrefabPath);
@@ -91,7 +91,8 @@ void PrefabEditorPanel::OnImGuiRender()
                             AssetLibrary::Instance().RegisterAsset(AssetReference(meta.guid, 0, (int)AssetType::Prefab), AssetType::Prefab, vpath, name);
                             AssetLibrary::Instance().RegisterPathAlias(meta.guid, m_PrefabPath);
                         } catch(...) {}
-                    }
+                } else {
+                    std::cerr << "[PrefabEditor] Save failed for: " << m_PrefabPath << std::endl;
                 }
             }
         }
@@ -125,4 +126,29 @@ void PrefabEditorPanel::OnImGuiRender()
     ImGui::EndChild();
 
     ImGui::End();
+}
+
+// Ensure there is editor-only lighting without serializing it into the prefab
+void PrefabEditorPanel::EnsureEditorLighting() {
+    // Soften ambient to make untextured assets visible
+    Environment& env = m_Scene.GetEnvironment();
+    env.Ambient = Environment::AmbientMode::FlatColor;
+    env.AmbientColor = glm::vec3(0.6f, 0.6f, 0.6f);
+    env.AmbientIntensity = 1.0f;
+    env.UseSkybox = false;
+
+    // Add a single directional light if none exists
+    bool hasAnyLight = false;
+    for (const auto& e : m_Scene.GetEntities()) {
+        if (auto* d = m_Scene.GetEntityData(e.GetID()); d && d->Light) { hasAnyLight = true; break; }
+    }
+    if (!hasAnyLight) {
+        Entity light = m_Scene.CreateEntityExact("__EditorLight");
+        m_EditorLight = light.GetID();
+        if (auto* d = m_Scene.GetEntityData(m_EditorLight)) {
+            d->Light = std::make_unique<LightComponent>(LightType::Directional, glm::vec3(1.0f), 1.0f);
+            d->Transform.Position = glm::vec3(3.0f, 5.0f, 3.0f);
+            d->Transform.Rotation = glm::vec3(-45.0f, 45.0f, 0.0f);
+        }
+    }
 }

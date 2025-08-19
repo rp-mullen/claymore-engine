@@ -40,6 +40,8 @@ public:
     // Gizmo operation control
     void SetOperation(ImGuizmo::OPERATION op) { m_CurrentOperation = op; }
     ImGuizmo::OPERATION GetCurrentOperation() const { return m_CurrentOperation; }
+    void SetShowGizmos(bool enabled) { m_ShowGizmos = enabled; }
+    bool GetShowGizmos() const { return m_ShowGizmos; }
 
     // Picking API
     bool HasPickRequest() const { return m_ShouldPick; }

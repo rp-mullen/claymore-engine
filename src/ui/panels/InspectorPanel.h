@@ -25,6 +25,8 @@ public:
     // External selection hook: when a project asset (e.g., scene file) is selected
     void SetSelectedAssetPath(const std::string& path) { m_SelectedAssetPath = path; }
    void SetAvatarBuilderPanel(AvatarBuilderPanel* panel) { m_AvatarBuilder = panel; }
+   // Allow switching the selected entity pointer at runtime (to follow active editor scene)
+   void SetSelectedEntityPtr(EntityID* ptr) { m_SelectedEntity = ptr; }
    // Animator node selection bridge
    void ShowAnimatorStateProperties(const std::string& stateName,
                                     std::string& clipPath,
