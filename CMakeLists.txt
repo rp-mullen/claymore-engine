@@ -26,11 +26,13 @@ set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
 add_subdirectory(external/glfw)
 add_subdirectory(external/assimp)
 
-foreach(lib glfw assimp)
-    set_target_properties(${lib} PROPERTIES
-        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-    )
-endforeach()
+if(MSVC)
+    foreach(lib glfw assimp)
+        set_target_properties(${lib} PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        )
+    endforeach()
+endif()
 
 # ============================
 # JOLT PHYSICS
@@ -38,7 +40,9 @@ endforeach()
 file(GLOB_RECURSE JOLT_SRC external/JoltPhysics/Jolt/*.cpp)
 add_library(JoltPhysics STATIC ${JOLT_SRC})
 target_include_directories(JoltPhysics PUBLIC external/JoltPhysics)
-target_compile_options(JoltPhysics PRIVATE /wd4244 /wd4305)
+if(MSVC)
+    target_compile_options(JoltPhysics PRIVATE /wd4244 /wd4305)
+endif()
 set_target_properties(JoltPhysics PROPERTIES
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 )
@@ -47,6 +51,9 @@ set_target_properties(JoltPhysics PROPERTIES
 # OPENSSL CONFIG
 # ============================
 find_package(OpenSSL REQUIRED)
+if(UNIX AND NOT APPLE)
+    find_package(Threads REQUIRED)
+endif()
 
 # ============================
 # DOTNET BRIDGE (Dynamic nethost.dll)
@@ -64,6 +71,9 @@ target_include_directories(DotnetBridge PUBLIC
 )
  
 target_link_libraries(DotnetBridge PRIVATE OpenSSL::SSL OpenSSL::Crypto JoltPhysics imgui_bgfx imgui)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(DotnetBridge PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
+endif()
 
 set_target_properties(DotnetBridge PROPERTIES
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
@@ -150,9 +160,6 @@ set_target_properties(Claymore PROPERTIES
 )
 
 target_link_libraries(Claymore PRIVATE
-    ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/bgfxDebug.lib
-    ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/bimgDebug.lib
-    ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/bxDebug.lib
     glfw
     assimp
     imgui
@@ -161,6 +168,25 @@ target_link_libraries(Claymore PRIVATE
     OpenSSL::SSL 
     OpenSSL::Crypto
 )
+
+if(WIN32)
+    # Link prebuilt bgfx libs for MSVC
+    target_link_libraries(Claymore PRIVATE
+        ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/bgfx$<IF:$<CONFIG:Debug>,Debug,Release>.lib
+        ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/bimg$<IF:$<CONFIG:Debug>,Debug,Release>.lib
+        ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/bx$<IF:$<CONFIG:Debug>,Debug,Release>.lib
+    )
+elseif(UNIX AND NOT APPLE)
+    # Link prebuilt bgfx libs for linux gcc and required system libs
+    target_link_libraries(Claymore PRIVATE
+        ${CMAKE_SOURCE_DIR}/external/bgfx/.build/linux64_gcc/bin/libbgfx$<IF:$<CONFIG:Debug>,Debug,Release>.a
+        ${CMAKE_SOURCE_DIR}/external/bgfx/.build/linux64_gcc/bin/libbimg$<IF:$<CONFIG:Debug>,Debug,Release>.a
+        ${CMAKE_SOURCE_DIR}/external/bgfx/.build/linux64_gcc/bin/libbx$<IF:$<CONFIG:Debug>,Debug,Release>.a
+        Threads::Threads
+        ${CMAKE_DL_LIBS}
+        X11 Xcursor Xinerama Xi Xrandr GL
+    )
+endif()
 
 # ============================
 # FILE ORGANIZATION IN VS
@@ -184,7 +210,7 @@ endforeach()
 set(IMGUI_SHADER_DIR ${CMAKE_SOURCE_DIR}/shaders/imgui)
 set(IMGUI_SHADER_OUT ${CMAKE_BINARY_DIR}/shaders/imgui)
 
-# Try to locate shaderc.exe in a few common places
+# Try to locate shaderc (exe on Windows, binary on Linux)
 set(SHADERC_EXE "")
 set(_shaderc_candidates
     ${CMAKE_SOURCE_DIR}/tools/shaderc.exe
@@ -193,6 +219,10 @@ set(_shaderc_candidates
     ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/shadercRelease.exe
     ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2019/bin/shadercDebug.exe
     ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2019/bin/shadercRelease.exe
+    ${CMAKE_SOURCE_DIR}/tools/shaderc
+    ${CMAKE_BINARY_DIR}/tools/shaderc
+    ${CMAKE_SOURCE_DIR}/external/bgfx/.build/linux64_gcc/bin/shadercDebug
+    ${CMAKE_SOURCE_DIR}/external/bgfx/.build/linux64_gcc/bin/shadercRelease
 )
 foreach(c ${_shaderc_candidates})
     if(EXISTS ${c})
@@ -202,25 +232,44 @@ foreach(c ${_shaderc_candidates})
 endforeach()
 
 if(SHADERC_EXE)
-    add_custom_target(compile_imgui_shaders ALL
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${IMGUI_SHADER_OUT}
-        COMMAND ${SHADERC_EXE}
-            -f ${IMGUI_SHADER_DIR}/vs_ocornut_imgui.sc
-            -o ${IMGUI_SHADER_OUT}/vs_ocornut_imgui.bin
-            --type vertex --platform windows --profile s_5_0
-            --varyingdef ${IMGUI_SHADER_DIR}/varying.def.sc
-            -i ${CMAKE_SOURCE_DIR}/shaders -i ${CMAKE_SOURCE_DIR}/external/bgfx/src
-        COMMAND ${SHADERC_EXE}
-            -f ${IMGUI_SHADER_DIR}/fs_ocornut_imgui.sc
-            -o ${IMGUI_SHADER_OUT}/fs_ocornut_imgui.bin
-            --type fragment --platform windows --profile s_5_0
-            --varyingdef ${IMGUI_SHADER_DIR}/varying.def.sc
-            -i ${CMAKE_SOURCE_DIR}/shaders -i ${CMAKE_SOURCE_DIR}/external/bgfx/src
-        DEPENDS ${IMGUI_SHADER_DIR}/vs_ocornut_imgui.sc ${IMGUI_SHADER_DIR}/fs_ocornut_imgui.sc
-    )
+    if(WIN32)
+        add_custom_target(compile_imgui_shaders ALL
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${IMGUI_SHADER_OUT}
+            COMMAND ${SHADERC_EXE}
+                -f ${IMGUI_SHADER_DIR}/vs_ocornut_imgui.sc
+                -o ${IMGUI_SHADER_OUT}/vs_ocornut_imgui.bin
+                --type vertex --platform windows --profile s_5_0
+                --varyingdef ${IMGUI_SHADER_DIR}/varying.def.sc
+                -i ${CMAKE_SOURCE_DIR}/shaders -i ${CMAKE_SOURCE_DIR}/external/bgfx/src
+            COMMAND ${SHADERC_EXE}
+                -f ${IMGUI_SHADER_DIR}/fs_ocornut_imgui.sc
+                -o ${IMGUI_SHADER_OUT}/fs_ocornut_imgui.bin
+                --type fragment --platform windows --profile s_5_0
+                --varyingdef ${IMGUI_SHADER_DIR}/varying.def.sc
+                -i ${CMAKE_SOURCE_DIR}/shaders -i ${CMAKE_SOURCE_DIR}/external/bgfx/src
+            DEPENDS ${IMGUI_SHADER_DIR}/vs_ocornut_imgui.sc ${IMGUI_SHADER_DIR}/fs_ocornut_imgui.sc
+        )
+    elseif(UNIX AND NOT APPLE)
+        add_custom_target(compile_imgui_shaders ALL
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${IMGUI_SHADER_OUT}
+            COMMAND ${SHADERC_EXE}
+                -f ${IMGUI_SHADER_DIR}/vs_ocornut_imgui.sc
+                -o ${IMGUI_SHADER_OUT}/vs_ocornut_imgui.bin
+                --type vertex --platform linux --profile 120
+                --varyingdef ${IMGUI_SHADER_DIR}/varying.def.sc
+                -i ${CMAKE_SOURCE_DIR}/shaders -i ${CMAKE_SOURCE_DIR}/external/bgfx/src
+            COMMAND ${SHADERC_EXE}
+                -f ${IMGUI_SHADER_DIR}/fs_ocornut_imgui.sc
+                -o ${IMGUI_SHADER_OUT}/fs_ocornut_imgui.bin
+                --type fragment --platform linux --profile 120
+                --varyingdef ${IMGUI_SHADER_DIR}/varying.def.sc
+                -i ${CMAKE_SOURCE_DIR}/shaders -i ${CMAKE_SOURCE_DIR}/external/bgfx/src
+            DEPENDS ${IMGUI_SHADER_DIR}/vs_ocornut_imgui.sc ${IMGUI_SHADER_DIR}/fs_ocornut_imgui.sc
+        )
+    endif()
     add_dependencies(Claymore compile_imgui_shaders)
 else()
-    message(WARNING "shaderc.exe not found; skipping ImGui shader compilation. Place shaderc.exe in 'tools/' or build bgfx tools to generate it. The runtime will copy any precompiled bins if present.")
+    message(WARNING "shaderc not found; skipping ImGui shader compilation. Place shaderc in 'tools/' or build bgfx tools to generate it. The runtime will copy any precompiled bins if present.")
 endif()
 
 # ============================
@@ -230,8 +279,13 @@ add_custom_command(TARGET Claymore POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:Claymore>/shaders
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${IMGUI_SHADER_OUT} $<TARGET_FILE_DIR:Claymore>/shaders/imgui
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:Claymore>/assets
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/external/dotnet_hosting/nethost.dll $<TARGET_FILE_DIR:Claymore>
 )
+
+if(WIN32)
+    add_custom_command(TARGET Claymore POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/external/dotnet_hosting/nethost.dll $<TARGET_FILE_DIR:Claymore>
+    )
+endif()
 
 set(CLAYMORE_ENGINE_DLL_DIR ${CMAKE_SOURCE_DIR}/scripts/ClaymoreEngine/bin/Debug/net8.0)
 
