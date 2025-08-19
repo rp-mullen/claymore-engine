@@ -61,7 +61,7 @@ endif()
 add_library(DotnetBridge STATIC
     src/interop/DotnetBridge.cpp
     src/scripting/DotNetHost.cpp
-    src/scripting/ScriptReflectionInterop.cpp
+    src/scripting/ScriptReflectionInterop.cpp 
 )
 target_include_directories(DotnetBridge PUBLIC
     external/dotnet_hosting

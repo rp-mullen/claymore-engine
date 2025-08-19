@@ -161,7 +161,7 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         aiProcess_FlipUVs |
         aiProcess_JoinIdenticalVertices |
         aiProcess_ImproveCacheLocality |
-		aiProcess_LimitBoneWeights |
+		  aiProcess_LimitBoneWeights |
         aiProcess_GlobalScale
     );
 

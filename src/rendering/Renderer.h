@@ -132,7 +132,6 @@ private:
     std::unique_ptr<TextRenderer> m_TextRenderer;
 
     // UI rendering
-    struct UIVertex { float x,y,z; float u,v; uint32_t abgr; static bgfx::VertexLayout layout; static void Init(){ if(layout.getStride()==0){ layout.begin().add(bgfx::Attrib::Position,3,bgfx::AttribType::Float).add(bgfx::Attrib::TexCoord0,2,bgfx::AttribType::Float).add(bgfx::Attrib::Color0,4,bgfx::AttribType::Uint8,true).end(); } } };
     bgfx::UniformHandle m_UISampler = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle m_UIProgram = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle m_UIWhiteTex = BGFX_INVALID_HANDLE;

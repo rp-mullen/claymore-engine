@@ -1,0 +1,16 @@
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\bin\Debug\net8.0\Claymore.Modules.RPG.deps.json
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\bin\Debug\net8.0\Claymore.Modules.RPG.dll
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\bin\Debug\net8.0\Claymore.Modules.RPG.pdb
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\bin\Debug\net8.0\ClaymoreEngine.dll
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\bin\Debug\net8.0\ClaymoreEngine.pdb
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\Claymore.Modules.RPG.csproj.AssemblyReference.cache
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\Claymore.Modules.RPG.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\Claymore.Modules.RPG.AssemblyInfoInputs.cache
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\Claymore.Modules.RPG.AssemblyInfo.cs
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\Claymore.Modules.RPG.csproj.CoreCompileInputs.cache
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\Claymore.Modules.RPG.sourcelink.json
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\Claymore.7E1BFBA3.Up2Date
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\Claymore.Modules.RPG.dll
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\refint\Claymore.Modules.RPG.dll
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\Claymore.Modules.RPG.pdb
+C:\Projects\claymore\scripts\Modules\Claymore.Modules.RPG\obj\Debug\net8.0\ref\Claymore.Modules.RPG.dll
