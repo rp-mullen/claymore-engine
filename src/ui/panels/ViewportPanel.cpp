@@ -8,6 +8,8 @@
 #include <cmath>
 #include <cstring>
 #include "ecs/EntityData.h"
+#include <utils/Time.h>
+#include <cfloat>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/euler_angles.hpp>
@@ -17,6 +19,9 @@
 #include "ViewportToolbar.h"
 #include "pipeline/AssetPipeline.h"
 #include "core/application.h"
+#include <editor/Input.h>
+#include "ecs/Scene.h"
+#include "ecs/EntityData.h"
 
 // =============================
 // Main Viewport Render
@@ -27,6 +32,12 @@
 // =============================================================
 void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
     ImGui::Begin("Viewport");
+    // Toggle for screen-space outline (debug)
+    bool useSS = m_ScreenSpaceOutline;
+    if (ImGui::Checkbox("Screen-space outline", &useSS)) {
+        m_ScreenSpaceOutline = useSS;
+        Renderer::Get().m_UseScreenSpaceOutline = useSS;
+    }
     m_WindowFocusedOrHovered = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) ||
                                ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
     // Reuse the same rendering path as embedded panels so behavior is identical
@@ -122,6 +133,14 @@ void ViewportPanel::HandleCameraControls() {
     Camera* cam = m_UseInternalCamera ? m_Camera.get() : Renderer::Get().GetCamera();
     if (!cam || m_ViewportSize.x <= 0.0f || m_ViewportSize.y <= 0.0f) return;
 
+    // Shortcut: Frame selected (Editor-only)
+    if (!Application::Get().IsPlaying() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
+        // GLFW F key = 70
+        if (Input::WasKeyPressedThisFrame(70) && m_SelectedEntity && *m_SelectedEntity != -1) {
+            FrameSelected(0.35f);
+        }
+    }
+
     ImGuiIO& io = ImGui::GetIO();
 
     if (ImGuizmo::IsOver()) {
@@ -166,9 +185,16 @@ void ViewportPanel::HandleCameraControls() {
        io.WantCaptureMouse = false;
        io.WantCaptureKeyboard = false;
 
-       ImVec2 delta = io.MouseDelta;
-       m_Yaw += delta.x * 0.2f;
-       m_Pitch -= delta.y * 0.2f;
+       // If mouse is captured (relative mode), use engine input deltas; otherwise use ImGui's
+       float dx = 0.0f, dy = 0.0f;
+       if (Input::IsRelativeMode()) {
+           auto d = Input::GetMouseDelta();
+           dx = d.first; dy = d.second;
+       } else {
+           dx = io.MouseDelta.x; dy = io.MouseDelta.y;
+       }
+       m_Yaw += dx * 0.2f;
+       m_Pitch -= dy * 0.2f;
        m_Pitch = glm::clamp(m_Pitch, -89.0f, 89.0f);
 
        float scroll = io.MouseWheel;
@@ -215,10 +241,73 @@ void ViewportPanel::HandleCameraControls() {
     dir.z = sin(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
     dir = glm::normalize(dir);
 
+    // Apply active tween towards target/distance
+    if (m_IsTweening) {
+        m_TweenTime += (float)Time::GetDeltaTime();
+        float t = glm::clamp(m_TweenTime / m_TweenDuration, 0.0f, 1.0f);
+        // Smoothstep easing
+        t = t * t * (3.0f - 2.0f * t);
+        m_Target = glm::mix(m_TargetStart, m_TargetEnd, t);
+        m_Distance = glm::mix(m_DistanceStart, m_DistanceEnd, t);
+        if (t >= 1.0f) m_IsTweening = false;
+    }
+
     glm::vec3 camPos = m_Target - dir * m_Distance;
     cam->SetPosition(camPos);
     cam->LookAt(m_Target);
 
+}
+
+void ViewportPanel::FrameSelected(float durationSeconds)
+{
+    if (!m_Context || !m_SelectedEntity || *m_SelectedEntity == -1)
+        return;
+
+    auto* data = m_Context->GetEntityData(*m_SelectedEntity);
+    if (!data)
+        return;
+
+    // Compute world-space AABB by transforming mesh local bounds
+    glm::vec3 worldCenter = glm::vec3(data->Transform.WorldMatrix * glm::vec4(0,0,0,1));
+    float radius = 1.0f;
+
+    if (data->Mesh && data->Mesh->mesh) {
+        glm::vec3 lmin = data->Mesh->mesh->BoundsMin;
+        glm::vec3 lmax = data->Mesh->mesh->BoundsMax;
+        glm::vec3 corners[8] = {
+            {lmin.x,lmin.y,lmin.z},{lmax.x,lmin.y,lmin.z},{lmin.x,lmax.y,lmin.z},{lmax.x,lmax.y,lmin.z},
+            {lmin.x,lmin.y,lmax.z},{lmax.x,lmin.y,lmax.z},{lmin.x,lmax.y,lmax.z},{lmax.x,lmax.y,lmax.z}
+        };
+        glm::vec3 wmin( FLT_MAX), wmax(-FLT_MAX);
+        for (int i=0;i<8;i++) {
+            glm::vec3 wp = glm::vec3(data->Transform.WorldMatrix * glm::vec4(corners[i], 1.0f));
+            wmin = glm::min(wmin, wp);
+            wmax = glm::max(wmax, wp);
+        }
+        worldCenter = (wmin + wmax) * 0.5f;
+        glm::vec3 extents = (wmax - wmin) * 0.5f;
+        radius = glm::length(extents);
+        radius = std::max(radius, 0.001f);
+    }
+
+    // Desired distance to frame bounds given current FOV
+    float fovDeg = 60.0f;
+    if (m_UseInternalCamera && m_Camera) {
+        // assume internal cam fov set in ctor
+    }
+    // Use vertical FOV of 60 deg default; make conservative by using the larger of width/height extents
+    float fovRad = glm::radians(60.0f);
+    float dist = radius / std::tan(fovRad * 0.5f);
+    dist *= 1.2f; // padding
+
+    // Tween from current target/distance
+    m_TargetStart = m_Target;
+    m_TargetEnd = worldCenter;
+    m_DistanceStart = m_Distance;
+    m_DistanceEnd = std::max(dist, 0.1f);
+    m_TweenDuration = std::max(0.0f, durationSeconds);
+    m_TweenTime = 0.0f;
+    m_IsTweening = true;
 }
 // =============================
 // Picking

@@ -1,14 +1,13 @@
 $input a_position
-$output v_color0
+$output v_texcoord0
 
 #include <bgfx_shader.sh>
 
-uniform vec4 u_outlineColor;
-
 void main()
 {
-    v_color0 = u_outlineColor;
-    gl_Position = mul(u_modelViewProj, vec4(a_position, 1.0));
+    // Fullscreen clip-space geometry supplied already in clip coords
+    gl_Position = vec4(a_position, 1.0);
+    v_texcoord0.xy = a_position.xy * 0.5 + 0.5;
 }
 
 

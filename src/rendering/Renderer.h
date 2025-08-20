@@ -93,7 +93,7 @@ public:
     void SetShowAABBs(bool v) { m_ShowAABBs = v; }
     bool GetShowAABBs() const { return m_ShowAABBs; }
 
-
+    bool m_UseScreenSpaceOutline = false;
 private:
     Renderer() = default;
     ~Renderer();
@@ -104,6 +104,7 @@ private:
 
     bgfx::FrameBufferHandle m_SceneFrameBuffer = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle m_SceneTexture = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle m_SceneDepthTexture = BGFX_INVALID_HANDLE;
 
     float m_view[16]{};
     float m_proj[16]{};
@@ -120,11 +121,27 @@ private:
     bgfx::UniformHandle u_SkyZenith    = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_SkyHorizon   = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_normalMat    = BGFX_INVALID_HANDLE; // CPU-provided normal matrix
-
+     
 
     bgfx::ProgramHandle m_DebugLineProgram = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle m_OutlineProgram = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_outlineColor = BGFX_INVALID_HANDLE;
+
+    // Outline/mask resources
+    bgfx::TextureHandle m_VisMaskTex = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle m_OccMaskTex = BGFX_INVALID_HANDLE;
+    bgfx::FrameBufferHandle m_VisMaskFB = BGFX_INVALID_HANDLE;
+    bgfx::FrameBufferHandle m_OccMaskFB = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_TexelSize = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_OutlineColor = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_OutlineParams = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle m_SelectMaskProgram = BGFX_INVALID_HANDLE; // static mask (vs_pbr)
+    bgfx::ProgramHandle m_SelectMaskProgramSkinned = BGFX_INVALID_HANDLE; // skinned mask (vs_pbr_skinned)
+    bgfx::ProgramHandle m_OutlineCompositeProgram = BGFX_INVALID_HANDLE; // fullscreen
+    bgfx::UniformHandle s_MaskVis = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle s_MaskOcc = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle m_TintProgram = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_TintColor = BGFX_INVALID_HANDLE;
 
 
     // Terrain rendering resources
@@ -152,6 +169,8 @@ private:
 
     // When true, views 0/1/2 render to the offscreen scene framebuffer; otherwise, they render directly to the backbuffer
     bool m_RenderToOffscreen = true;
+    // Toggle: when false, use legacy geometry-scaled outline; when true, use screen-space mask+dilate
+    
 
 public:
     void SetShowUIOverlay(bool v){ m_ShowUIOverlay = v; }

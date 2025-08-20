@@ -6,7 +6,7 @@
 std::unordered_map<int, bool> Input::s_Keys;
 std::unordered_map<int, bool> Input::s_MouseButtons;
 std::unordered_map<int, bool> Input::s_KeyDownEdge;
-
+ 
 double Input::s_LastMouseX = 0.0;
 double Input::s_LastMouseY = 0.0;
 

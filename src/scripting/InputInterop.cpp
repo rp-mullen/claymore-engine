@@ -2,6 +2,8 @@
 #include "editor/Input.h"
 #include "ui/Logger.h"
 #include <core/application.h>
+#include <imgui.h>
+#include <imgui_internal.h>
 
 // --------------------------------------------------------------------------------------
 // Function pointer typedefs matching managed delegate signatures.
@@ -55,7 +57,7 @@ __declspec(dllexport) void GetMouseDelta(float* deltaX, float* deltaY)
 __declspec(dllexport) void DebugLog(const char* msg)
 {
     if(msg)
-        Logger::Log(msg);
+        Logger::Log(msg); 
 }
 
 __declspec(dllexport) void SetMouseMode(int mode)
@@ -64,6 +66,14 @@ __declspec(dllexport) void SetMouseMode(int mode)
     bool capture = (mode == 1);
     // Toggle platform capture and input relative mode
     Application::Get().SetMouseCaptured(capture);
+    // In editor, make sure ImGui doesn't capture/hover when captured
+    if (capture) {
+        ImGuiIO& io = ImGui::GetIO();
+        io.WantCaptureMouse = false;
+        io.WantCaptureKeyboard = false;
+        io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+        ImGui::ClearActiveID();
+    }
 }
  
 }

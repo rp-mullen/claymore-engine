@@ -17,6 +17,7 @@
 #include "imgui_impl_bgfx_docking.h"
 #include "backends/imgui_impl_win32.h"
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <editor/Input.h>
 #include <rendering/Picking.h>
 #include "ecs/SkinningSystem.h"
@@ -339,11 +340,15 @@ void Application::Run() {
     while (!shouldClose) {
         Profiler::Get().BeginFrame();
         ScopedTimer frameTimer("Frame");
-        // Pump Win32 events non-blocking
+        Time::Tick();
+
+        // Reset per-frame input state BEFORE pumping events so edges are for this frame
+        Input::Update();
+
+        // Pump Win32 events non-blocking (fills input states for this frame)
         if (m_Win32Window) m_Win32Window->PumpEvents();
         // Check close flag
         if (m_Win32Window && m_Win32Window->ShouldClose()) shouldClose = true;
-        Time::Tick();
 
         float dt = Time::GetDeltaTime();
         // Scene reference must be determined AFTER UI may toggle play/stop
@@ -358,17 +363,21 @@ void Application::Run() {
         m_AssetPipeline->ProcessMainThreadTasks();
 
         // --------------------------------------
-        // INPUT UPDATE
-        // --------------------------------------
-        Input::Update();
-
-        // --------------------------------------
         // START NEW IMGUI FRAME (editor mode only)
         // --------------------------------------
         if (m_RunEditorUI) {
             ImGui_ImplWin32_NewFrame();
             ImGui_ImplBgfx_NewFrame();
             ImGui::NewFrame();
+            // When mouse is captured for gameplay, prevent ImGui from hovering/capturing inputs
+            if (Input::IsRelativeMode()) {
+                ImGuiIO& io = ImGui::GetIO();
+                io.WantCaptureMouse = false;
+                io.WantCaptureKeyboard = false;
+                // Move mouse off-screen for ImGui so panels don't highlight/hover
+                io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+                ImGui::ClearActiveID();
+            }
         }
 
         // --------------------------------------

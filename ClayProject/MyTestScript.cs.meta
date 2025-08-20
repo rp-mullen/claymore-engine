@@ -1,7 +1,7 @@
 {
     "guid": "c91640489c4a314bbb24c2161efa96f2",
-    "hash": "0dde800d4ab1f0511b7553f7abd6bc20",
-    "lastImported": "2025-08-16 12:58:00",
+    "hash": "049b3840216ab234ee032adbbb302464",
+    "lastImported": "2025-08-20 12:56:01",
     "processedPath": "cache/MyTestScript.cs",
     "reference": {
         "fileID": 0,
@@ -9,6 +9,6 @@
         "type": 3
     },
     "settings": {},
-    "sourcePath": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\MyTestScript.cs",
+    "sourcePath": "C:\\Projects\\claymore\\ClayProject\\MyTestScript.cs",
     "type": "script"
 }

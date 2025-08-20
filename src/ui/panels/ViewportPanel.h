@@ -31,6 +31,8 @@ public:
 		// such as the Prefab Editor.
 		void OnImGuiRenderEmbedded(bgfx::TextureHandle sceneTexture, const char* idLabel = "EmbeddedViewport");
     void HandleCameraControls();
+    // Editor utility: frame the currently selected entity
+    void FrameSelected(float durationSeconds = 0.35f);
     // Accessor for embedded camera (nullptr when using global camera)
     class Camera* GetPanelCamera() const { return m_Camera.get(); }
 
@@ -75,6 +77,15 @@ private:
     float m_Yaw = 0.0f, m_Pitch = 0.0f, m_Distance = 10.0f;
     glm::vec3 m_Target = glm::vec3(0.0f);
 
+    // Tween state for focus (editor-only)
+    bool m_IsTweening = false;
+    float m_TweenTime = 0.0f;
+    float m_TweenDuration = 0.35f;
+    float m_DistanceStart = 10.0f;
+    float m_DistanceEnd = 10.0f;
+    glm::vec3 m_TargetStart = glm::vec3(0.0f);
+    glm::vec3 m_TargetEnd = glm::vec3(0.0f);
+
     bool m_ShowGizmos = true;
     bool m_IsDraggingAsset = false;
     std::string m_DraggedAssetPath;
@@ -94,4 +105,5 @@ private:
     std::unique_ptr<class Camera> m_Camera;
 
     bool m_WindowFocusedOrHovered = false;
+    bool m_ScreenSpaceOutline = false;
 };
