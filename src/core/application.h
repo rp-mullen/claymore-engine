@@ -1,12 +1,13 @@
 #pragma once
 #include <string>
-#include <GLFW/glfw3.h>
+#include <windows.h>
 #include <memory>
 #include "ui/UILayer.h"
 #include "pipeline/AssetWatcher.h"
 #include "pipeline/AssetPipeline.h"
 #include "jobs/JobSystem.h"
 #include "ecs/Scene.h"
+class Win32Window;
 
 class Application {
 public:
@@ -41,12 +42,14 @@ private:
     std::shared_ptr<Scene> m_RuntimeScene;
     bool m_IsPlaying = false;
 
-    GLFWwindow* m_window;
+    HWND m_window = nullptr;
     int m_width;
     int m_height;
     std::unique_ptr<UILayer> uiLayer;
 	std::unique_ptr<AssetPipeline> m_AssetPipeline;
 	std::unique_ptr<AssetWatcher> m_AssetWatcher;
+
+    std::unique_ptr<Win32Window> m_Win32Window;
 
     // Runtime without editor UI
     

@@ -1,12 +1,7 @@
 #include "Input.h"
 
 // Static member definitions
-GLFWwindow* Input::s_Window = nullptr;
-
-GLFWkeyfun         Input::s_PrevKeyCallback         = nullptr;
-GLFWmousebuttonfun Input::s_PrevMouseButtonCallback = nullptr;
-GLFWcursorposfun   Input::s_PrevCursorPosCallback   = nullptr;
-GLFWscrollfun      Input::s_PrevScrollCallback      = nullptr;
+// No GLFW state in Win32 backend path
 
 std::unordered_map<int, bool> Input::s_Keys;
 std::unordered_map<int, bool> Input::s_MouseButtons;
@@ -19,37 +14,8 @@ float Input::s_ScrollDelta = 0.0f;
 float Input::s_MouseDeltaX = 0.0f;
 float Input::s_MouseDeltaY = 0.0f;
 
-void Input::Init(GLFWwindow* window) {
-   s_Window = window;
-
-   // Chain existing callbacks (e.g., ImGui) so both systems receive events
-   s_PrevKeyCallback         = glfwSetKeyCallback(window, [](GLFWwindow* win, int key, int, int action, int mods) {
-       // Detect edge press
-       if(action == GLFW_PRESS && !s_Keys[key])
-           s_KeyDownEdge[key] = true;
-
-       OnKey(key, action);
-       if (s_PrevKeyCallback)
-           s_PrevKeyCallback(win, key, 0, action, mods);
-   });
-
-   s_PrevMouseButtonCallback = glfwSetMouseButtonCallback(window, [](GLFWwindow* win, int button, int action, int mods) {
-       OnMouseButton(button, action);
-       if (s_PrevMouseButtonCallback)
-           s_PrevMouseButtonCallback(win, button, action, mods);
-   });
-
-   s_PrevCursorPosCallback   = glfwSetCursorPosCallback(window, [](GLFWwindow* win, double xpos, double ypos) {
-       OnMouseMove(xpos, ypos);
-       if (s_PrevCursorPosCallback)
-           s_PrevCursorPosCallback(win, xpos, ypos);
-   });
-
-   s_PrevScrollCallback      = glfwSetScrollCallback(window, [](GLFWwindow* win, double, double yoffset) {
-       OnScroll(yoffset);
-       if (s_PrevScrollCallback)
-           s_PrevScrollCallback(win, 0.0, yoffset);
-   });
+void Input::Init() {
+   // Nothing to hook; Win32 window forwards events directly
 }
 
 void Input::Update() {

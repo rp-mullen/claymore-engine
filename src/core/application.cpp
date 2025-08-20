@@ -1,8 +1,6 @@
-﻿#define GLFW_EXPOSE_NATIVE_WIN32
-#define NOMINMAX
+﻿#define NOMINMAX
 
-#include <GLFW/glfw3.h>
-#include <GLFW/glfw3native.h>
+#include <windows.h>
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
 #include <bx/math.h>
@@ -17,7 +15,7 @@
 #include "rendering/Renderer.h"
 #include "rendering/ShaderManager.h"
 #include "imgui_impl_bgfx_docking.h"
-#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_win32.h"
 #include <imgui.h>
 #include <editor/Input.h>
 #include <rendering/Picking.h>
@@ -26,6 +24,7 @@
 #include <scripting/DotNetHost.h>
 #include "editor/Project.h"
 #include "physics/Physics.h"
+#include "platform/win32/Win32Window.h"
 #include "io/FileSystem.h"
 #include "serialization/Serializer.h"
 #include "pipeline/AssetPipeline.h"
@@ -133,7 +132,7 @@ Application::Application(int width, int height, const std::string& title)
     bool forceGameMode = std::filesystem::exists(std::filesystem::current_path() / "game_mode_only.marker");
     m_RunEditorUI = !(FileSystem::Instance().IsPakMounted() || forceGameMode);
 
-    // 1. Initialize Window (GLFW)
+    // 1. Initialize Window (Win32)
     InitWindow(width, height, title);
 
     // 2. Initialize BGFX Renderer (shader compile gated by m_RunEditorUI)
@@ -152,7 +151,7 @@ Application::Application(int width, int height, const std::string& title)
     Physics::Get().Init();
 
     // 5. Input Init
-    Input::Init(m_window);
+    Input::Init();
 
     unsigned hw = std::thread::hardware_concurrency();
     size_t workers = (hw > 2) ? (hw - 1) : 1;
@@ -240,30 +239,23 @@ void Application::InitWindow(int width, int height, const std::string& title) {
     std::cout << "[Application] Initializing window: " << width << "x" << height
         << " Title: " << title << std::endl;
 
-    if (!glfwInit()) {
-        throw std::runtime_error("[Application] Failed to initialize GLFW");
+    // Create Win32 window via our wrapper to get proper message routing and DPI/resize handling
+    m_Win32Window = std::make_unique<Win32Window>();
+    std::wstring wtitle(title.begin(), title.end());
+    if (!m_Win32Window->Create(wtitle.c_str(), width, height, true, true)) {
+        throw std::runtime_error("[Application] Failed to create Win32 window");
     }
-
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // No OpenGL context
-    m_window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
-    if (!m_window) {
-        throw std::runtime_error("[Application] Failed to create GLFW window");
-    }
-
-    /*Input::Init(m_window);*/
-    std::cout << "[Application] GLFW window created successfully." << std::endl;
-
-    // Handle window resize: update app dimensions, bgfx reset, and renderer framebuffer
-    glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* win, int w, int h){
+    m_Win32Window->SetResizeCallback([](int w, int h, bool minimized){
         if (w <= 0 || h <= 0) return;
         Application& app = Application::Get();
         app.m_width = w;
         app.m_height = h;
-        // Reset bgfx backbuffer to new size
         bgfx::reset((uint32_t)w, (uint32_t)h, BGFX_RESET_VSYNC);
-        // Notify renderer to resize its offscreen scene texture/framebuffer
         Renderer::Get().Resize((uint32_t)w, (uint32_t)h);
     });
+    m_window = m_Win32Window->GetHWND();
+
+    std::cout << "[Application] Win32 window created successfully." << std::endl;
 } 
 
 // ============================================================= 
@@ -276,7 +268,7 @@ void Application::InitBgfx() {
         ShaderManager::Instance().CompileAllShaders();
     }
 
-    Renderer::Get().Init(m_width, m_height, glfwGetWin32Window(m_window));
+    Renderer::Get().Init(m_width, m_height, (void*)m_window);
     std::cout << "[Application] bgfx initialized." << std::endl;
 }
 
@@ -299,9 +291,7 @@ void Application::InitImGui() {
     ImGui::StyleColorsDark();
 
     // Font (DPI aware)
-    float xscale = 1.0f, yscale = 1.0f;
-    glfwGetWindowContentScale(m_window, &xscale, &yscale);
-    float contentScale = std::max(xscale, yscale);
+    float contentScale = 1.0f; // TODO: query Win32 DPI if needed
     float baseFontSize = 16.0f * contentScale;
     io.Fonts->Clear();
     ImFontConfig cfg;
@@ -313,7 +303,7 @@ void Application::InitImGui() {
     io.FontGlobalScale = 1.0f; // fonts already scaled above
 
     // Backend Init
-    ImGui_ImplGlfw_InitForOther(m_window, true);
+    ImGui_ImplWin32_Init(m_window);
     ImGui_ImplBgfx_Init(255);
 
     // Editor UI Layer
@@ -335,10 +325,14 @@ void Application::Run() {
        InstallSyncContextPtr();
        }
 
-    while (!glfwWindowShouldClose(m_window)) {
+    bool shouldClose = false;
+    while (!shouldClose) {
         Profiler::Get().BeginFrame();
         ScopedTimer frameTimer("Frame");
-        glfwPollEvents();
+        // Pump Win32 events non-blocking
+        if (m_Win32Window) m_Win32Window->PumpEvents();
+        // Check close flag
+        if (m_Win32Window && m_Win32Window->ShouldClose()) shouldClose = true;
         Time::Tick();
 
         float dt = Time::GetDeltaTime();
@@ -362,7 +356,7 @@ void Application::Run() {
         // START NEW IMGUI FRAME (editor mode only)
         // --------------------------------------
         if (m_RunEditorUI) {
-            ImGui_ImplGlfw_NewFrame();
+            ImGui_ImplWin32_NewFrame();
             ImGui_ImplBgfx_NewFrame();
             ImGui::NewFrame();
         }
@@ -526,11 +520,10 @@ void Application::Shutdown() {
 
     if (m_RunEditorUI) {
         ImGui_ImplBgfx_Shutdown();
-        ImGui_ImplGlfw_Shutdown();
+        ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
     }
-    glfwDestroyWindow(m_window);
-    glfwTerminate();
+    m_Win32Window.reset();
 
     std::cout << "[Application] Shutdown complete." << std::endl;
 }

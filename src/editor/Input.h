@@ -1,11 +1,21 @@
 #pragma once
-#include <GLFW/glfw3.h>
 #include <unordered_map>
 #include <utility>
 
+// Minimal compatibility defines for existing key/button constants
+#ifndef GLFW_KEY_DELETE
+#define GLFW_KEY_DELETE 261
+#endif
+#ifndef GLFW_KEY_S
+#define GLFW_KEY_S 83
+#endif
+#ifndef GLFW_MOUSE_BUTTON_LEFT
+#define GLFW_MOUSE_BUTTON_LEFT 0
+#endif
+
 class Input {
 public:
-   static void Init(GLFWwindow* window);
+   static void Init();
    static void Update();
 
    static bool IsKeyPressed(int key);
@@ -15,13 +25,14 @@ public:
    static std::pair<float, float> GetMousePosition() { return { static_cast<float>(s_LastMouseX), static_cast<float>(s_LastMouseY) }; }
 
    static void OnKey(int key, int action) {
-      if (action == GLFW_PRESS) s_Keys[key] = true;
-      else if (action == GLFW_RELEASE) s_Keys[key] = false;
+      bool isPress = (action != 0);
+      if (isPress && !s_Keys[key]) s_KeyDownEdge[key] = true;
+      s_Keys[key] = isPress;            // zero = release
       }
 
    static void OnMouseButton(int button, int action) {
-      if (action == GLFW_PRESS) s_MouseButtons[button] = true;
-      else if (action == GLFW_RELEASE) s_MouseButtons[button] = false;
+      if (action != 0) s_MouseButtons[button] = true; // non-zero = press
+      else s_MouseButtons[button] = false;            // zero = release
       }
 
    static void OnMouseMove(double xpos, double ypos) {
@@ -36,13 +47,6 @@ public:
       }
 
 private:
-   static GLFWwindow* s_Window;
-
-   // Previous GLFW callbacks so we can forward events (to ImGui, etc.)
-   static GLFWkeyfun          s_PrevKeyCallback;
-   static GLFWmousebuttonfun  s_PrevMouseButtonCallback;
-   static GLFWcursorposfun    s_PrevCursorPosCallback;
-   static GLFWscrollfun       s_PrevScrollCallback;
 
    static std::unordered_map<int, bool> s_Keys;
    static std::unordered_map<int, bool> s_KeyDownEdge;

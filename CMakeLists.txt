@@ -23,11 +23,10 @@ set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
 # ============================
 # EXTERNAL DEPENDENCIES
 # ============================
-add_subdirectory(external/glfw)
 add_subdirectory(external/assimp)
 
 if(MSVC)
-    foreach(lib glfw assimp)
+    foreach(lib assimp)
         set_target_properties(${lib} PROPERTIES
             MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
         )
@@ -84,13 +83,12 @@ set_target_properties(DotnetBridge PROPERTIES
 # ============================
 file(GLOB IMGUI_SRC
     external/imgui/*.cpp
-    external/imgui/backends/imgui_impl_glfw.cpp
+    external/imgui/backends/imgui_impl_win32.cpp
 )
 add_library(imgui STATIC ${IMGUI_SRC})
 target_include_directories(imgui PUBLIC 
     external/imgui
     external/imgui/backends
-    external/glfw/include
     src
 )
 set_target_properties(imgui PROPERTIES
@@ -143,7 +141,7 @@ target_include_directories(Claymore PRIVATE
     external/imgui
     external/bgfx/examples
     external/bgfx/examples/common
-    external/glfw/include
+    
     external/glm
     external/assimp/include
     external/ImGuizmo
@@ -160,7 +158,6 @@ set_target_properties(Claymore PROPERTIES
 )
 
 target_link_libraries(Claymore PRIVATE
-    glfw
     assimp
     imgui
     imgui_bgfx
@@ -175,6 +172,10 @@ if(WIN32)
         ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/bgfx$<IF:$<CONFIG:Debug>,Debug,Release>.lib
         ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/bimg$<IF:$<CONFIG:Debug>,Debug,Release>.lib
         ${CMAKE_SOURCE_DIR}/external/bgfx/.build/win64_vs2022/bin/bx$<IF:$<CONFIG:Debug>,Debug,Release>.lib
+        user32
+        gdi32
+        imm32
+        shell32
     )
 elseif(UNIX AND NOT APPLE)
     # Link prebuilt bgfx libs for linux gcc and required system libs
