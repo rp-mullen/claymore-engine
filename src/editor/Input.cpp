@@ -13,6 +13,9 @@ double Input::s_LastMouseY = 0.0;
 float Input::s_ScrollDelta = 0.0f;
 float Input::s_MouseDeltaX = 0.0f;
 float Input::s_MouseDeltaY = 0.0f;
+bool  Input::s_RelativeMode = false;
+float Input::s_LockedCenterX = 0.0f;
+float Input::s_LockedCenterY = 0.0f;
 
 void Input::Init() {
    // Nothing to hook; Win32 window forwards events directly

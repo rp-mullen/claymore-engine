@@ -2,6 +2,7 @@
 #include <windowsx.h>
 #include <cstdio>
 #include <algorithm>
+#include <vector>
 #include <imgui.h>
 #include "backends/imgui_impl_win32.h"
 #include "editor/Input.h"
@@ -66,6 +67,38 @@ void Win32Window::PumpEvents() {
 	}
 }
 
+void Win32Window::SetCursorCaptured(bool captured) {
+	if (m_Captured == captured) return;
+	m_Captured = captured;
+	if (captured) {
+		// Hide cursor and confine it to the window; use relative mouse input
+		ShowCursor(FALSE);
+		RECT rect; GetClientRect(m_hWnd, &rect);
+		POINT tl = { rect.left, rect.top };
+		POINT br = { rect.right, rect.bottom };
+		ClientToScreen(m_hWnd, &tl);
+		ClientToScreen(m_hWnd, &br);
+		RECT clip = { tl.x, tl.y, br.x, br.y };
+		ClipCursor(&clip);
+		// Center the cursor in window
+		POINT center = { (tl.x + br.x) / 2, (tl.y + br.y) / 2 };
+		SetCursorPos(center.x, center.y);
+		// Remember logical center in client coords for Input::GetMousePosition
+		float cx = (float)(rect.right - rect.left) * 0.5f;
+		float cy = (float)(rect.bottom - rect.top) * 0.5f;
+		Input::SetLockedCenter(cx, cy);
+		// Enable raw input for high-precision relative motion
+		RAWINPUTDEVICE rid{}; rid.usUsagePage = 0x01; rid.usUsage = 0x02; rid.dwFlags = RIDEV_INPUTSINK; rid.hwndTarget = m_hWnd;
+		RegisterRawInputDevices(&rid, 1, sizeof(rid));
+	} else {
+		ClipCursor(nullptr);
+		ShowCursor(TRUE);
+		// Optional: unregister raw input
+		RAWINPUTDEVICE rid{}; rid.usUsagePage = 0x01; rid.usUsage = 0x02; rid.dwFlags = RIDEV_REMOVE; rid.hwndTarget = nullptr;
+		RegisterRawInputDevices(&rid, 1, sizeof(rid));
+	}
+}
+
 int Win32Window::MapVKToGLFW(int vk) {
 	// Minimal subset needed by current codebase
 	// Letters map to ASCII capital letters in GLFW
@@ -81,6 +114,27 @@ LRESULT CALLBACK Win32Window::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		return 1;
 
 	switch (msg) {
+		case WM_INPUT: {
+			if (g_WindowInstance && g_WindowInstance->m_Captured) {
+				UINT size = 0;
+				GetRawInputData((HRAWINPUT)lParam, RID_INPUT, nullptr, &size, sizeof(RAWINPUTHEADER));
+				if (size > 0) {
+					std::vector<BYTE> buffer(size);
+					if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, buffer.data(), &size, sizeof(RAWINPUTHEADER)) == size) {
+						RAWINPUT* ri = reinterpret_cast<RAWINPUT*>(buffer.data());
+						if (ri->header.dwType == RIM_TYPEMOUSE) {
+							LONG dx = ri->data.mouse.lLastX;
+							LONG dy = ri->data.mouse.lLastY;
+							if (dx != 0 || dy != 0) {
+								Input::OnMouseMove((double)dx, (double)dy);
+							}
+						}
+					}
+				}
+				return 0;
+			}
+			break;
+		}
 		case WM_SIZE: {
 			if (g_WindowInstance) {
 				g_WindowInstance->m_Minimized = (wParam == SIZE_MINIMIZED);
@@ -100,6 +154,10 @@ LRESULT CALLBACK Win32Window::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 			return 0;
 		}
 		case WM_MOUSEMOVE: {
+			if (g_WindowInstance && g_WindowInstance->m_Captured) {
+				// Ignore absolute mouse moves in captured mode; WM_INPUT provides deltas
+				return 0;
+			}
 			int x = GET_X_LPARAM(lParam);
 			int y = GET_Y_LPARAM(lParam);
 			Input::OnMouseMove((double)x, (double)y);

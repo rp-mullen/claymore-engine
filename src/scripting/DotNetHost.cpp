@@ -608,6 +608,7 @@ void SetupInputInterop(std::filesystem::path fullPath)
         (void*)IsMouseDownPtr,
         (void*)GetMouseDeltaPtr,
         (void*)DebugLogPtr,
+        (void*)SetMouseModePtr,
         (void*)SetManagedFieldPtr
     };
 

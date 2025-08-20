@@ -14,6 +14,8 @@ public:
 	bool Create(const wchar_t* title, int width, int height, bool resizable = true, bool highDPI = true);
 	void Destroy();
 	void PumpEvents();
+	void SetCursorCaptured(bool captured);
+	bool IsCursorCaptured() const { return m_Captured; }
 
 	// Callbacks
 	void SetResizeCallback(const std::function<void(int,int,bool)>& cb) { m_OnResize = cb; }
@@ -39,6 +41,7 @@ private:
 	bool m_Minimized = false;
 	bool m_ShouldClose = false;
 	bool m_HighDPI = true;
+	bool m_Captured = false;
 	std::function<void(int,int,bool)> m_OnResize;
 };
 

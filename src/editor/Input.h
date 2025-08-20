@@ -17,12 +17,20 @@ class Input {
 public:
    static void Init();
    static void Update();
+   static void SetRelativeMode(bool enabled) { s_RelativeMode = enabled; }
+   static bool IsRelativeMode() { return s_RelativeMode; }
 
    static bool IsKeyPressed(int key);
    static bool WasKeyPressedThisFrame(int key);
    static bool IsMouseButtonPressed(int button);
    static std::pair<float, float> GetMouseDelta();
-   static std::pair<float, float> GetMousePosition() { return { static_cast<float>(s_LastMouseX), static_cast<float>(s_LastMouseY) }; }
+   static std::pair<float, float> GetMousePosition() {
+      if (s_RelativeMode) {
+         return { s_LockedCenterX, s_LockedCenterY };
+      }
+      return { static_cast<float>(s_LastMouseX), static_cast<float>(s_LastMouseY) };
+   }
+   static void SetLockedCenter(float x, float y) { s_LockedCenterX = x; s_LockedCenterY = y; }
 
    static void OnKey(int key, int action) {
       bool isPress = (action != 0);
@@ -36,10 +44,16 @@ public:
       }
 
    static void OnMouseMove(double xpos, double ypos) {
-      s_MouseDeltaX = static_cast<float>(xpos - s_LastMouseX);
-      s_MouseDeltaY = static_cast<float>(ypos - s_LastMouseY);
-      s_LastMouseX = xpos;
-      s_LastMouseY = ypos;
+      if (s_RelativeMode) {
+         // Treat inputs as deltas; accumulate for this frame
+         s_MouseDeltaX += static_cast<float>(xpos);
+         s_MouseDeltaY += static_cast<float>(ypos);
+      } else {
+         s_MouseDeltaX = static_cast<float>(xpos - s_LastMouseX);
+         s_MouseDeltaY = static_cast<float>(ypos - s_LastMouseY);
+         s_LastMouseX = xpos;
+         s_LastMouseY = ypos;
+      }
       }
 
    static void OnScroll(double yoffset) {
@@ -58,4 +72,7 @@ private:
    static float s_ScrollDelta;
    static float s_MouseDeltaX;
    static float s_MouseDeltaY;
+   static bool  s_RelativeMode;
+   static float s_LockedCenterX;
+   static float s_LockedCenterY;
    };

@@ -20,6 +20,7 @@ namespace ClaymoreEngine
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  IsKeyDownFn(int key);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  IsMouseDownFn(int button);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void GetMouseDeltaFn(out float dx, out float dy);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetMouseModeFn(int mode);
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void LogFn([MarshalAs(UnmanagedType.LPStr)] string message);
 
 
@@ -30,6 +31,7 @@ namespace ClaymoreEngine
         public static IsKeyDownFn     IsKeyDown;
         public static IsMouseDownFn   IsMouseDown;
         public static GetMouseDeltaFn GetMouseDelta;
+        public static SetMouseModeFn  SetMouseMode;
 public static LogFn            Log;
 
         // ------------------------------------------------------------------------------
@@ -39,9 +41,9 @@ public static LogFn            Log;
 
         public static unsafe void InitializeInterop(IntPtr* ptrs, int count)
         {
-            if (count < 5)
+            if (count < 6)
             {
-                Console.WriteLine($"[InputInterop] Expected >=3 function pointers, received {count}.");
+                Console.WriteLine($"[InputInterop] Expected >=6 function pointers, received {count}.");
                 return;
             }
 
@@ -50,7 +52,8 @@ public static LogFn            Log;
             IsKeyDown   = Marshal.GetDelegateForFunctionPointer<IsKeyDownFn>(ptrs[i++]);
             IsMouseDown = Marshal.GetDelegateForFunctionPointer<IsMouseDownFn>(ptrs[i++]);
             GetMouseDelta = Marshal.GetDelegateForFunctionPointer<GetMouseDeltaFn>(ptrs[i++]);
-Log          = Marshal.GetDelegateForFunctionPointer<LogFn>(ptrs[i++]);
+            Log          = Marshal.GetDelegateForFunctionPointer<LogFn>(ptrs[i++]);
+            SetMouseMode = Marshal.GetDelegateForFunctionPointer<SetMouseModeFn>(ptrs[i++]);
 
             Console.WriteLine("[Managed] InputInterop delegates initialized.");
         }
@@ -61,6 +64,7 @@ Log          = Marshal.GetDelegateForFunctionPointer<LogFn>(ptrs[i++]);
     // -------------------------------------------------------------------------------------
     public static class Input
     {
+        public enum MouseMode { Free = 0, Captured = 1 }
         /// <summary>
         /// Returns true the frame the key became pressed.  Uses instantaneous state check
         /// for now (no edge detection) – can be expanded on managed side if required.
@@ -77,6 +81,11 @@ Log          = Marshal.GetDelegateForFunctionPointer<LogFn>(ptrs[i++]);
         {
             InputInterop.GetMouseDelta(out float dx, out float dy);
             return new Vector2(dx, dy);
+        }
+
+        public static void SetMouseMode(MouseMode mode)
+        {
+            InputInterop.SetMouseMode((int)mode);
         }
     }
 

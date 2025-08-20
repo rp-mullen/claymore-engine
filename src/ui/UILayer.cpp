@@ -66,7 +66,7 @@ UILayer::UILayer()
     CreateDefaultLight();
 
     m_AnimationInspector = std::make_unique<AnimationInspectorPanel>(this);
-} 
+}
 
 UILayer::~UILayer() {
     // Destroy global ImNodes context

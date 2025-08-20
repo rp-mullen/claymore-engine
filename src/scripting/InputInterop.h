@@ -17,6 +17,8 @@ __declspec(dllexport) int IsMouseDown(int button);
 __declspec(dllexport) void GetMouseDelta(float* deltaX, float* deltaY);
 // Writes a message to the engine logger.
 __declspec(dllexport) void DebugLog(const char* msg);
+// Set mouse cursor mode: 0 = Free, 1 = Captured/Relative
+__declspec(dllexport) void SetMouseMode(int mode);
 
 #ifdef __cplusplus
 }
@@ -29,11 +31,13 @@ using IsKeyHeld_fn = int(*)(int key);
 using IsKeyDown_fn     = int(*)(int key);
 using IsMouseDown_fn   = int(*)(int button);
 using GetMouseDelta_fn = void(*)(float* dx, float* dy);
+using SetMouseMode_fn = void(*)(int mode);
 
 extern IsKeyHeld_fn      IsKeyHeldPtr;
 extern IsKeyDown_fn      IsKeyDownPtr;
 extern IsMouseDown_fn    IsMouseDownPtr;
 extern GetMouseDelta_fn  GetMouseDeltaPtr;
+extern SetMouseMode_fn   SetMouseModePtr;
 
 // Logger
 using DebugLog_fn = void(*)(const char* msg);

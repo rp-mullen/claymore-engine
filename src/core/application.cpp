@@ -153,6 +153,9 @@ Application::Application(int width, int height, const std::string& title)
     // 5. Input Init
     Input::Init();
 
+    // Example: bind RMB to toggle cursor capture in editor
+    // (You can move this to a configurable binding in your editor layer)
+
     unsigned hw = std::thread::hardware_concurrency();
     size_t workers = (hw > 2) ? (hw - 1) : 1;
     m_Jobs = std::make_unique<JobSystem>(workers);
@@ -231,6 +234,13 @@ Application::Application(int width, int height, const std::string& title)
 Application::~Application() {
     Shutdown();
 }
+void Application::SetMouseCaptured(bool captured) {
+    if (m_Win32Window) {
+        m_Win32Window->SetCursorCaptured(captured);
+    }
+    Input::SetRelativeMode(captured);
+}
+
 
 // =============================================================
 // WINDOW SETUP

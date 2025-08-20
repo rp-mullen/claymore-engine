@@ -21,6 +21,7 @@ public:
     AssetPipeline* GetAssetPipeline() const { return m_AssetPipeline.get(); }
 
     void Run();
+    void SetMouseCaptured(bool captured);
 
     void StartPlayMode();
     void StopPlayMode();
