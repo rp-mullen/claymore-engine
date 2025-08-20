@@ -13,6 +13,8 @@ public:
     void OnImGuiRenderEmbedded();
     // Allow switching the selected entity pointer at runtime (to follow active scene)
     void SetSelectedEntityPtr(EntityID* ptr) { m_SelectedEntity = ptr; }
+    // Programmatically expand the hierarchy to reveal a specific entity
+    void ExpandTo(EntityID id);
 
 private:
 
@@ -20,6 +22,8 @@ private:
     void EnsureIconsLoaded();
     void DrawHierarchyContents();
    EntityID* m_SelectedEntity;
+   // Target to expand to next frame (-1 = none)
+   EntityID m_ExpandTarget = -1;
     // Icons for visibility toggles
     bool m_IconsLoaded = false;
     ImTextureID m_VisibleIcon{};

@@ -27,6 +27,7 @@
 #include "imnodes.h"
 #include <editor/Input.h>
 #include "serialization/Serializer.h"
+#include <ImGuizmo.h>
 
 // Forward-declare file dialog helper from MenuBarPanel.cpp
 extern std::string ShowSaveFileDialog(const std::string& defaultName);
@@ -161,6 +162,10 @@ void UILayer::ApplyStyle() {
 // =============================
 // Main UI Render Loop
 // =============================
+void UILayer::ExpandHierarchyTo(EntityID id) {
+    m_SceneHierarchyPanel.ExpandTo(id);
+}
+
 void UILayer::OnUIRender() {
     BeginDockspace();
 
@@ -493,8 +498,33 @@ void UILayer::BeginDockspace() {
         for (auto& ed : m_PrefabEditors) {
             if (ed) ed->GetScene(); // ensure alive
         }
+        // Persist in toolbar state
+        m_ToolbarPanel.SetShowGizmosEnabled(showGizmos);
     }
     ImGui::SameLine();
+
+    // Gizmo operation quick toggles (T/R/S)
+    {
+        constexpr float btnSize = 22.0f;
+        auto drawOpBtn = [&](ImGuizmo::OPERATION op, const char* label) {
+            bool active = (m_ViewportPanel.GetCurrentOperation() == op);
+            if (active) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.28f, 0.55f, 0.92f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.58f, 0.96f, 1.0f));
+            }
+            if (ImGui::Button(label, ImVec2(btnSize, btnSize))) {
+                m_ViewportPanel.SetOperation(op);
+            }
+            if (active) {
+                ImGui::PopStyleColor(2);
+            }
+            ImGui::SameLine();
+        };
+        drawOpBtn(ImGuizmo::TRANSLATE, "T");
+        drawOpBtn(ImGuizmo::ROTATE,    "R");
+        drawOpBtn(ImGuizmo::SCALE,     "S");
+    }
+
     if (ImGui::BeginCombo("##GizmoMode", "Options")) {
         // Additional toggles can be added here in the future
         bool grid = Renderer::Get().GetShowGrid();
@@ -503,6 +533,53 @@ void UILayer::BeginDockspace() {
         if (ImGui::Checkbox("Picking AABBs", &aabbs)) Renderer::Get().SetShowAABBs(aabbs);
         bool colliders = Renderer::Get().GetShowColliders();
         if (ImGui::Checkbox("Colliders", &colliders)) Renderer::Get().SetShowColliders(colliders);
+        ImGui::EndCombo();
+    }
+
+    ImGui::EndChild();
+    ImGui::PopStyleVar();
+
+    // Secondary Gizmo bar directly below the main toolbar
+    ImGui::Separator();
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 4));
+    ImGui::BeginChild("GizmoBar", ImVec2(0, 32), false, ImGuiWindowFlags_NoScrollbar);
+
+    bool gizmos = m_ViewportPanel.GetShowGizmos();
+    if (ImGui::Checkbox("Gizmos", &gizmos)) {
+        m_ViewportPanel.SetShowGizmos(gizmos);
+        m_ToolbarPanel.SetShowGizmosEnabled(gizmos);
+        for (auto& ed : m_PrefabEditors) {
+            if (ed) ed->GetScene();
+        }
+    }
+    ImGui::SameLine();
+
+    // Operation buttons (T/R/S)
+    constexpr float kGizmoBtn = 22.0f;
+    auto drawOpBtn2 = [&](ImGuizmo::OPERATION op, const char* label) {
+        bool active = (m_ViewportPanel.GetCurrentOperation() == op);
+        if (active) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.28f, 0.55f, 0.92f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.58f, 0.96f, 1.0f));
+        }
+        if (ImGui::Button(label, ImVec2(kGizmoBtn, kGizmoBtn))) {
+            m_ViewportPanel.SetOperation(op);
+        }
+        if (active) ImGui::PopStyleColor(2);
+        ImGui::SameLine();
+    };
+    drawOpBtn2(ImGuizmo::TRANSLATE, "T");
+    drawOpBtn2(ImGuizmo::ROTATE,    "R");
+    drawOpBtn2(ImGuizmo::SCALE,     "S");
+
+    // Optional: quick view options combo
+    if (ImGui::BeginCombo("##ViewOpts2", "Options")) {
+        bool grid2 = Renderer::Get().GetShowGrid();
+        if (ImGui::Checkbox("Debug Grid", &grid2)) Renderer::Get().SetShowGrid(grid2);
+        bool aabbs2 = Renderer::Get().GetShowAABBs();
+        if (ImGui::Checkbox("Picking AABBs", &aabbs2)) Renderer::Get().SetShowAABBs(aabbs2);
+        bool colliders2 = Renderer::Get().GetShowColliders();
+        if (ImGui::Checkbox("Colliders", &colliders2)) Renderer::Get().SetShowColliders(colliders2);
         ImGui::EndCombo();
     }
 

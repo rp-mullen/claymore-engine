@@ -27,23 +27,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\rpm\\.nuget\\packages\\": {},
+    "C:\\Users\\rpmul\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Projects\\claymore\\scripts\\Modules\\Claymore.Modules.RPG\\Claymore.Modules.RPG.csproj",
+      "projectUniqueName": "C:\\Users\\rpmul\\projects\\claymore\\scripts\\Modules\\Claymore.Modules.RPG\\Claymore.Modules.RPG.csproj",
       "projectName": "Claymore.Modules.RPG",
-      "projectPath": "C:\\Projects\\claymore\\scripts\\Modules\\Claymore.Modules.RPG\\Claymore.Modules.RPG.csproj",
-      "packagesPath": "C:\\Users\\rpm\\.nuget\\packages\\",
-      "outputPath": "C:\\Projects\\claymore\\scripts\\Modules\\Claymore.Modules.RPG\\obj\\",
+      "projectPath": "C:\\Users\\rpmul\\projects\\claymore\\scripts\\Modules\\Claymore.Modules.RPG\\Claymore.Modules.RPG.csproj",
+      "packagesPath": "C:\\Users\\rpmul\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\rpmul\\projects\\claymore\\scripts\\Modules\\Claymore.Modules.RPG\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\rpm\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\rpmul\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -52,15 +52,14 @@
       ],
       "sources": {
         "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-        "C:\\Program Files\\dotnet\\library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "C:\\Projects\\claymore\\scripts\\ClaymoreEngine\\ClaymoreEngine.csproj": {
-              "projectPath": "C:\\Projects\\claymore\\scripts\\ClaymoreEngine\\ClaymoreEngine.csproj"
+            "C:\\Users\\rpmul\\projects\\claymore\\scripts\\ClaymoreEngine\\ClaymoreEngine.csproj": {
+              "projectPath": "C:\\Users\\rpmul\\projects\\claymore\\scripts\\ClaymoreEngine\\ClaymoreEngine.csproj"
             }
           }
         }
@@ -75,7 +74,7 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "9.0.200"
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net8.0": {
@@ -96,7 +95,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.200/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

@@ -24,6 +24,9 @@ public:
     static void QueuePick(float nx, float ny);
     static void Process(Scene& scene, Camera* cam);
     static int GetLastPick();
+    static void ClearLastPick() { s_LastPick = -1; }
+    static bool HadPickThisFrame();
+    static bool HadHitThisFrame();
 
 private:
     // Existing intersection methods (unchanged)
@@ -38,4 +41,6 @@ private:
     // Queue state
     static inline std::vector<PickRequest> s_PickQueue;
     static inline int s_LastPick = -1;
+    static inline bool s_ProcessedThisFrame = false;
+    static inline bool s_AnyHitThisFrame = false;
 };

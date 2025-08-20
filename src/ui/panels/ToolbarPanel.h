@@ -27,6 +27,7 @@ public:
 
     // Show gizmos toggle
     bool IsShowGizmosEnabled() const { return m_ShowGizmos; }
+    void SetShowGizmosEnabled(bool enabled) { m_ShowGizmos = enabled; }
 
     // Play mode toggle
     void TogglePlayMode();

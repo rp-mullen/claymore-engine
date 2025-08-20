@@ -65,6 +65,9 @@ void SceneHierarchyPanel::DrawHierarchyContents() {
         m_Context->QueueRemoveEntity(*m_SelectedEntity);
         *m_SelectedEntity = -1;
     }
+
+    // Clear any one-shot expand target after drawing the list once
+    m_ExpandTarget = -1;
 }
 
 
@@ -132,6 +135,16 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
         opened = ImGui::TreeNodeEx((void*)(intptr_t)id, flags | ImGuiTreeNodeFlags_NoTreePushOnOpen, "%s", "");
         hasTreePush = false;
     } else {
+        // If we have a pending expand target and this node is on the path to it, force it open
+        if (m_ExpandTarget != -1) {
+            EntityID cur = m_ExpandTarget;
+            while (cur != -1) {
+                if (cur == id) { ImGui::SetNextItemOpen(true); break; }
+                auto* d2 = m_Context->GetEntityData(cur);
+                if (!d2) break;
+                cur = d2->Parent;
+            }
+        }
         opened = ImGui::TreeNodeEx((void*)(intptr_t)id, flags, "%s", entity.GetName().c_str());
         // TreeNodeEx pushes only when it returns true
         hasTreePush = opened;
@@ -238,6 +251,10 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
 
     ImGui::PopID();
    }
+
+void SceneHierarchyPanel::ExpandTo(EntityID id) {
+    m_ExpandTarget = id;
+}
 
 void SceneHierarchyPanel::EnsureIconsLoaded() {
     if (m_IconsLoaded) return;

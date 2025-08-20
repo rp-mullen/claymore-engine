@@ -456,9 +456,29 @@ void Application::Run() {
         if (m_RunEditorUI) {
             int pickedEntity = Picking::GetLastPick();
             if (pickedEntity != -1) {
-                std::cout << "[Debug] Picked Entity: " << pickedEntity << std::endl;
-                uiLayer->SetSelectedEntity(pickedEntity);
-                // Clear any legacy timeline selection (new panel manages its own inspector)
+                // Hierarchy-aware selection: first click selects root, second click cycles to child under cursor
+                EntityID current = uiLayer->GetSelectedEntity();
+                EntityID rootOfPicked = pickedEntity;
+                if (auto* data = uiLayer->GetScene().GetEntityData(rootOfPicked)) {
+                    while (data && data->Parent != -1) {
+                        rootOfPicked = data->Parent;
+                        data = uiLayer->GetScene().GetEntityData(rootOfPicked);
+                    }
+                }
+
+                if (current != rootOfPicked) {
+                    // Prioritize selecting the root first
+                    uiLayer->SetSelectedEntity(rootOfPicked);
+                } else {
+                    // If root is already selected, select the actual picked child entity
+                    uiLayer->SetSelectedEntity(pickedEntity);
+                }
+
+                // Ensure hierarchy expands to show the selected entity
+                uiLayer->GetSceneHierarchyPanel().ExpandTo(uiLayer->GetSelectedEntity());
+            } else if (Picking::HadPickThisFrame() && !Picking::HadHitThisFrame()) {
+                // Clear immediately on a processed miss so empty-space clicks deselect reliably
+                uiLayer->SetSelectedEntity(-1);
             }
         }
 

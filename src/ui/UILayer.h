@@ -47,6 +47,7 @@ public:
     // Entity selection
     void SetSelectedEntity(EntityID id) { m_SelectedEntity = id; }
     EntityID GetSelectedEntity() const { return m_SelectedEntity; }
+    void ExpandHierarchyTo(EntityID id);
 
     void TogglePlayMode();
 
@@ -66,6 +67,8 @@ public:
     
 public:
     void FocusConsoleNextFrame() { m_FocusConsoleNextFrame = true; }
+
+	SceneHierarchyPanel& GetSceneHierarchyPanel() { return m_SceneHierarchyPanel; }
 
 private:
     void BeginDockspace();

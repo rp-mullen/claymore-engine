@@ -360,21 +360,30 @@ void ViewportPanel::DrawGizmo() {
         const float* proj = glm::value_ptr(cam->GetProjectionMatrix());
 
 
-    glm::mat4 transform =
-        glm::translate(glm::mat4(1.0f), data->Transform.Position) *
-        glm::yawPitchRoll(glm::radians(data->Transform.Rotation.y),
-            glm::radians(data->Transform.Rotation.x),
-            glm::radians(data->Transform.Rotation.z)) *
-        glm::scale(glm::mat4(1.0f), data->Transform.Scale);
+    // Use world matrix so gizmo appears at the correct spot for children
+    // and reflects parent transforms. We'll convert the edited world back
+    // into a local matrix relative to the parent below.
+    glm::mat4 worldBefore = data->Transform.WorldMatrix;
 
     float matrix[16];
-    memcpy(matrix, glm::value_ptr(transform), sizeof(matrix));
+    memcpy(matrix, glm::value_ptr(worldBefore), sizeof(matrix));
 
     ImGuizmo::Manipulate(view, proj, m_CurrentOperation, m_CurrentMode, matrix);
 
     if (ImGuizmo::IsUsing()) {
+        // Convert the edited world matrix back into local space
+        glm::mat4 editedWorld = glm::make_mat4(matrix);
+
+        glm::mat4 parentWorld = glm::mat4(1.0f);
+        if (data->Parent != -1) {
+            if (auto* parentData = m_Context->GetEntityData(data->Parent))
+                parentWorld = parentData->Transform.WorldMatrix;
+        }
+
+        glm::mat4 newLocal = glm::inverse(parentWorld) * editedWorld;
+
         glm::vec3 pos, rot, scale;
-        DecomposeMatrix(matrix, pos, rot, scale);
+        DecomposeMatrix(glm::value_ptr(newLocal), pos, rot, scale);
         data->Transform.Position = pos;
         data->Transform.Rotation = rot;
         data->Transform.Scale = scale;

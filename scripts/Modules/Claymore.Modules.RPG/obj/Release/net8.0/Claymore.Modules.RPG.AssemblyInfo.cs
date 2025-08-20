@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Claymore.Modules.RPG")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+21570b5aeddc8f6d7592a979d3685982af7b4259")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9167cf41f86aaef806d2617c7931229c2374b1bc")]
 [assembly: System.Reflection.AssemblyProductAttribute("Claymore.Modules.RPG")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Claymore.Modules.RPG")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

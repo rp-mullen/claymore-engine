@@ -73,9 +73,11 @@ void Picking::QueuePick(float nx, float ny) {
 
 void Picking::Process(Scene& scene, Camera* cam) {
     s_LastPick = -1;
+    s_ProcessedThisFrame = !s_PickQueue.empty();
+    s_AnyHitThisFrame = false;
     for (auto& req : s_PickQueue) {
         int entity = PickEntity(req.nx, req.ny, scene, cam);
-        if (entity != -1) s_LastPick = entity;
+        if (entity != -1) { s_LastPick = entity; s_AnyHitThisFrame = true; }
     }
     s_PickQueue.clear();
 }
@@ -83,6 +85,9 @@ void Picking::Process(Scene& scene, Camera* cam) {
 int Picking::GetLastPick() {
     return s_LastPick;
 }
+
+bool Picking::HadPickThisFrame() { return s_ProcessedThisFrame; }
+bool Picking::HadHitThisFrame() { return s_AnyHitThisFrame; }
 
 bool Picking::RayIntersectsAABB(const Ray& ray, const glm::vec3& min, const glm::vec3& max, float& t) {
     float tMin = (min.x - ray.Origin.x) / ray.Direction.x;
