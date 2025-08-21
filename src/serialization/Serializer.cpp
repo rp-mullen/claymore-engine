@@ -1,6 +1,7 @@
 #include "Serializer.h"
 #include <fstream>
 #include <iostream>
+#include "rendering/ModelBuild.h"
 #include <sstream>
 #include <filesystem>
 #include <algorithm>
@@ -264,6 +265,90 @@ json Serializer::SerializeLight(const LightComponent& light) {
     return data;
 }
 
+// ---------------- Skeleton & Skinning ----------------
+json Serializer::SerializeSkeleton(const SkeletonComponent& skeleton) {
+    json j;
+    // Matrices
+    j["inverseBindPoses"] = json::array();
+    for (const auto& m : skeleton.InverseBindPoses) j["inverseBindPoses"].push_back(SerializeMat4(m));
+    j["bindPoseGlobals"] = json::array();
+    for (const auto& m : skeleton.BindPoseGlobals) j["bindPoseGlobals"].push_back(SerializeMat4(m));
+
+    // Bone parents
+    if (!skeleton.BoneParents.empty()) j["boneParents"] = skeleton.BoneParents;
+
+    // Bone names (index -> name)
+    if (!skeleton.BoneNameToIndex.empty()) {
+        // Emit as array aligned with indices for stability
+        size_t count = 0;
+        for (const auto& kv : skeleton.BoneNameToIndex) count = std::max(count, (size_t)std::max(0, kv.second+1));
+        json names = json::array();
+        for (size_t i = 0; i < count; ++i) names.push_back(nullptr);
+        for (const auto& kv : skeleton.BoneNameToIndex) {
+            int idx = kv.second; if (idx < 0) continue;
+            while ((size_t)idx >= names.size()) names.push_back(nullptr);
+            names[(size_t)idx] = kv.first;
+        }
+        j["boneNames"] = std::move(names);
+    }
+    // Stable GUIDs
+    if (skeleton.SkeletonGuid.high != 0 || skeleton.SkeletonGuid.low != 0) j["skeletonGuid"] = skeleton.SkeletonGuid;
+    if (!skeleton.JointGuids.empty()) {
+        j["jointGuids"] = json::array();
+        for (uint64_t g : skeleton.JointGuids) j["jointGuids"].push_back(g);
+    }
+    return j;
+}
+
+void Serializer::DeserializeSkeleton(const json& j, SkeletonComponent& skeleton) {
+    skeleton.InverseBindPoses.clear(); skeleton.BindPoseGlobals.clear();
+    skeleton.BoneParents.clear(); skeleton.BoneNameToIndex.clear();
+    skeleton.BoneNames.clear(); skeleton.JointGuids.clear(); skeleton.SkeletonGuid = ClaymoreGUID{};
+
+    if (j.contains("inverseBindPoses") && j["inverseBindPoses"].is_array()) {
+        for (const auto& m : j["inverseBindPoses"]) skeleton.InverseBindPoses.push_back(DeserializeMat4(m));
+    }
+    if (j.contains("bindPoseGlobals") && j["bindPoseGlobals"].is_array()) {
+        for (const auto& m : j["bindPoseGlobals"]) skeleton.BindPoseGlobals.push_back(DeserializeMat4(m));
+    }
+    if (j.contains("boneParents") && j["boneParents"].is_array()) {
+        skeleton.BoneParents.clear();
+        for (const auto& v : j["boneParents"]) skeleton.BoneParents.push_back(v.get<int>());
+    }
+    if (j.contains("boneNames") && j["boneNames"].is_array()) {
+        const auto& arr = j["boneNames"];
+        for (size_t i = 0; i < arr.size(); ++i) {
+            if (!arr[i].is_null()) skeleton.BoneNameToIndex[arr[i].get<std::string>()] = (int)i;
+        }
+        // Also store aligned bone names for convenience
+        skeleton.BoneNames.resize(arr.size());
+        for (size_t i = 0; i < arr.size(); ++i) {
+            if (!arr[i].is_null()) skeleton.BoneNames[i] = arr[i].get<std::string>();
+        }
+    }
+    // BoneEntities are scene-local; don't persist raw ids. Rebind later using names.
+    skeleton.BoneEntities.assign(skeleton.InverseBindPoses.size(), (EntityID)-1);
+
+    // Stable GUIDs
+    try { if (j.contains("skeletonGuid")) j.at("skeletonGuid").get_to(skeleton.SkeletonGuid); } catch(...) {}
+    if (j.contains("jointGuids") && j["jointGuids"].is_array()) {
+        const auto& arr = j["jointGuids"];
+        skeleton.JointGuids.resize(arr.size());
+        for (size_t i = 0; i < arr.size(); ++i) skeleton.JointGuids[i] = arr[i].get<uint64_t>();
+    }
+}
+
+json Serializer::SerializeSkinning(const SkinningComponent& skinning) {
+    json j;
+    // Do not serialize palette (runtime). Persist link to skeleton by name for robustness.
+    j["skeletonRoot"] = skinning.SkeletonRoot; // temporary; may be -1. A post-load fixup will correct if needed.
+    return j;
+}
+
+void Serializer::DeserializeSkinning(const json& j, SkinningComponent& skinning) {
+    skinning.Palette.clear();
+    skinning.SkeletonRoot = j.value("skeletonRoot", (EntityID)-1);
+}
 void Serializer::DeserializeLight(const json& data, LightComponent& light) {
     if (data.contains("type")) light.Type = static_cast<LightType>(data["type"]);
     if (data.contains("color")) light.Color = DeserializeVec3(data["color"]);
@@ -626,6 +711,14 @@ json Serializer::SerializeEntity(EntityID id, Scene& scene) {
       data["light"] = SerializeLight(*entityData->Light);
       }
 
+   // Skeleton & Skinning
+   if (entityData->Skeleton) {
+       data["skeleton"] = SerializeSkeleton(*entityData->Skeleton);
+   }
+   if (entityData->Skinning) {
+       data["skinning"] = SerializeSkinning(*entityData->Skinning);
+   }
+
    if (entityData->Collider) {
       data["collider"] = SerializeCollider(*entityData->Collider);
       }
@@ -746,6 +839,21 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
         entityData->Camera = std::make_unique<CameraComponent>();
         DeserializeCamera(data["camera"], *entityData->Camera);
     }
+    // Animation-related
+    if (data.contains("skeleton")) {
+        entityData->Skeleton = std::make_unique<SkeletonComponent>();
+        DeserializeSkeleton(data["skeleton"], *entityData->Skeleton);
+    }
+    if (data.contains("skinning")) {
+        entityData->Skinning = std::make_unique<SkinningComponent>();
+        DeserializeSkinning(data["skinning"], *entityData->Skinning);
+    }
+    // Ensure skinned material for skinned meshes
+    if (entityData->Skinning && entityData->Mesh) {
+        if (!std::dynamic_pointer_cast<SkinnedPBRMaterial>(entityData->Mesh->material)) {
+            entityData->Mesh->material = MaterialManager::Instance().CreateSkinnedPBRMaterial();
+        }
+    }
     if (data.contains("terrain")) {
         entityData->Terrain = std::make_unique<TerrainComponent>();
         DeserializeTerrain(data["terrain"], *entityData->Terrain);
@@ -784,7 +892,8 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
         static const std::unordered_set<std::string> kKnown = {
             "id","name","layer","tag","parent","children","guid","prefabSource",
             "transform","mesh","light","collider","rigidbody","staticbody","camera",
-            "terrain","emitter","canvas","panel","button","scripts","animator","asset"
+            "terrain","emitter","canvas","panel","button","scripts","animator","asset",
+            "skeleton","skinning"
         };
         entityData->Extra = nlohmann::json::object();
         for (auto it = data.begin(); it != data.end(); ++it) {
@@ -933,7 +1042,8 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
         std::unordered_set<std::string> known = {
             "id","name","layer","tag","parent","children","guid","prefabSource",
             "transform","mesh","light","collider","rigidbody","staticbody","camera",
-            "terrain","emitter","canvas","panel","button","scripts","animator","asset"
+            "terrain","emitter","canvas","panel","button","scripts","animator","asset",
+            "skeleton","skinning"
         };
         std::unordered_set<std::string> guidSeen;
         size_t guidMissing = 0, guidDup = 0;
@@ -1221,7 +1331,8 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
                 static const std::unordered_set<std::string> kKnown = {
                     "id","name","layer","tag","parent","children","guid","prefabSource",
                     "transform","mesh","light","collider","rigidbody","staticbody","camera",
-                    "terrain","emitter","canvas","panel","button","scripts","animator","asset"
+                    "terrain","emitter","canvas","panel","button","scripts","animator","asset",
+                    "skeleton","skinning"
                 };
                 ed->Extra = nlohmann::json::object();
                 for (auto it = entityData.begin(); it != entityData.end(); ++it) {
@@ -1645,9 +1756,7 @@ json Serializer::SerializePrefab(const EntityData& entityData, Scene& scene) {
     prefabData["version"] = "1.0";
     prefabData["type"] = "prefab";
     
-    // Create a temporary entity to serialize
-    // Note: This is a simplified approach - in a full implementation,
-    // we might want to serialize the EntityData directly
+    // Create a temporary entity to serialize (simplified direct copy of components)
     json entityJson;
     entityJson["name"] = entityData.Name;
     entityJson["layer"] = entityData.Layer;
@@ -1671,6 +1780,12 @@ json Serializer::SerializePrefab(const EntityData& entityData, Scene& scene) {
     }
     if (entityData.AnimationPlayer) {
         entityJson["animator"] = SerializeAnimator(*entityData.AnimationPlayer);
+    }
+    if (entityData.Skeleton) {
+        entityJson["skeleton"] = SerializeSkeleton(*entityData.Skeleton);
+    }
+    if (entityData.Skinning) {
+        entityJson["skinning"] = SerializeSkinning(*entityData.Skinning);
     }
 
     prefabData["entity"] = entityJson;
@@ -1696,7 +1811,7 @@ bool Serializer::DeserializePrefab(const json& data, EntityData& entityData, Sce
     }
 
     // Deserialize components
-            if (entityJson.contains("mesh")) {
+    if (entityJson.contains("mesh")) {
         entityData.Mesh = std::make_unique<MeshComponent>();
         DeserializeMesh(entityJson["mesh"], *entityData.Mesh);
     }
@@ -1718,6 +1833,14 @@ bool Serializer::DeserializePrefab(const json& data, EntityData& entityData, Sce
     if (entityJson.contains("animator")) {
         entityData.AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>();
         DeserializeAnimator(entityJson["animator"], *entityData.AnimationPlayer);
+    }
+    if (entityJson.contains("skeleton")) {
+        entityData.Skeleton = std::make_unique<SkeletonComponent>();
+        DeserializeSkeleton(entityJson["skeleton"], *entityData.Skeleton);
+    }
+    if (entityJson.contains("skinning")) {
+        entityData.Skinning = std::make_unique<SkinningComponent>();
+        DeserializeSkinning(entityJson["skinning"], *entityData.Skinning);
     }
 
     return true;
@@ -1785,6 +1908,7 @@ json Serializer::SerializePrefabSubtree(EntityID rootId, Scene& scene) {
     prefab["entities"] = json::array();
     if (!scene.GetEntityData(rootId)) return prefab;
 
+    // Collect subtree ids in DFS order
     std::vector<EntityID> order;
     std::function<void(EntityID)> dfs = [&](EntityID id){
         order.push_back(id);
@@ -1794,25 +1918,82 @@ json Serializer::SerializePrefabSubtree(EntityID rootId, Scene& scene) {
     };
     dfs(rootId);
 
-    std::unordered_map<EntityID, int> idToIndex;
-    idToIndex.reserve(order.size());
-    for (int i = 0; i < (int)order.size(); ++i) idToIndex[order[i]] = i;
+    // Identify imported model roots within the subtree and collect per-node overrides; skip their descendants
+    std::unordered_set<EntityID> skip;
+    std::unordered_map<EntityID, nlohmann::json> rootOverrides;
+    auto computeNodePath = [&](EntityID root, EntityID node) -> std::string {
+        std::vector<std::string> parts; EntityID cur = node;
+        while (cur != -1) {
+            auto* d = scene.GetEntityData(cur); if (!d) break;
+            parts.push_back(d->Name);
+            if (cur == root) break;
+            cur = d->Parent;
+        }
+        std::reverse(parts.begin(), parts.end());
+        if (!parts.empty()) parts.erase(parts.begin()); // make path relative to model root
+        std::string s; for (size_t i=0;i<parts.size();++i){ s += parts[i]; if (i+1<parts.size()) s += "/"; }
+        return s;
+    };
+    for (EntityID id : order) {
+        std::string path; ClaymoreGUID g{};
+        if (IsImportedModelRoot(scene, id, path, g)) {
+            // Collect overrides for children under this model root
+            rootOverrides[id] = nlohmann::json::array();
+            std::function<void(EntityID)> walk = [&](EntityID cur){
+                auto* d = scene.GetEntityData(cur); if (!d) return;
+                for (EntityID c : d->Children) {
+                    skip.insert(c);
+                    nlohmann::json childJ = SerializeEntity(c, scene);
+                    childJ["_modelNodePath"] = computeNodePath(id, c);
+                    // Keep name; drop relational/id-only fields
+                    childJ.erase("id"); childJ.erase("parent"); childJ.erase("children"); childJ.erase("asset");
+                    if (!childJ.empty()) rootOverrides[id].push_back(std::move(childJ));
+                    walk(c);
+                }
+            };
+            walk(id);
+            skip.erase(id);
+        }
+    }
 
-    for (int i = 0; i < (int)order.size(); ++i) {
-        EntityID eid = order[i];
+    // Build emission list excluding skipped nodes
+    std::vector<EntityID> emit;
+    emit.reserve(order.size());
+    for (EntityID id : order) {
+        if (skip.find(id) == skip.end()) emit.push_back(id);
+    }
+    std::unordered_map<EntityID, int> idToEmitIndex;
+    for (int i = 0; i < (int)emit.size(); ++i) idToEmitIndex[emit[i]] = i;
+
+    // Emit compact subtree
+    for (int i = 0; i < (int)emit.size(); ++i) {
+        EntityID eid = emit[i];
         json e = SerializeEntity(eid, scene);
         e.erase("id");
         e.erase("guid");
-        // Stabilize relationships
+        // Parent index among emitted nodes only
         int parentIndex = -1;
         if (auto* d = scene.GetEntityData(eid)) {
             if (d->Parent != (EntityID)-1) {
-                auto it = idToIndex.find(d->Parent);
-                if (it != idToIndex.end()) parentIndex = it->second;
+                auto it = idToEmitIndex.find(d->Parent);
+                if (it != idToEmitIndex.end()) parentIndex = it->second;
             }
         }
         e["parentIndex"] = parentIndex;
         e.erase("children");
+        // Attach asset compact record and collected overrides if this was a model root
+        std::string modelPath; ClaymoreGUID guid{};
+        if (IsImportedModelRoot(scene, eid, modelPath, guid)) {
+            json asset;
+            asset["type"] = "model";
+            std::string v = modelPath; for(char& c: v) if (c=='\\') c='/';
+            auto pos = v.find("assets/"); if (pos != std::string::npos) v = v.substr(pos);
+            asset["path"] = v;
+            asset["guid"] = guid.ToString();
+            e["asset"] = std::move(asset);
+            auto it = rootOverrides.find(eid);
+            e["children"] = (it != rootOverrides.end()) ? it->second : nlohmann::json::array();
+        }
         prefab["entities"].push_back(std::move(e));
     }
     return prefab;
@@ -1852,30 +2033,88 @@ EntityID Serializer::LoadPrefabToScene(const std::string& filepath, Scene& scene
         }
         // Support both legacy and subtree formats
         if (data.contains("entities") && data["entities"].is_array()) {
-            // Subtree format: create all entities and fixup parents similar to scene deserialization, but keep local IDs transient
+            // Subtree format: instantiate compact asset nodes (models) and create pure-serialized nodes; then apply overrides.
             const auto& ents = data["entities"];
-            std::vector<EntityID> newIds;
-            newIds.reserve(ents.size());
-            // First pass: create entities in order, record mapping old-index -> newId
             std::vector<EntityID> idxToNew(ents.size(), (EntityID)-1);
+            std::unordered_set<EntityID> opaqueRoots; // model-instantiated roots that carry their own hierarchy
+
+            // First pass: create entities or instantiate models
             for (size_t i = 0; i < ents.size(); ++i) {
                 const json& je = ents[i];
+                // Model asset node?
+                if (je.contains("asset") && je["asset"].is_object()) {
+                    const auto& a = je["asset"];
+                    std::string type = a.value("type", "");
+                    if (type == "model") {
+                        // Resolve path relative to project
+                        std::string p = a.value("path", "");
+                        std::string resolved = p;
+                        if (!resolved.empty() && !fs::exists(resolved)) resolved = (Project::GetProjectDirectory() / p).string();
+                        for (char& c : resolved) if (c=='\\') c = '/';
+                        // Register GUID mapping hint if present
+                        try {
+                            std::string gstr = a.value("guid", "");
+                            if (!gstr.empty()) {
+                                ClaymoreGUID g = ClaymoreGUID::FromString(gstr);
+                                if (!(g.high == 0 && g.low == 0)) {
+                                    std::string v = p; for (char& ch : v) if (ch=='\\') ch = '/';
+                                    AssetLibrary::Instance().RegisterAsset(AssetReference(g, 0, (int)AssetType::Mesh), AssetType::Mesh, v, v);
+                                    if (!resolved.empty()) AssetLibrary::Instance().RegisterPathAlias(g, resolved);
+                                }
+                            }
+                        } catch(...) {}
+                        // Determine spawn position
+                        glm::vec3 pos(0.0f);
+                        if (je.contains("transform")) { auto t = je["transform"]; if (t.contains("position")) pos = DeserializeVec3(t["position"]); }
+                        // Prefer fast path via .meta next to model
+                        std::string metaTry = resolved; std::string ext = fs::path(resolved).extension().string(); std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                        if (ext != ".meta") { fs::path rp(resolved); fs::path mp = rp.parent_path() / (rp.stem().string() + ".meta"); if (fs::exists(mp)) metaTry = mp.string(); }
+                        EntityID nid = (EntityID)-1;
+                        if (!metaTry.empty() && fs::path(metaTry).extension() == ".meta") {
+                            nid = scene.InstantiateModelFast(metaTry, pos);
+                            if (nid == (EntityID)0 || nid == (EntityID)-1) nid = scene.InstantiateModel(resolved, pos);
+                        } else {
+                            nid = scene.InstantiateModel(resolved, pos);
+                        }
+                        if (nid != (EntityID)-1 && nid != (EntityID)0) {
+                            idxToNew[i] = nid;
+                            opaqueRoots.insert(nid);
+                            // Apply transform, scripts, animator on the root
+                            if (auto* ed = scene.GetEntityData(nid)) {
+                                if (je.contains("name")) { ed->Name = je["name"].get<std::string>(); }
+                                if (je.contains("transform")) DeserializeTransform(je["transform"], ed->Transform);
+                                if (je.contains("scripts")) DeserializeScripts(je["scripts"], ed->Scripts);
+                                if (je.contains("animator")) { if (!ed->AnimationPlayer) ed->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(); DeserializeAnimator(je["animator"], *ed->AnimationPlayer); }
+                            }
+                        }
+                        continue; // done with this entry
+                    }
+                }
+
+                // Regular serialized node
                 std::string name = je.value("name", "Entity");
                 Entity e = scene.CreateEntityExact(name);
                 EntityID nid = e.GetID();
                 idxToNew[i] = nid;
                 auto* d = scene.GetEntityData(nid);
                 if (!d) continue;
-                // Apply properties/components
-                json copy = je;
-                // Parent/children fixed later
-                copy.erase("parent");
-                copy.erase("children");
-                // Assign into this existing entity using pieces of DeserializeEntity
                 if (je.contains("layer")) d->Layer = je["layer"];
                 if (je.contains("tag")) d->Tag = je["tag"];
                 if (je.contains("transform")) DeserializeTransform(je["transform"], d->Transform);
-                if (je.contains("mesh")) { d->Mesh = std::make_unique<MeshComponent>(); DeserializeMesh(je["mesh"], *d->Mesh); }
+                if (je.contains("mesh")) {
+                    if (!d->Mesh) d->Mesh = std::make_unique<MeshComponent>();
+                    // Prefer unified builder over legacy deserializer
+                    ClaymoreGUID meshGuid{}; int fileId = 0; ClaymoreGUID skelGuid{};
+                    try {
+                        if (je["mesh"].contains("meshReference")) { AssetReference tmp; je["mesh"]["meshReference"].get_to(tmp); meshGuid = tmp.guid; fileId = tmp.fileID; }
+                    } catch(...) {}
+                    try { if (je.contains("skeleton") && je["skeleton"].contains("skeletonGuid")) je["skeleton"]["skeletonGuid"].get_to(skelGuid); } catch(...) {}
+                    BuildModelParams bp{ meshGuid, fileId, skelGuid, nullptr, nid, &scene };
+                    BuildResult br = BuildRendererFromAssets(bp);
+                    if (!br.ok) {
+                        std::cerr << "[Serializer] ERROR: Prefab node renderer build failed for entity '" << d->Name << "'" << std::endl;
+                    }
+                }
                 if (je.contains("light")) { d->Light = std::make_unique<LightComponent>(); DeserializeLight(je["light"], *d->Light); }
                 if (je.contains("collider")) { d->Collider = std::make_unique<ColliderComponent>(); DeserializeCollider(je["collider"], *d->Collider); }
                 if (je.contains("rigidbody")) { d->RigidBody = std::make_unique<RigidBodyComponent>(); DeserializeRigidBody(je["rigidbody"], *d->RigidBody); }
@@ -1888,8 +2127,11 @@ EntityID Serializer::LoadPrefabToScene(const std::string& filepath, Scene& scene
                 if (je.contains("button")) { d->Button = std::make_unique<ButtonComponent>(); DeserializeButton(je["button"], *d->Button); }
                 if (je.contains("scripts")) { DeserializeScripts(je["scripts"], d->Scripts); }
                 if (je.contains("animator")) { if (!d->AnimationPlayer) d->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(); DeserializeAnimator(je["animator"], *d->AnimationPlayer); }
+                if (je.contains("skeleton")) { if (!d->Skeleton) d->Skeleton = std::make_unique<SkeletonComponent>(); DeserializeSkeleton(je["skeleton"], *d->Skeleton); }
+                if (je.contains("skinning")) { if (!d->Skinning) d->Skinning = std::make_unique<SkinningComponent>(); DeserializeSkinning(je["skinning"], *d->Skinning); }
             }
-            // Second pass: fix parents using parentIndex
+
+            // Second pass: parent fixup (skip opaque roots)
             for (size_t i = 0; i < ents.size(); ++i) {
                 const json& je = ents[i];
                 EntityID nid = idxToNew[i];
@@ -1897,10 +2139,118 @@ EntityID Serializer::LoadPrefabToScene(const std::string& filepath, Scene& scene
                 if (je.contains("parentIndex")) {
                     int pidx = je["parentIndex"].get<int>();
                     if (pidx >= 0 && pidx < (int)idxToNew.size()) {
-                        scene.SetParent(nid, idxToNew[pidx]);
+                        EntityID pid = idxToNew[pidx];
+                        if (pid != (EntityID)-1 && opaqueRoots.find(nid) == opaqueRoots.end() && opaqueRoots.find(pid) == opaqueRoots.end()) {
+                            scene.SetParent(nid, pid);
+                        }
                     }
                 }
             }
+
+            // Apply per-node overrides under compact model roots
+            auto resolveByPath = [&](EntityID rootNew, const std::string& path) -> EntityID {
+                EntityID target = rootNew;
+                if (path.empty()) return target;
+                std::stringstream ss(path); std::string part;
+                auto normalize = [](const std::string& name) -> std::string {
+                    size_t us = name.find_last_of('_');
+                    if (us == std::string::npos) return name;
+                    bool digits = true; for (size_t i = us + 1; i < name.size(); ++i) { if (!std::isdigit(static_cast<unsigned char>(name[i]))) { digits = false; break; } }
+                    return digits ? name.substr(0, us) : name;
+                };
+                while (std::getline(ss, part, '/')) {
+                    auto* d = scene.GetEntityData(target); if (!d) return (EntityID)-1;
+                    const std::string partNorm = normalize(part);
+                    EntityID next = (EntityID)-1;
+                    for (EntityID c : d->Children) { auto* cd = scene.GetEntityData(c); if (!cd) continue; const std::string childName = cd->Name; if (childName == part || normalize(childName) == partNorm) { next = c; break; } }
+                    if (next == (EntityID)-1) return (EntityID)-1; target = next;
+                }
+                return target;
+            };
+            auto findByMeshFileId = [&](EntityID rootNew, int fileID) -> EntityID {
+                std::function<EntityID(EntityID)> dfs = [&](EntityID id)->EntityID{
+                    auto* d = scene.GetEntityData(id); if (!d) return (EntityID)-1;
+                    if (d->Mesh && d->Mesh->meshReference.fileID == fileID) return id;
+                    for (EntityID c : d->Children) { EntityID r = dfs(c); if (r != (EntityID)-1) return r; }
+                    return (EntityID)-1;
+                };
+                return dfs(rootNew);
+            };
+
+            for (size_t i = 0; i < ents.size(); ++i) {
+                const json& je = ents[i];
+                if (!(je.contains("asset") && je["asset"].is_object())) continue;
+                const auto& a = je["asset"]; if (a.value("type", "") != std::string("model")) continue;
+                EntityID rootNew = idxToNew[i]; if (rootNew == (EntityID)-1) continue;
+                if (!je.contains("children") || !je["children"].is_array()) continue;
+                // Sort overrides by depth so parents first
+                struct OverrideItem { std::string relPath; const nlohmann::json* j; int depth; };
+                std::vector<OverrideItem> items;
+                for (const auto& childOverride : je["children"]) {
+                    if (!childOverride.contains("_modelNodePath")) continue;
+                    std::string relPath = childOverride["_modelNodePath"].get<std::string>();
+                    int depth = 0; for (char c : relPath) if (c=='/') ++depth;
+                    items.push_back({std::move(relPath), &childOverride, depth});
+                }
+                std::sort(items.begin(), items.end(), [](const OverrideItem& a, const OverrideItem& b){ return a.depth < b.depth; });
+
+                for (const auto& it : items) {
+                    const auto& childOverride = *it.j;
+                    const std::string& relPath = it.relPath;
+                    EntityID target = resolveByPath(rootNew, relPath);
+                    if (target == (EntityID)-1 && childOverride.contains("mesh") && childOverride["mesh"].contains("fileID")) {
+                        int fid = childOverride["mesh"]["fileID"].get<int>();
+                        target = findByMeshFileId(rootNew, fid);
+                    }
+                    if (target == (EntityID)-1) continue;
+                    auto* td = scene.GetEntityData(target); if (!td) continue;
+                    if (childOverride.contains("transform")) { DeserializeTransform(childOverride["transform"], td->Transform); td->Transform.TransformDirty = true; }
+                    if (childOverride.contains("mesh")) {
+                        if (!td->Mesh) td->Mesh = std::make_unique<MeshComponent>();
+                        ClaymoreGUID meshGuid{}; int fileId = 0; ClaymoreGUID skelGuid{};
+                        try {
+                            if (childOverride["mesh"].contains("meshReference")) { AssetReference tmp; childOverride["mesh"]["meshReference"].get_to(tmp); meshGuid = tmp.guid; fileId = tmp.fileID; }
+                        } catch(...) {}
+                        try { if (childOverride.contains("skeleton") && childOverride["skeleton"].contains("skeletonGuid")) childOverride["skeleton"]["skeletonGuid"].get_to(skelGuid); } catch(...) {}
+                        BuildModelParams bp{ meshGuid, fileId, skelGuid, nullptr, target, &scene };
+                        BuildResult br = BuildRendererFromAssets(bp);
+                        if (!br.ok) {
+                            std::cerr << "[Serializer] ERROR: Override renderer build failed at path under model root." << std::endl;
+                        }
+                    }
+                    if (childOverride.contains("light")) { if (!td->Light) td->Light = std::make_unique<LightComponent>(); DeserializeLight(childOverride["light"], *td->Light); }
+                    if (childOverride.contains("collider")) { if (!td->Collider) td->Collider = std::make_unique<ColliderComponent>(); DeserializeCollider(childOverride["collider"], *td->Collider); }
+                    if (childOverride.contains("rigidbody")) { if (!td->RigidBody) td->RigidBody = std::make_unique<RigidBodyComponent>(); DeserializeRigidBody(childOverride["rigidbody"], *td->RigidBody); }
+                    if (childOverride.contains("staticbody")) { if (!td->StaticBody) td->StaticBody = std::make_unique<StaticBodyComponent>(); DeserializeStaticBody(childOverride["staticbody"], *td->StaticBody); }
+                    if (childOverride.contains("camera")) { if (!td->Camera) td->Camera = std::make_unique<CameraComponent>(); DeserializeCamera(childOverride["camera"], *td->Camera); }
+                    if (childOverride.contains("terrain")) { if (!td->Terrain) td->Terrain = std::make_unique<TerrainComponent>(); DeserializeTerrain(childOverride["terrain"], *td->Terrain); }
+                    if (childOverride.contains("emitter")) { if (!td->Emitter) td->Emitter = std::make_unique<ParticleEmitterComponent>(); DeserializeParticleEmitter(childOverride["emitter"], *td->Emitter); }
+                    if (childOverride.contains("canvas")) { if (!td->Canvas) td->Canvas = std::make_unique<CanvasComponent>(); DeserializeCanvas(childOverride["canvas"], *td->Canvas); }
+                    if (childOverride.contains("panel")) { if (!td->Panel) td->Panel = std::make_unique<PanelComponent>(); DeserializePanel(childOverride["panel"], *td->Panel); }
+                    if (childOverride.contains("button")) { if (!td->Button) td->Button = std::make_unique<ButtonComponent>(); DeserializeButton(childOverride["button"], *td->Button); }
+                    if (childOverride.contains("scripts")) { DeserializeScripts(childOverride["scripts"], td->Scripts); }
+                    if (childOverride.contains("animator")) { if (!td->AnimationPlayer) td->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(); DeserializeAnimator(childOverride["animator"], *td->AnimationPlayer); }
+                    if (childOverride.contains("name")) { td->Name = childOverride["name"].get<std::string>(); }
+                }
+            }
+
+            // Post-fixups: skeleton links for any serialized skel/skinning nodes created directly (non-opaque areas)
+            for (EntityID nid : idxToNew) {
+                if (nid == (EntityID)-1) continue;
+                auto* d = scene.GetEntityData(nid);
+                if (!d) continue;
+                if (d->Skinning && d->Mesh) {
+                    if (!std::dynamic_pointer_cast<SkinnedPBRMaterial>(d->Mesh->material)) {
+                        d->Mesh->material = MaterialManager::Instance().CreateSkinnedPBRMaterial();
+                    }
+                }
+                if (d->Skinning && d->Skinning->SkeletonRoot == (EntityID)-1) {
+                    EntityID cur = nid; EntityID found = (EntityID)-1; size_t guard = 0;
+                    while (cur != (EntityID)-1 && guard++ < 100000) { auto* cd = scene.GetEntityData(cur); if (cd && cd->Skeleton) { found = cur; break; } if (!cd) break; cur = cd->Parent; }
+                    d->Skinning->SkeletonRoot = found;
+                }
+            }
+
             EntityID rootNew = idxToNew.empty() ? (EntityID)-1 : idxToNew[0];
             return rootNew;
         }
@@ -1911,6 +2261,25 @@ EntityID Serializer::LoadPrefabToScene(const std::string& filepath, Scene& scene
         EntityData* dst = scene.GetEntityData(e.GetID());
         if (!dst) return (EntityID)-1;
         *dst = ed.DeepCopy(e.GetID(), &scene);
+        // Fix up legacy single-entity prefab: resolve skeleton links and skinnings
+        if (dst->Skinning && dst->Skinning->SkeletonRoot == (EntityID)-1) {
+            // Anchor to self if this entity has a skeleton
+            if (dst->Skeleton) dst->Skinning->SkeletonRoot = e.GetID();
+        }
+        if (dst->Skeleton) {
+            // Rebuild BoneEntities by name within this entity subtree
+            std::unordered_map<std::string, EntityID> nameToId;
+            std::function<void(EntityID)> build = [&](EntityID id){
+                auto* ed2 = scene.GetEntityData(id); if (!ed2) return;
+                nameToId[ed2->Name] = id; for (EntityID c : ed2->Children) build(c);
+            };
+            build(e.GetID());
+            const size_t n = dst->Skeleton->InverseBindPoses.size();
+            dst->Skeleton->BoneEntities.assign(n, (EntityID)-1);
+            std::vector<std::string> boneNames(n);
+            for (const auto& kv : dst->Skeleton->BoneNameToIndex) { int idx = kv.second; if (idx >= 0 && (size_t)idx < n) boneNames[(size_t)idx] = kv.first; }
+            for (size_t i = 0; i < n; ++i) { const std::string& nm = boneNames[i]; if (nm.empty()) continue; auto it = nameToId.find(nm); if (it != nameToId.end()) dst->Skeleton->BoneEntities[i] = it->second; }
+        }
         return e.GetID();
     } catch (const std::exception& e) {
         std::cerr << "[Serializer] Error loading prefab to scene: " << e.what() << std::endl;

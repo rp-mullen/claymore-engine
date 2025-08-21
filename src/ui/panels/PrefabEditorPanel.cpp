@@ -34,7 +34,21 @@ void PrefabEditorPanel::LoadPrefab(const std::string& path)
 
     // Load prefab into this panel's private scene using scene-style logic
     // Supports both legacy single-entity and subtree formats without changing serialization
-    EntityID root = Serializer::LoadPrefabToScene(path, m_Scene);
+    // Prefer new authoring prefab; fallback to legacy loader
+    EntityID root = -1;
+    try {
+        // Resolve by GUID or path isn’t available here; just call legacy for now if JSON read fails.
+        // Future: use PrefabAPI::InstantiatePrefab with resolved GUID
+        std::ifstream in(path);
+        nlohmann::json j; if (in) { in >> j; in.close(); }
+        if (j.is_object() && j.contains("guid") && j.contains("entities")) {
+            // Build a tiny scene view from authoring data
+            // For now, just create a single root entity stub with name
+            std::string name = j.value("name", std::string("Prefab"));
+            root = m_Scene.CreateEntityExact(name).GetID();
+        }
+    } catch(...) {}
+    if (root == -1) root = Serializer::LoadPrefabToScene(path, m_Scene);
     if (root == (EntityID)-1 || root == 0) {
         std::cerr << "[PrefabEditor] Failed to load prefab into scene: " << path << std::endl;
         return;

@@ -4,7 +4,7 @@
 PBRMaterial::PBRMaterial(const std::string& name, bgfx::ProgramHandle program)
     : Material(name, program,
         BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z |
-        BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA | BGFX_STATE_CULL_CCW)
+        BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA | BGFX_STATE_CULL_CW)
 {
     u_AlbedoSampler = bgfx::createUniform("s_albedo", bgfx::UniformType::Sampler);
     u_MetallicRoughnessSampler = bgfx::createUniform("s_metallicRoughness", bgfx::UniformType::Sampler);

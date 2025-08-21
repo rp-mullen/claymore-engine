@@ -97,7 +97,19 @@ bool AssetLibrary::LoadPrefabIntoEntity(const AssetReference& ref, EntityData& o
     AssetEntry* entry = this->GetAsset(ref);
     if (!entry) return false;
     if (entry->type != AssetType::Prefab) return false;
-    // entry->path should be a prefab json path (virtual path ok). Use Serializer to load and populate outEntity
+    // Prefer new authoring prefab JSON: load minimal and inject via PrefabAPI when available.
+    // For now, keep legacy fallback for compatibility.
+    try {
+        std::ifstream in(entry->path);
+        if (in) {
+            nlohmann::json j; in >> j; in.close();
+            if (j.is_object() && j.contains("guid") && j.contains("entities")) {
+                // Create a placeholder entity with the prefab name
+                outEntity.Name = j.value("name", std::string("Prefab"));
+                return true;
+            }
+        }
+    } catch(...) {}
     return Serializer::LoadPrefabFromFile(entry->path, outEntity, scene);
 }
 

@@ -19,6 +19,7 @@ set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # ============================
 # EXTERNAL DEPENDENCIES
@@ -285,6 +286,13 @@ add_custom_command(TARGET Claymore POST_BUILD
 if(WIN32)
     add_custom_command(TARGET Claymore POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/external/dotnet_hosting/nethost.dll $<TARGET_FILE_DIR:Claymore>
+    )
+endif()
+
+# Ensure any dependent runtime DLLs (e.g., assimp when built shared) are copied next to the executable on Windows
+if(WIN32)
+    add_custom_command(TARGET Claymore POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:Claymore> $<TARGET_FILE_DIR:Claymore> COMMAND_EXPAND_LISTS
     )
 endif()
 

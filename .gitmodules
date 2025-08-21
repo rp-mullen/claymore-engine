@@ -31,3 +31,6 @@
 	url = https://github.com/nelarius/imnodes.git
 [submodule "*"]
 	update = none
+[submodule "external/SDL"]
+	path = external/SDL
+	url = https://github.com/libsdl-org/SDL

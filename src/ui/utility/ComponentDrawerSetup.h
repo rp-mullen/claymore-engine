@@ -7,6 +7,7 @@
 #include "particles/SpriteLoader.h"
 #include "editor/EnginePaths.h"
 #include "physics/Physics.h"
+#include "pipeline/AssetReference.h" // for ClaymoreGUID
 
 #include <imgui.h>
 #include <glm/glm.hpp>

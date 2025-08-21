@@ -19,6 +19,7 @@ namespace fs = std::filesystem;
 #include "animation/AvatarDefinition.h"
 #include "animation/AnimationSystem.h"
 #include "animation/AnimationAsset.h"
+#include "animation/SkeletonBinding.h"
 #include "animation/AnimationSerializer.h"
 #include "animation/AnimationPlayerComponent.h"
 #include <nlohmann/json.hpp>
@@ -41,6 +42,7 @@ namespace fs = std::filesystem;
 #include <jobs/Jobs.h>
 #include "pipeline/AssetLibrary.h"    
 #include "utils/Profiler.h"
+#include <prefab/PrefabAPI.h>
 // --- Kernels --------------------------------------------------------------------------------
 
 
@@ -306,6 +308,19 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
         }
         return rootId;
     }
+    else if (ext == ".json") {
+        // New authoring prefab format
+        EntityID rootId = InstantiatePrefabFromAuthoringPath(path, *this);
+        if (rootId == -1 || rootId == 0) {
+            std::cerr << "[Scene] Failed to instantiate authoring prefab: " << path << std::endl;
+            return -1;
+        }
+        if (auto* d = GetEntityData(rootId)) {
+            d->Transform.Position = position;
+            MarkTransformDirty(rootId);
+        }
+        return rootId;
+    }
    else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg") {
       // Create a simple textured quad
       Entity entity = CreateEntity("ImageQuad");
@@ -487,6 +502,13 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
         skelData->Skeleton->BoneParents = parentIndex;
         for (int i = 0; i < (int)model.BoneNames.size(); ++i)
             skelData->Skeleton->BoneNameToIndex[model.BoneNames[i]] = i;
+        skelData->Skeleton->BoneNames = model.BoneNames;
+        // Populate stable skeleton GUID and per-joint GUIDs
+        {
+            ClaymoreGUID skelGuid = AssetLibrary::Instance().GetGUIDForPath(path);
+            skelData->Skeleton->SkeletonGuid = skelGuid;
+            ComputeSkeletonJointGuids(*skelData->Skeleton);
+        }
 
         // Pre-create all bone entities
         std::vector<EntityID> boneEntities(model.BoneNames.size(), INVALID_ENTITY_ID);

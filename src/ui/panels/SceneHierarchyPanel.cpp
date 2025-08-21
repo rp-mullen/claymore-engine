@@ -10,6 +10,9 @@
 #include "serialization/Serializer.h"
 #include <editor/Project.h>
 #include <filesystem>
+#include <prefab/PrefabAsset.h>
+#include <prefab/PrefabAPI.h>
+#include <prefab/PrefabSerializer.h>
 
 SceneHierarchyPanel::SceneHierarchyPanel(Scene* scene, EntityID* selectedEntity)
    : m_SelectedEntity(selectedEntity) {
@@ -180,7 +183,7 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
             *m_SelectedEntity = -1;
          entityDeleted = true;
          }
-      if (ImGui::MenuItem("Convert to Prefab")) {
+      if (ImGui::MenuItem("Save to Prefab")) {
          namespace fs = std::filesystem;
          fs::path folder = Project::GetProjectDirectory() / "assets/prefabs";
          std::error_code ec; fs::create_directories(folder, ec);
@@ -194,13 +197,19 @@ void SceneHierarchyPanel::DrawEntityNode(const Entity& entity) {
          };
          std::string desired = sanitize(data->Name.empty() ? std::string("Prefab") : data->Name);
          if (desired.empty()) desired = "Prefab";
-         fs::path out = folder / (desired + ".prefab");
+         fs::path out = folder / (desired + ".prefab.json");
          int counter = 1;
-         while (fs::exists(out)) out = folder / (desired + "_" + std::to_string(counter++) + ".prefab");
-         if (Serializer::SavePrefabSubtreeToFile(*m_Context, id, out.string())) {
-            std::cout << "[Hierarchy] Prefab saved: " << out.string() << std::endl;
+         while (fs::exists(out)) out = folder / (desired + "_" + std::to_string(counter++) + ".prefab.json");
+         // Build PrefabAsset from the selected subtree and save via new authoring IO
+         PrefabAsset asset;
+         if (BuildPrefabAssetFromScene(*m_Context, id, asset)) {
+            if (PrefabIO::SaveAuthoringPrefabJSON(out.string(), asset)) {
+               std::cout << "[Hierarchy] Prefab saved: " << out.string() << std::endl;
+            } else {
+               std::cerr << "[Hierarchy] Failed to save prefab: " << out.string() << std::endl;
+            }
          } else {
-            std::cerr << "[Hierarchy] Failed to save prefab: " << out.string() << std::endl;
+            std::cerr << "[Hierarchy] Failed to build prefab asset for: " << desired << std::endl;
          }
       }
       // No Create submenu on entity context menu

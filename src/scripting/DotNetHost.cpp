@@ -542,7 +542,7 @@ void SetupEntityInterop(std::filesystem::path fullPath)
            (void*)GetRigidBodyIsKinematicPtr,
            (void*)SetRigidBodyIsKinematicPtr,
            (void*)GetRigidBodyLinearVelocityPtr,
-           (void*)SetRigidBodyLinearVelocityPtr,
+           (void*)SetRigidBodyLinearVelocityPtr, 
            (void*)GetRigidBodyAngularVelocityPtr,
            (void*)SetRigidBodyAngularVelocityPtr,
            (void*)SetBlendShapeWeightPtr,

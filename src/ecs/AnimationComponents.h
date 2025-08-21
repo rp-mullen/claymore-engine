@@ -6,6 +6,7 @@
 #include <memory>
 #include "animation/AvatarDefinition.h"
 #include "ecs/Entity.h" // assumes EntityID typedef lives there; adjust path if different
+#include "pipeline/AssetReference.h" // for ClaymoreGUID
 
 // ------------ Blend Shapes ------------
 struct BlendShape {
@@ -30,6 +31,13 @@ struct SkeletonComponent {
     // Name → index lookup to enable fast sampling & editor display.
     std::unordered_map<std::string, int> BoneNameToIndex;
     std::vector<int> BoneParents; // index of parent bone (-1 for root)
+
+    // Optional: stable names aligned by index (authoring or import time). If empty, derive from BoneNameToIndex.
+    std::vector<std::string> BoneNames;
+
+    // Optional: stable skeleton asset GUID and per-joint GUIDs (Hash64(skeletonGuid + "/" + fullPath))
+    ClaymoreGUID SkeletonGuid; // zero when unknown
+    std::vector<uint64_t> JointGuids; // size == number of bones when computed
 
     int GetBoneIndex(const std::string& name) const {
         auto it = BoneNameToIndex.find(name);
