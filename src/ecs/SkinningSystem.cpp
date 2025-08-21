@@ -3,6 +3,9 @@
 #include "rendering/VertexTypes.h"
 #include "rendering/SkinnedPBRMaterial.h"
 #include <unordered_map>
+#include <vector>
+#include <memory>
+#include <algorithm>
 #include <bgfx/bgfx.h>
 
 #include "jobs/JobSystem.h"   
@@ -21,10 +24,11 @@ static inline void PaletteKernel(const PaletteArgs& a) {
    for (int i = a.start; i < end; ++i) {
       a.out[i] = a.invMesh * a.pose[i]; // one mul per bone
       }
+
    }
 
 // ---------- Blendshape kernel (adds pre-accumulated deltas to base) ----------
-struct BlendArgs {
+struct MorphBlendArgs {
    const glm::vec3* basePos; const glm::vec3* baseNrm;
    const glm::vec3* accDP;   const glm::vec3* accDN; // weighted sums per vertex
    size_t           vCount;
@@ -33,7 +37,7 @@ struct BlendArgs {
    float* nx; float* ny; float* nz;
    int start, count;
    };
-static inline void BlendKernel(const BlendArgs& a) {
+static inline void MorphBlendKernel(const MorphBlendArgs& a) {
    const int end = a.start + a.count;
    for (int i = a.start; i < end; ++i) {
       const glm::vec3 p = a.basePos[i] + a.accDP[i];
@@ -42,7 +46,6 @@ static inline void BlendKernel(const BlendArgs& a) {
       a.nx[i] = n.x;  a.ny[i] = n.y;  a.nz[i] = n.z;
       }
    }
-
 
 static inline glm::mat4 GetWorldOrIdentity(Scene& scene, EntityID id)
 {
@@ -81,11 +84,33 @@ void SkinningSystem::Update(Scene& scene)
       };
 
    std::unordered_map<EntityID, SkelGroup> groups;
+   struct NonSkinnedWork {
+      EntityID meshId;
+      Mesh* meshPtr = nullptr;
+      BlendShapeComponent* bs = nullptr;
+      bool needsBlend = false;
+      };
+   std::vector<NonSkinnedWork> nonSkinned;
 
    // Build map: skeleton root -> meshes using it; precompute invMeshWorld per mesh
    for (const auto& ent : entities) {
       EntityData* data = scene.GetEntityData(ent.GetID());
-      if (!data || !data->Mesh || !data->Skinning) continue;
+      if (!data || !data->Mesh) continue;
+
+      // Collect non-skinned meshes for blendshape-only updates
+      if (!data->Skinning) {
+         auto meshPtr = data->Mesh->mesh.get();
+         const bool bsDirty = (data->BlendShapes && meshPtr && meshPtr->Dynamic && data->Mesh->BlendShapes && data->Mesh->BlendShapes->Dirty);
+         if (bsDirty) {
+            NonSkinnedWork nw{};
+            nw.meshId = ent.GetID();
+            nw.meshPtr = meshPtr;
+            nw.bs = data->BlendShapes.get();
+            nw.needsBlend = true;
+            nonSkinned.push_back(nw);
+         }
+         continue; // not part of skinning groups
+      }
 
       EntityID root = data->Skinning->SkeletonRoot;
       if (root == (EntityID)-1) continue;
@@ -205,15 +230,15 @@ void SkinningSystem::Update(Scene& scene)
                }
 
             // Kernel over vertices (parallelizable by chunks)
-            BlendArgs ba{
+            MorphBlendArgs ba{
                 w.meshPtr->Vertices.data(), w.meshPtr->Normals.data(),
                 accDP.data(), accDN.data(), vCount,
                 &blended[0].x, &blended[0].y, &blended[0].z,
                 &blended[0].nx, &blended[0].ny, &blended[0].nz,
                 0, (int)vCount
                };
-            // parallel_for(0, vCount, 16384, [&](size_t s, size_t c){ auto args = ba; args.start=(int)s; args.count=(int)c; BlendKernel(args); });
-            BlendKernel(ba); // single-thread first; flip to parallel_for after you test
+            // parallel_for(0, vCount, 16384, [&](size_t s, size_t c){ auto args = ba; args.start=(int)s; args.count=(int)c; MorphBlendKernel(args); });
+            MorphBlendKernel(ba); // single-thread first; flip to parallel_for after you test
 
             // Upload once on main thread (unchanged)
             const bgfx::Memory* mem = bgfx::copy(blended.data(), uint32_t(sizeof(SkinnedPBRVertex) * blended.size()));
@@ -241,14 +266,14 @@ void SkinningSystem::Update(Scene& scene)
                   accDN[i] += shape.DeltaNormal[i] * weight;
                   }
                }
-            BlendArgs ba{
+            MorphBlendArgs ba{
                 w.meshPtr->Vertices.data(), w.meshPtr->Normals.data(),
                 accDP.data(), accDN.data(), vCount,
                 &blended[0].x, &blended[0].y, &blended[0].z,
                 &blended[0].nx, &blended[0].ny, &blended[0].nz,
                 0, (int)vCount
                };
-            BlendKernel(ba);
+            MorphBlendKernel(ba);
             const bgfx::Memory* mem = bgfx::copy(blended.data(), uint32_t(sizeof(PBRVertex) * blended.size()));
             bgfx::update(w.meshPtr->dvbh, 0, mem);                      // :contentReference[oaicite:23]{index=23}
             }
@@ -256,4 +281,46 @@ void SkinningSystem::Update(Scene& scene)
          w.bs->Dirty = false;                                            // :contentReference[oaicite:24]{index=24}
          }
       }
+
+   // 4) Non-skinned meshes: apply blendshapes separately
+   for (auto& w : nonSkinned) {
+      if (!w.needsBlend || !w.meshPtr || !w.bs) continue;
+      const size_t vCount = w.meshPtr->Vertices.size();
+      if (vCount == 0) { w.bs->Dirty = false; continue; }
+
+      std::vector<PBRVertex> blended(vCount);
+      for (size_t i = 0; i < vCount; ++i) {
+         blended[i].x = w.meshPtr->Vertices[i].x;
+         blended[i].y = w.meshPtr->Vertices[i].y;
+         blended[i].z = w.meshPtr->Vertices[i].z;
+         blended[i].nx = w.meshPtr->Normals[i].x;
+         blended[i].ny = w.meshPtr->Normals[i].y;
+         blended[i].nz = w.meshPtr->Normals[i].z;
+         blended[i].u = 0.0f; blended[i].v = 0.0f;
+      }
+      std::vector<glm::vec3> accDP(vCount, glm::vec3(0));
+      std::vector<glm::vec3> accDN(vCount, glm::vec3(0));
+      for (const auto& shape : w.bs->Shapes) {
+         const float weight = shape.Weight;
+         if (weight == 0.0f) continue;
+         if (shape.DeltaPos.size() != vCount || shape.DeltaNormal.size() != vCount) continue;
+         for (size_t i = 0; i < vCount; ++i) {
+            accDP[i] += shape.DeltaPos[i] * weight;
+            accDN[i] += shape.DeltaNormal[i] * weight;
+         }
+      }
+      MorphBlendArgs ba{
+         w.meshPtr->Vertices.data(), w.meshPtr->Normals.data(),
+         accDP.data(), accDN.data(), vCount,
+         &blended[0].x, &blended[0].y, &blended[0].z,
+         &blended[0].nx, &blended[0].ny, &blended[0].nz,
+         0, (int)vCount
+      };
+      MorphBlendKernel(ba);
+      const bgfx::Memory* mem = bgfx::copy(blended.data(), uint32_t(sizeof(PBRVertex) * blended.size()));
+      if (bgfx::isValid(w.meshPtr->dvbh)) {
+         bgfx::update(w.meshPtr->dvbh, 0, mem);
+      }
+      w.bs->Dirty = false;
    }
+}

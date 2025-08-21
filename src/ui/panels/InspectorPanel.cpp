@@ -24,6 +24,81 @@
 #include "animation/AnimationSerializer.h"
 #include <filesystem>
 
+// Convert raw field names (camelCase, PascalCase, snake_case) to spaced, capitalized labels
+static std::string PrettifyLabel(const std::string& raw)
+{
+    if (raw.empty()) return raw;
+
+    std::string spaced;
+    spaced.reserve(raw.size() * 2);
+
+    auto isUpper = [](char c){ return c >= 'A' && c <= 'Z'; };
+    auto isLower = [](char c){ return c >= 'a' && c <= 'z'; };
+    auto isDigit = [](char c){ return c >= '0' && c <= '9'; };
+
+    for (size_t i = 0; i < raw.size(); ++i)
+    {
+        char c = raw[i];
+        if (c == '_' || c == '-' || c == ' ')
+        {
+            if (!spaced.empty() && spaced.back() != ' ') spaced.push_back(' ');
+            continue;
+        }
+
+        if (!spaced.empty())
+        {
+            char prev = spaced.back();
+            char next = (i + 1 < raw.size()) ? raw[i + 1] : '\0';
+            bool prevIsLetterOrDigit = ((prev >= 'A' && prev <= 'Z') || (prev >= 'a' && prev <= 'z') || (prev >= '0' && prev <= '9'));
+
+            // Insert space on transitions like: aA, 0A, a0, A0, and between acronym boundary A a
+            if (prevIsLetterOrDigit)
+            {
+                bool insert = false;
+                if (isLower(prev) && isUpper(c)) insert = true;               // camelCase boundary
+                else if (isDigit(prev) && !isDigit(c)) insert = true;         // digit -> letter
+                else if (!isDigit(prev) && isDigit(c)) insert = true;         // letter -> digit
+                else if (isUpper(prev) && isUpper(c) && isLower(next)) insert = true; // XMLh -> XML h
+                if (insert && spaced.back() != ' ') spaced.push_back(' ');
+            }
+        }
+
+        spaced.push_back(c);
+    }
+
+    // Title case
+    std::string out; out.reserve(spaced.size());
+    bool newWord = true;
+    for (char c : spaced)
+    {
+        if (c == ' ')
+        {
+            if (!out.empty() && out.back() != ' ') out.push_back(' ');
+            newWord = true;
+        }
+        else
+        {
+            if (newWord)
+            {
+                // Uppercase first letter
+                if (c >= 'a' && c <= 'z') out.push_back(char(c - 'a' + 'A'));
+                else out.push_back(c);
+                newWord = false;
+            }
+            else
+            {
+                // Lowercase subsequent letters
+                if (c >= 'A' && c <= 'Z') out.push_back(char(c - 'A' + 'a'));
+                else out.push_back(c);
+            }
+        }
+    }
+
+    // Trim trailing space
+    while (!out.empty() && out.back() == ' ') out.pop_back();
+    return out;
+}
+
 bool DrawVec3Control(const char* label, glm::vec3& values, float resetValue = 0.0f) {
     bool changed = false;
     ImGui::PushID(label);
@@ -857,11 +932,12 @@ void InspectorPanel::DrawScriptComponent(const ScriptInstance& script, int index
 void InspectorPanel::DrawScriptProperty(PropertyInfo& property, void* scriptHandle) {
     ImGui::PushID(property.name.c_str());
     bool updated = false;
+    const std::string pretty = PrettifyLabel(property.name);
     
     switch (property.type) {
         case PropertyType::Int: {
             int value = std::get<int>(property.currentValue);
-            if (ImGui::DragInt(property.name.c_str(), &value)) {
+            if (ImGui::DragInt(pretty.c_str(), &value)) {
                 property.currentValue = value;
                 if (property.setter) {
                     property.setter(value);
@@ -873,7 +949,7 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property, void* scriptHand
         
         case PropertyType::Float: {
             float value = std::get<float>(property.currentValue);
-            if (ImGui::DragFloat(property.name.c_str(), &value, 0.1f)) {
+            if (ImGui::DragFloat(pretty.c_str(), &value, 0.1f)) {
                 property.currentValue = value;
                 if (property.setter) {
                     property.setter(value);
@@ -885,7 +961,7 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property, void* scriptHand
         
         case PropertyType::Bool: {
             bool value = std::get<bool>(property.currentValue);
-            if (ImGui::Checkbox(property.name.c_str(), &value)) {
+            if (ImGui::Checkbox(pretty.c_str(), &value)) {
                 property.currentValue = value;
                 if (property.setter) {
                     property.setter(value);
@@ -901,7 +977,7 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property, void* scriptHand
             strncpy(buffer, value.c_str(), sizeof(buffer) - 1);
             buffer[sizeof(buffer) - 1] = '\0';
             
-            if (ImGui::InputText(property.name.c_str(), buffer, sizeof(buffer))) {
+            if (ImGui::InputText(pretty.c_str(), buffer, sizeof(buffer))) {
                 property.currentValue = std::string(buffer);
                 if (property.setter) {
                     property.setter(std::string(buffer));
@@ -913,7 +989,7 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property, void* scriptHand
         
         case PropertyType::Vector3: {
             glm::vec3 value = std::get<glm::vec3>(property.currentValue);
-            if (DrawVec3Control(property.name.c_str(), value)) {
+            if (DrawVec3Control(pretty.c_str(), value)) {
                 property.currentValue = value;
                 if (property.setter) {
                     property.setter(value);
@@ -930,6 +1006,10 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property, void* scriptHand
                 if(auto* entData = m_Context->GetEntityData(entityId))
                     btnLabel = entData->Name.c_str();
             }
+            ImGui::Columns(2);
+            ImGui::SetColumnWidth(0, 120.0f);
+            ImGui::Text("%s", pretty.c_str());
+            ImGui::NextColumn();
             ImGui::Button(btnLabel, ImVec2(-1,0));
             if(ImGui::BeginDragDropTarget()) {
                 if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
@@ -957,6 +1037,7 @@ void InspectorPanel::DrawScriptProperty(PropertyInfo& property, void* scriptHand
                 }
                 ImGui::EndDragDropTarget();
             }
+            ImGui::Columns(1);
             break;
         }
     }

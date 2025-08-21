@@ -35,6 +35,8 @@
 
 #include "jobs/Jobs.h"
 #include "jobs/JobSystem.h"
+#include "jobs/ParallelFor.h"
+#include <vector>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -74,16 +76,23 @@ void AssetPipeline::EnqueueAssetImport(const std::string& path) {
 // PROCESS IMPORTS + GPU TASKS
 // ---------------------------------------
 void AssetPipeline::ProcessMainThreadTasks() {
-    // 1. Import queue
-    std::queue<std::string> localQueue;
+    // 1. Import queue (CPU-bound work can run in parallel)
+    std::vector<std::string> batch;
     {
         std::lock_guard<std::mutex> lock(m_QueueMutex);
-        std::swap(localQueue, m_ImportQueue);
+        while (!m_ImportQueue.empty()) { batch.push_back(std::move(m_ImportQueue.front())); m_ImportQueue.pop(); }
     }
-
-    while (!localQueue.empty()) {
-        ImportAsset(localQueue.front());
-        localQueue.pop();
+    if (!batch.empty()) {
+        auto& js = Jobs();
+        const size_t n = batch.size();
+        const size_t chunk = 4; // balance enqueue overhead vs. I/O contention
+        parallel_for(js, size_t(0), n, chunk, [&](size_t s, size_t c){
+            for (size_t i = 0; i < c; ++i) {
+                const std::string& path = batch[s + i];
+                // ImportAsset may enqueue main-thread and GPU tasks; those are thread-safe
+                ImportAsset(path);
+            }
+        });
     }
 
     // 2. Execute scheduled lambdas (e.g., GPU safe)

@@ -13,6 +13,7 @@ public:
     std::shared_ptr<Mesh> GetCubeMesh();
     std::shared_ptr<Mesh> GetPlaneMesh();
     std::shared_ptr<Mesh> GetSphereMesh();
+    std::shared_ptr<Mesh> GetCapsuleMesh();
     
     // Register primitive meshes with AssetLibrary
     void RegisterPrimitiveMeshes();
@@ -24,8 +25,10 @@ private:
     void CreateCubeMesh();
     void CreatePlaneMesh();
     void CreateSphereMesh();
+    void CreateCapsuleMesh();
 
     std::unique_ptr<Mesh> m_CubeMesh;
     std::unique_ptr<Mesh> m_PlaneMesh;
     std::unique_ptr<Mesh> m_SphereMesh;
+    std::unique_ptr<Mesh> m_CapsuleMesh;
 };

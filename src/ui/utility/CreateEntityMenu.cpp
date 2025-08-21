@@ -58,6 +58,18 @@ bool DrawCreateEntityMenuItems(Scene* context, EntityID* selectedEntityOut)
         created = true;
     }
 
+    if (ImGui::MenuItem("Capsule")) {
+        auto e = context->CreateEntity("Capsule");
+        if (auto* d = context->GetEntityData(e.GetID())) {
+            d->Mesh = std::make_unique<MeshComponent>();
+            d->Mesh->mesh = StandardMeshManager::Instance().GetCapsuleMesh();
+            d->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+            d->Mesh->MeshName = "Capsule";
+        }
+        *selectedEntityOut = e.GetID();
+        created = true;
+    }
+
     if (ImGui::BeginMenu("Light")) {
         if (ImGui::MenuItem("Directional")) {
             auto e = context->CreateEntity("Directional Light");

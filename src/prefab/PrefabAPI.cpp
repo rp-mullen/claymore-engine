@@ -18,6 +18,10 @@
 
 using json = nlohmann::json;
 
+// Jobs
+#include "jobs/Jobs.h"
+#include "jobs/ParallelFor.h"
+
 static std::string AuthoringPrefabPathFromGuid(const ClaymoreGUID& guid) {
     return std::string("assets/prefabs/") + guid.ToString() + ".prefab.json";
 }
@@ -167,40 +171,55 @@ EntityID InstantiatePrefab(const ClaymoreGUID& prefabGuid, Scene& dst, const Pre
     auto itRoot = guidToId.find(pack(author.RootGuid));
     if (itRoot != guidToId.end()) root = itRoot->second; else if (!author.Entities.empty()) root = guidToId.begin()->second;
 
-    // Pass 2: parent and deserialize component shells (no asset resolution yet)
-    for (const auto& e : author.Entities) {
+    // Pass 2: parent serially; stage component shells for parallel deserialization
+    std::vector<size_t> nonAssetIndices; nonAssetIndices.reserve(author.Entities.size());
+    for (size_t i = 0; i < author.Entities.size(); ++i) {
+        const auto& e = author.Entities[i];
         auto itId = guidToId.find(pack(e.Guid)); if (itId == guidToId.end()) continue;
         EntityID id = itId->second;
-        auto* d = dst.GetEntityData(id); if (!d) continue;
         if (e.ParentGuid.high != 0 || e.ParentGuid.low != 0) {
             auto itP = guidToId.find(pack(e.ParentGuid)); if (itP != guidToId.end()) dst.SetParent(id, itP->second);
         }
-        // Components (shells) — skip for compact model asset nodes (they were handled on creation)
-        if (e.Components.contains("asset") && e.Components["asset"].is_object()) continue;
-        if (e.Components.contains("transform")) {
-            Serializer::DeserializeTransform(e.Components["transform"], d->Transform);
-            // Ensure quaternion path is used for fidelity
-            if (!glm::all(glm::epsilonEqual(d->Transform.RotationQ, glm::quat(1,0,0,0), 0.0f))) {
-                d->Transform.UseQuatRotation = true;
-            }
-            d->Transform.TransformDirty = true;
-            d->Transform.CalculateLocalMatrix();
+        if (!(e.Components.contains("asset") && e.Components["asset"].is_object())) {
+            nonAssetIndices.push_back(i);
         }
-        if (e.Components.contains("mesh")) { d->Mesh = std::make_unique<MeshComponent>(); /* defer actual mesh load to build step */ }
-        if (e.Components.contains("skeleton")) { d->Skeleton = std::make_unique<SkeletonComponent>(); Serializer::DeserializeSkeleton(e.Components["skeleton"], *d->Skeleton); }
-        if (e.Components.contains("skinning")) { d->Skinning = std::make_unique<SkinningComponent>(); /* SkeletonRoot resolved later */ }
-        if (e.Components.contains("animator")) { if (!d->AnimationPlayer) d->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(); Serializer::DeserializeAnimator(e.Components["animator"], *d->AnimationPlayer); }
-        if (e.Components.contains("scripts")) { Serializer::DeserializeScripts(e.Components["scripts"], d->Scripts); }
-        if (e.Components.contains("camera")) { d->Camera = std::make_unique<CameraComponent>(); Serializer::DeserializeCamera(e.Components["camera"], *d->Camera); }
-        if (e.Components.contains("light")) { d->Light = std::make_unique<LightComponent>(); Serializer::DeserializeLight(e.Components["light"], *d->Light); }
-        if (e.Components.contains("collider")) { d->Collider = std::make_unique<ColliderComponent>(); Serializer::DeserializeCollider(e.Components["collider"], *d->Collider); }
-        if (e.Components.contains("rigidbody")) { d->RigidBody = std::make_unique<RigidBodyComponent>(); Serializer::DeserializeRigidBody(e.Components["rigidbody"], *d->RigidBody); }
-        if (e.Components.contains("staticbody")) { d->StaticBody = std::make_unique<StaticBodyComponent>(); Serializer::DeserializeStaticBody(e.Components["staticbody"], *d->StaticBody); }
-        if (e.Components.contains("terrain")) { d->Terrain = std::make_unique<TerrainComponent>(); Serializer::DeserializeTerrain(e.Components["terrain"], *d->Terrain); }
-        if (e.Components.contains("emitter")) { d->Emitter = std::make_unique<ParticleEmitterComponent>(); Serializer::DeserializeParticleEmitter(e.Components["emitter"], *d->Emitter); }
-        if (e.Components.contains("canvas")) { d->Canvas = std::make_unique<CanvasComponent>(); Serializer::DeserializeCanvas(e.Components["canvas"], *d->Canvas); }
-        if (e.Components.contains("panel")) { d->Panel = std::make_unique<PanelComponent>(); Serializer::DeserializePanel(e.Components["panel"], *d->Panel); }
-        if (e.Components.contains("button")) { d->Button = std::make_unique<ButtonComponent>(); Serializer::DeserializeButton(e.Components["button"], *d->Button); }
+    }
+    // Parallelize component shell creation and JSON deserialization for non-asset nodes
+    if (!nonAssetIndices.empty()) {
+        auto& js = Jobs();
+        const size_t chunk = 16;
+        parallel_for(js, size_t(0), nonAssetIndices.size(), chunk, [&](size_t s, size_t c){
+            for (size_t off = 0; off < c; ++off) {
+                size_t idx = nonAssetIndices[s + off];
+                const auto& e = author.Entities[idx];
+                auto itId = guidToId.find(pack(e.Guid)); if (itId == guidToId.end()) continue;
+                EntityID id = itId->second;
+                auto* d = dst.GetEntityData(id); if (!d) continue;
+                if (e.Components.contains("transform")) {
+                    Serializer::DeserializeTransform(e.Components["transform"], d->Transform);
+                    if (!glm::all(glm::epsilonEqual(d->Transform.RotationQ, glm::quat(1,0,0,0), 0.0f))) {
+                        d->Transform.UseQuatRotation = true;
+                    }
+                    d->Transform.TransformDirty = true;
+                    d->Transform.CalculateLocalMatrix();
+                }
+                if (e.Components.contains("mesh")) { d->Mesh = std::make_unique<MeshComponent>(); /* defer renderer build */ }
+                if (e.Components.contains("skeleton")) { if (!d->Skeleton) d->Skeleton = std::make_unique<SkeletonComponent>(); Serializer::DeserializeSkeleton(e.Components["skeleton"], *d->Skeleton); }
+                if (e.Components.contains("skinning")) { if (!d->Skinning) d->Skinning = std::make_unique<SkinningComponent>(); /* root resolved later */ }
+                if (e.Components.contains("animator")) { if (!d->AnimationPlayer) d->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(); Serializer::DeserializeAnimator(e.Components["animator"], *d->AnimationPlayer); }
+                if (e.Components.contains("scripts")) { Serializer::DeserializeScripts(e.Components["scripts"], d->Scripts); }
+                if (e.Components.contains("camera")) { if (!d->Camera) d->Camera = std::make_unique<CameraComponent>(); Serializer::DeserializeCamera(e.Components["camera"], *d->Camera); }
+                if (e.Components.contains("light")) { if (!d->Light) d->Light = std::make_unique<LightComponent>(); Serializer::DeserializeLight(e.Components["light"], *d->Light); }
+                if (e.Components.contains("collider")) { if (!d->Collider) d->Collider = std::make_unique<ColliderComponent>(); Serializer::DeserializeCollider(e.Components["collider"], *d->Collider); }
+                if (e.Components.contains("rigidbody")) { if (!d->RigidBody) d->RigidBody = std::make_unique<RigidBodyComponent>(); Serializer::DeserializeRigidBody(e.Components["rigidbody"], *d->RigidBody); }
+                if (e.Components.contains("staticbody")) { if (!d->StaticBody) d->StaticBody = std::make_unique<StaticBodyComponent>(); Serializer::DeserializeStaticBody(e.Components["staticbody"], *d->StaticBody); }
+                if (e.Components.contains("terrain")) { if (!d->Terrain) d->Terrain = std::make_unique<TerrainComponent>(); Serializer::DeserializeTerrain(e.Components["terrain"], *d->Terrain); }
+                if (e.Components.contains("emitter")) { if (!d->Emitter) d->Emitter = std::make_unique<ParticleEmitterComponent>(); Serializer::DeserializeParticleEmitter(e.Components["emitter"], *d->Emitter); }
+                if (e.Components.contains("canvas")) { if (!d->Canvas) d->Canvas = std::make_unique<CanvasComponent>(); Serializer::DeserializeCanvas(e.Components["canvas"], *d->Canvas); }
+                if (e.Components.contains("panel")) { if (!d->Panel) d->Panel = std::make_unique<PanelComponent>(); Serializer::DeserializePanel(e.Components["panel"], *d->Panel); }
+                if (e.Components.contains("button")) { if (!d->Button) d->Button = std::make_unique<ButtonComponent>(); Serializer::DeserializeButton(e.Components["button"], *d->Button); }
+            }
+        });
     }
 
     // Pass 3: ensure skeleton bone entities exist (generate from bind pose if missing)

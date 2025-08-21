@@ -17,6 +17,18 @@ public class MyTestScript : ScriptComponent
    [SerializeField]
    public Entity refEntity;
 
+   // Camera orbit settings
+   [SerializeField]
+   public Entity cameraEntity;
+
+   private float orbitDistance = 5.0f;
+   private float orbitMinPitch = -30.0f; // degrees
+   private float orbitMaxPitch = 70.0f;  // degrees
+   private float mouseSensitivity = 0.1f; // deg per pixel
+   private float yawDegrees = 0.0f;   // camera yaw around player (degrees)
+   private float pitchDegrees = 20.0f; // camera pitch (degrees)
+   private Vector3 cameraTargetOffset = new Vector3(0f, 1.6f, 0f); // aim around head height
+
    private bool mouseCaptured = false;
 
    public override void OnCreate()
@@ -42,6 +54,30 @@ public class MyTestScript : ScriptComponent
 
    public override void OnUpdate(float dt)
       {
+      // Toggle capture
+      if (Input.GetKeyDown(KeyCode.E))
+         {
+         mouseCaptured = !mouseCaptured;
+         if (mouseCaptured)
+            {
+            Input.SetMouseMode(Input.MouseMode.Captured);
+            }
+         else
+            {
+            Input.SetMouseMode(Input.MouseMode.Free);
+            }
+         }
+
+      // Update orbit angles from mouse when captured
+      if (mouseCaptured)
+         {
+         var md = Input.GetMouseDelta();
+         yawDegrees += md.X * mouseSensitivity;
+         pitchDegrees -= md.Y * mouseSensitivity;
+         if (pitchDegrees < orbitMinPitch) pitchDegrees = orbitMinPitch;
+         if (pitchDegrees > orbitMaxPitch) pitchDegrees = orbitMaxPitch;
+         }
+
       // --- Gather input into a single move direction ---
       Vector3 moveDir = Vector3.Zero;
       if (Input.GetKey(KeyCode.W)) moveDir += new Vector3(0f, 0f, 1f);
@@ -56,11 +92,24 @@ public class MyTestScript : ScriptComponent
          // Normalize so speed is consistent on diagonals
          moveDir = Vector3.Normalize(moveDir);
 
-         // Move
-         transform.position += moveDir * moveSpeed * dt;
+         // If captured, move relative to camera yaw (third-person style)
+         Vector3 worldMove = moveDir;
+         if (mouseCaptured)
+            {
+            float yawRad = MathF.PI / 180f * yawDegrees;
+            float cosY = MathF.Cos(yawRad);
+            float sinY = MathF.Sin(yawRad);
+            // rotate XZ by yaw around Y axis
+            float x = worldMove.X * cosY + worldMove.Z * -sinY;
+            float z = worldMove.X * sinY + worldMove.Z *  cosY;
+            worldMove = new Vector3(x, 0f, z);
+            }
 
-         // --- Smoothly rotate around Y toward the move direction ---
-         float targetYaw = MathF.Atan2(moveDir.X, moveDir.Z); // +Z forward, +X right
+         // Move
+         transform.position += worldMove * moveSpeed * dt;
+
+         // --- Smoothly rotate around Y toward the move direction in world space ---
+         float targetYaw = MathF.Atan2(worldMove.X, worldMove.Z); // +Z forward, +X right
          Quaternion targetRot = Quaternion.CreateFromAxisAngle(Vector3.UnitY, targetYaw);
 
          // Critically-damped interpolation factor (frame-rate independent)
@@ -77,23 +126,16 @@ public class MyTestScript : ScriptComponent
          float targetSpeed = moving ? 1f : 0f;
          float x = 1f;
          // exponential smoothing (frame-rate independent)
-         float lerpT = 1f - MathF.Exp(-6f * dt); // 8 = snappiness; try 6–12
+         float lerpT = 1f - MathF.Exp(-6f * dt); // 8 = snappiness; try 6ï¿½12
          speedParam = float.Lerp(speedParam, targetSpeed, lerpT);
 
          animator.GetController().SetFloat("Speed", speedParam);
          }
 
-      if (Input.GetKeyDown(KeyCode.E))
+      // Maintain orbit camera lock
+      if (cameraEntity.EntityID != 0)
          {
-         mouseCaptured = !mouseCaptured;
-         if (mouseCaptured)
-            {
-            Input.SetMouseMode(Input.MouseMode.Captured);
-            }
-         else
-            {
-            Input.SetMouseMode(Input.MouseMode.Free);
-            }
+         UpdateOrbitCamera(dt);
          }
       }
 
@@ -103,5 +145,50 @@ public class MyTestScript : ScriptComponent
    public void MovePlayer(float dt, Vector3 dir)
       {
       transform.position += dir * moveSpeed * dt;
+      }
+
+   // ---------------- Camera helpers ----------------
+   private void UpdateOrbitCamera(float dt)
+      {
+      // Player target position (e.g., head)
+      Vector3 targetPos = transform.position + cameraTargetOffset;
+
+      // Convert yaw/pitch to forward vector (from camera towards player)
+      float yawRad = MathF.PI / 180f * yawDegrees;
+      float pitchRad = MathF.PI / 180f * pitchDegrees;
+
+      Vector3 forward = new Vector3(
+         MathF.Sin(yawRad) * MathF.Cos(pitchRad),
+         MathF.Sin(pitchRad),
+         MathF.Cos(yawRad) * MathF.Cos(pitchRad)
+      );
+
+      // Camera should sit behind the target, so position = target - forward * distance
+      Vector3 camPos = targetPos - forward * orbitDistance;
+
+      // Apply to camera entity transform
+      var camXform = cameraEntity.transform;
+      camXform.position = camPos;
+
+      // Build look rotation so camera looks at target
+      Vector3 toTarget = Vector3.Normalize(targetPos - camPos);
+      Quaternion camRot = LookRotation(toTarget, Vector3.UnitY);
+      camXform.rotation = camRot;
+      }
+
+   private static Quaternion LookRotation(Vector3 forward, Vector3 up)
+      {
+      // Orthonormal basis
+      Vector3 z = Vector3.Normalize(forward);
+      Vector3 x = Vector3.Normalize(Vector3.Cross(up, z));
+      Vector3 y = Vector3.Cross(z, x);
+
+      var m = new Matrix4x4(
+         x.X, x.Y, x.Z, 0f,
+         y.X, y.Y, y.Z, 0f,
+         z.X, z.Y, z.Z, 0f,
+         0f,  0f,  0f,  1f
+      );
+      return Quaternion.CreateFromRotationMatrix(m);
       }
    }

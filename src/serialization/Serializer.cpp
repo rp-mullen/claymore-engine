@@ -18,6 +18,10 @@
 
 #include "ecs/Scene.h"
 
+// Jobs for parallel scene deserialization
+#include "jobs/Jobs.h"
+#include "jobs/ParallelFor.h"
+
 namespace fs = std::filesystem;
 
 // Heuristic: Determine if an entity is the root of an imported model. If so, try to infer model path
@@ -211,6 +215,7 @@ void Serializer::DeserializeMesh(const json& data, MeshComponent& mesh) {
                 case 0: mesh.mesh = StandardMeshManager::Instance().GetCubeMesh(); break;
                 case 1: mesh.mesh = StandardMeshManager::Instance().GetSphereMesh(); break;
                 case 2: mesh.mesh = StandardMeshManager::Instance().GetPlaneMesh(); break;
+                case 3: mesh.mesh = StandardMeshManager::Instance().GetCapsuleMesh(); break;
                 default: mesh.mesh = StandardMeshManager::Instance().GetCubeMesh(); break;
             }
         }
@@ -223,6 +228,8 @@ void Serializer::DeserializeMesh(const json& data, MeshComponent& mesh) {
                 mesh.mesh = StandardMeshManager::Instance().GetSphereMesh();
             } else if (mesh.MeshName == "Plane") {
                 mesh.mesh = StandardMeshManager::Instance().GetPlaneMesh();
+            } else if (mesh.MeshName == "Capsule") {
+                mesh.mesh = StandardMeshManager::Instance().GetCapsuleMesh();
             } else if (mesh.MeshName == "ImageQuad") {
                 mesh.mesh = StandardMeshManager::Instance().GetPlaneMesh();
             } else {
@@ -1375,6 +1382,54 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
             idMapping[oldId] = newId;
         }
         NEXT_ENTITY: ;
+    }
+
+    // Parallelize component population for non-opaque roots (safe, no bgfx calls here)
+    if (!idMapping.empty()) {
+        std::vector<const json*> work;
+        work.reserve(idMapping.size());
+        for (const auto& entityData : data["entities"]) {
+            if (!entityData.contains("id")) continue;
+            EntityID oldId = entityData["id"].get<EntityID>();
+            auto it = idMapping.find(oldId);
+            if (it == idMapping.end()) continue;
+            EntityID nid = it->second;
+            if (opaqueRoots.find(nid) != opaqueRoots.end()) continue; // skip compact model asset roots
+            // Also skip if this JSON node was a compact model node (handled already)
+            if (entityData.contains("asset") && entityData["asset"].is_object()) continue;
+            work.push_back(&entityData);
+        }
+        if (!work.empty()) {
+            auto& js = Jobs();
+            const size_t chunk = 32;
+            parallel_for(js, size_t(0), work.size(), chunk, [&](size_t s, size_t c){
+                for (size_t off = 0; off < c; ++off) {
+                    const json& entityData = *work[s + off];
+                    EntityID oldId = entityData.value("id", (EntityID)0);
+                    auto it = idMapping.find(oldId); if (it == idMapping.end()) continue;
+                    EntityID nid = it->second;
+                    auto* ed = scene.GetEntityData(nid); if (!ed) continue;
+                    // Transform
+                    if (entityData.contains("transform")) { DeserializeTransform(entityData["transform"], ed->Transform); }
+                    // Component shells + JSON decode (no GPU work)
+                    if (entityData.contains("mesh")) { if (!ed->Mesh) ed->Mesh = std::make_unique<MeshComponent>(); DeserializeMesh(entityData["mesh"], *ed->Mesh); }
+                    if (entityData.contains("light")) { if (!ed->Light) ed->Light = std::make_unique<LightComponent>(); DeserializeLight(entityData["light"], *ed->Light); }
+                    if (entityData.contains("collider")) { if (!ed->Collider) ed->Collider = std::make_unique<ColliderComponent>(); DeserializeCollider(entityData["collider"], *ed->Collider); }
+                    if (entityData.contains("rigidbody")) { if (!ed->RigidBody) ed->RigidBody = std::make_unique<RigidBodyComponent>(); DeserializeRigidBody(entityData["rigidbody"], *ed->RigidBody); }
+                    if (entityData.contains("staticbody")) { if (!ed->StaticBody) ed->StaticBody = std::make_unique<StaticBodyComponent>(); DeserializeStaticBody(entityData["staticbody"], *ed->StaticBody); }
+                    if (entityData.contains("camera")) { if (!ed->Camera) ed->Camera = std::make_unique<CameraComponent>(); DeserializeCamera(entityData["camera"], *ed->Camera); }
+                    if (entityData.contains("terrain")) { if (!ed->Terrain) ed->Terrain = std::make_unique<TerrainComponent>(); DeserializeTerrain(entityData["terrain"], *ed->Terrain); }
+                    if (entityData.contains("emitter")) { if (!ed->Emitter) ed->Emitter = std::make_unique<ParticleEmitterComponent>(); DeserializeParticleEmitter(entityData["emitter"], *ed->Emitter); }
+                    if (entityData.contains("canvas")) { if (!ed->Canvas) ed->Canvas = std::make_unique<CanvasComponent>(); DeserializeCanvas(entityData["canvas"], *ed->Canvas); }
+                    if (entityData.contains("panel")) { if (!ed->Panel) ed->Panel = std::make_unique<PanelComponent>(); DeserializePanel(entityData["panel"], *ed->Panel); }
+                    if (entityData.contains("button")) { if (!ed->Button) ed->Button = std::make_unique<ButtonComponent>(); DeserializeButton(entityData["button"], *ed->Button); }
+                    if (entityData.contains("scripts")) { DeserializeScripts(entityData["scripts"], ed->Scripts); }
+                    if (entityData.contains("animator")) { if (!ed->AnimationPlayer) ed->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(); DeserializeAnimator(entityData["animator"], *ed->AnimationPlayer); }
+                    if (entityData.contains("skeleton")) { if (!ed->Skeleton) ed->Skeleton = std::make_unique<SkeletonComponent>(); DeserializeSkeleton(entityData["skeleton"], *ed->Skeleton); }
+                    if (entityData.contains("skinning")) { if (!ed->Skinning) ed->Skinning = std::make_unique<SkinningComponent>(); DeserializeSkinning(entityData["skinning"], *ed->Skinning); }
+                }
+            });
+        }
     }
 
     // Reset children vectors to avoid duplicates for non-opaque roots, then fix up parent-child relationships

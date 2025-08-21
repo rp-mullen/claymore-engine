@@ -7,6 +7,7 @@
 #include "rendering/Material.h"
 #include "rendering/TextureLoader.h"
 #include "animation/AnimationTypes.h"
+#include <mutex>
 
 // Forward declarations to avoid heavy includes
 struct EntityData;
@@ -87,6 +88,7 @@ private:
     AssetLibrary() = default;
     ~AssetLibrary() = default;
     
+                mutable std::mutex m_Mutex;
                 std::unordered_map<ClaymoreGUID, AssetEntry> m_Assets;
             std::unordered_map<std::string, ClaymoreGUID> m_PathToGUID;
             std::unordered_map<ClaymoreGUID, std::string> m_GUIDToPath;

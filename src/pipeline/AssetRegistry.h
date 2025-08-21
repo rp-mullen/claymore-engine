@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <string>
 #include "AssetMetadata.h"
+#include <mutex>
 
 class AssetRegistry {
 public:
@@ -21,5 +22,6 @@ public:
 
 private:
     AssetRegistry() = default;
+    mutable std::mutex m_Mutex;
     std::unordered_map<std::string, AssetMetadata> m_Metadata;
 };

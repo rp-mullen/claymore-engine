@@ -21,6 +21,8 @@ StandardMeshManager::~StandardMeshManager() {
     if (m_PlaneMesh && m_PlaneMesh->ibh.idx != bgfx::kInvalidHandle) bgfx::destroy(m_PlaneMesh->ibh);
     if (m_SphereMesh && m_SphereMesh->vbh.idx != bgfx::kInvalidHandle) bgfx::destroy(m_SphereMesh->vbh);
     if (m_SphereMesh && m_SphereMesh->ibh.idx != bgfx::kInvalidHandle) bgfx::destroy(m_SphereMesh->ibh);
+    if (m_CapsuleMesh && m_CapsuleMesh->vbh.idx != bgfx::kInvalidHandle) bgfx::destroy(m_CapsuleMesh->vbh);
+    if (m_CapsuleMesh && m_CapsuleMesh->ibh.idx != bgfx::kInvalidHandle) bgfx::destroy(m_CapsuleMesh->ibh);
 }
 
 std::shared_ptr<Mesh> StandardMeshManager::GetCubeMesh() {  
@@ -78,12 +80,13 @@ void StandardMeshManager::CreateCubeMesh() {
     };
 
     static const uint16_t cubeIndices[] = {
-        0, 1, 2, 1, 3, 2,      // Front
-        4, 6, 5, 5, 6, 7,      // Back
-        8, 9,10, 9,11,10,      // Left
-       12,13,14,13,15,14,      // Right
-       16,17,18,17,19,18,      // Top
-       20,21,22,21,23,22       // Bottom
+        // Reverse winding to enforce clockwise
+        0, 2, 1, 1, 2, 3,      // Front
+        4, 5, 6, 5, 7, 6,      // Back
+        8,10, 9, 9,10,11,      // Left
+       12,14,13,13,14,15,      // Right
+       16,18,17,17,18,19,      // Top
+       20,22,21,21,22,23       // Bottom
     };
 
 
@@ -117,7 +120,8 @@ void StandardMeshManager::CreatePlaneMesh() {
     };
 
     static const uint16_t planeIndices[] = {
-        0, 1, 2, 1, 3, 2  // Two triangles forming a quad
+        // Reverse winding to enforce clockwise
+        0, 2, 1, 1, 2, 3
     };
 
     m_PlaneMesh = std::make_unique<Mesh>();
@@ -176,21 +180,21 @@ void StandardMeshManager::CreateSphereMesh() {
         }
     }
     
-    // Generate indices
+    // Generate indices (reversed for clockwise winding)
     for (int ring = 0; ring < rings; ++ring) {
         for (int segment = 0; segment < segments; ++segment) {
-            uint16_t current = ring * (segments + 1) + segment;
-            uint16_t next = current + segments + 1;
+            uint16_t current = (uint16_t)(ring * (segments + 1) + segment);
+            uint16_t next = (uint16_t)(current + segments + 1);
             
-            // First triangle
+            // First triangle (reversed)
             sphereIndices.push_back(current);
+            sphereIndices.push_back((uint16_t)(current + 1));
             sphereIndices.push_back(next);
-            sphereIndices.push_back(current + 1);
             
-            // Second triangle
+            // Second triangle (reversed)
             sphereIndices.push_back(next);
-            sphereIndices.push_back(next + 1);
-            sphereIndices.push_back(current + 1);
+            sphereIndices.push_back((uint16_t)(current + 1));
+            sphereIndices.push_back((uint16_t)(next + 1));
         }
     }
     
@@ -235,5 +239,139 @@ void StandardMeshManager::RegisterPrimitiveMeshes() {
     AssetReference planeRef(PRIMITIVE_GUID, 2, static_cast<int32_t>(AssetType::Mesh));
     AssetLibrary::Instance().RegisterAsset(planeRef, AssetType::Mesh, "", "Plane");
     
+    // Register Capsule primitive
+    AssetReference capsuleRef(PRIMITIVE_GUID, 3, static_cast<int32_t>(AssetType::Mesh));
+    AssetLibrary::Instance().RegisterAsset(capsuleRef, AssetType::Mesh, "", "Capsule");
+    
     std::cout << "[StandardMeshManager] Registered primitive meshes with AssetLibrary" << std::endl;
+}
+
+std::shared_ptr<Mesh> StandardMeshManager::GetCapsuleMesh() {
+    if (!m_CapsuleMesh) CreateCapsuleMesh();
+    return std::shared_ptr<Mesh>(m_CapsuleMesh.get(), [](Mesh*) {});
+}
+
+void StandardMeshManager::CreateCapsuleMesh() {
+    const int segments = 32;      // Around Y axis
+    const int ringsCap = 16;      // Per hemisphere
+    const float radius = 0.5f;    // Match ~2.0 overall height with halfHeight below
+    const float halfHeight = 0.5f;
+
+    std::vector<PBRVertex> vertices;
+    std::vector<uint16_t> indices;
+
+    auto pushTriangleCW = [&](uint16_t a, uint16_t b, uint16_t c) {
+        // Ensure clockwise: a, c, b would be reverse if we built CCW; here we build directly in CW
+        indices.push_back(a);
+        indices.push_back(b);
+        indices.push_back(c);
+    };
+
+    // Cylinder (two rings: bottom and top)
+    int baseIndexCylinder = (int)vertices.size();
+    for (int yStep = 0; yStep <= 1; ++yStep) {
+        float y = (yStep == 0) ? -halfHeight : +halfHeight;
+        float v = yStep == 0 ? 0.0f : 0.5f;
+        for (int s = 0; s <= segments; ++s) {
+            float u = (float)s / segments;
+            float theta = u * glm::two_pi<float>();
+            float cx = radius * cosf(theta);
+            float cz = radius * sinf(theta);
+            float nx = cosf(theta);
+            float nz = sinf(theta);
+            vertices.push_back({cx, y, cz, nx, 0.0f, nz, u, v});
+        }
+    }
+    // Cylinder indices (clockwise). Two strips between the two rings
+    for (int s = 0; s < segments; ++s) {
+        uint16_t i0 = (uint16_t)(baseIndexCylinder + s);
+        uint16_t i1 = (uint16_t)(baseIndexCylinder + s + 1);
+        uint16_t i2 = (uint16_t)(baseIndexCylinder + (segments + 1) + s);
+        uint16_t i3 = (uint16_t)(baseIndexCylinder + (segments + 1) + s + 1);
+        // Two triangles per quad; enforce clockwise for outward-facing normals
+        pushTriangleCW(i0, i2, i1);
+        pushTriangleCW(i2, i3, i1);
+    }
+
+    // Top hemisphere (from equator to top pole)
+    int baseIndexTop = (int)vertices.size();
+    for (int r = 0; r <= ringsCap; ++r) {
+        float t = (float)r / ringsCap;               // 0..1
+        float phi = t * (glm::half_pi<float>());     // 0..pi/2
+        float yLocal = radius * cosf(phi);           // radius..0
+        float ringR = radius * sinf(phi);            // 0..radius
+        float y = halfHeight + yLocal;
+        float v = 0.5f + 0.5f * (1.0f - t);          // 1 at pole, 0.5 at equator
+        for (int s = 0; s <= segments; ++s) {
+            float u = (float)s / segments;
+            float theta = u * glm::two_pi<float>();
+            float x = ringR * cosf(theta);
+            float z = ringR * sinf(theta);
+            // Normal from cap center
+            float nx = (ringR > 0.0f || yLocal > 0.0f) ? cosf(theta) * sinf(phi) : 0.0f;
+            float ny = (ringR > 0.0f || yLocal > 0.0f) ? cosf(phi) : 1.0f;
+            float nz = (ringR > 0.0f || yLocal > 0.0f) ? sinf(theta) * sinf(phi) : 0.0f;
+            // Normalize normal just in case
+            glm::vec3 n = glm::normalize(glm::vec3(nx, ny, nz));
+            vertices.push_back({x, y, z, n.x, n.y, n.z, u, v});
+        }
+    }
+    for (int r = 0; r < ringsCap; ++r) {
+        for (int s = 0; s < segments; ++s) {
+            uint16_t curr = (uint16_t)(baseIndexTop + r * (segments + 1) + s);
+            uint16_t next = (uint16_t)(curr + segments + 1);
+            // Clockwise
+            pushTriangleCW(curr, next, (uint16_t)(curr + 1));
+            pushTriangleCW(next, (uint16_t)(next + 1), (uint16_t)(curr + 1));
+        }
+    }
+
+    // Bottom hemisphere (from bottom pole to equator)
+    int baseIndexBottom = (int)vertices.size();
+    for (int r = 0; r <= ringsCap; ++r) {
+        float t = (float)r / ringsCap;               // 0..1
+        float phi = t * (glm::half_pi<float>());     // 0..pi/2
+        float yLocal = radius * cosf(phi);           // radius..0
+        float ringR = radius * sinf(phi);            // 0..radius
+        float y = -halfHeight - yLocal;
+        float v = 0.5f * (1.0f - (1.0f - t));        // 0 at pole, 0.5 at equator
+        for (int s = 0; s <= segments; ++s) {
+            float u = (float)s / segments;
+            float theta = u * glm::two_pi<float>();
+            float x = ringR * cosf(theta);
+            float z = ringR * sinf(theta);
+            // Normal from cap center
+            float nx = (ringR > 0.0f || yLocal > 0.0f) ? cosf(theta) * sinf(phi) : 0.0f;
+            float ny = (ringR > 0.0f || yLocal > 0.0f) ? -cosf(phi) : -1.0f;
+            float nz = (ringR > 0.0f || yLocal > 0.0f) ? sinf(theta) * sinf(phi) : 0.0f;
+            glm::vec3 n = glm::normalize(glm::vec3(nx, ny, nz));
+            vertices.push_back({x, y, z, n.x, n.y, n.z, u, v});
+        }
+    }
+    for (int r = 0; r < ringsCap; ++r) {
+        for (int s = 0; s < segments; ++s) {
+            uint16_t curr = (uint16_t)(baseIndexBottom + r * (segments + 1) + s);
+            uint16_t next = (uint16_t)(curr + segments + 1);
+            // Clockwise
+            pushTriangleCW(curr, (uint16_t)(curr + 1), next);
+            pushTriangleCW(next, (uint16_t)(curr + 1), (uint16_t)(next + 1));
+        }
+    }
+
+    m_CapsuleMesh = std::make_unique<Mesh>();
+    m_CapsuleMesh->vbh = bgfx::createVertexBuffer(
+        bgfx::makeRef(vertices.data(), (uint32_t)(vertices.size() * sizeof(PBRVertex))),
+        PBRVertex::layout);
+    m_CapsuleMesh->ibh = bgfx::createIndexBuffer(
+        bgfx::makeRef(indices.data(), (uint32_t)(indices.size() * sizeof(uint16_t))));
+
+    // CPU-side storage for picking
+    m_CapsuleMesh->Vertices.reserve(vertices.size());
+    for (auto& v : vertices) m_CapsuleMesh->Vertices.push_back(glm::vec3(v.x, v.y, v.z));
+    m_CapsuleMesh->Indices.assign(indices.begin(), indices.end());
+    m_CapsuleMesh->numIndices = (uint32_t)indices.size();
+
+    m_CapsuleMesh->ComputeBounds();
+    printf("[StandardMeshManager] Capsule Mesh created (PBR) - %zu vertices, %zu indices.\n",
+        vertices.size(), indices.size());
 }

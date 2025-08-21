@@ -15,6 +15,7 @@
 namespace fs = std::filesystem;
 
 void AssetLibrary::RegisterAsset(const AssetReference& ref, AssetType type, const std::string& path, const std::string& name) {
+    std::lock_guard<std::mutex> lk(m_Mutex);
     // Normalize forward slashes
     std::string normPath = path;
     std::replace(normPath.begin(), normPath.end(), '\\', '/');
@@ -49,6 +50,7 @@ void AssetLibrary::RegisterAsset(const AssetReference& ref, AssetType type, cons
 }
 
 void AssetLibrary::RegisterPathAlias(const ClaymoreGUID& guid, const std::string& altPath) {
+    std::lock_guard<std::mutex> lk(m_Mutex);
     if (guid.high == 0 && guid.low == 0) return;
     std::string norm = altPath;
     std::replace(norm.begin(), norm.end(), '\\', '/');
@@ -56,6 +58,7 @@ void AssetLibrary::RegisterPathAlias(const ClaymoreGUID& guid, const std::string
 }
 
 void AssetLibrary::UnregisterAsset(const AssetReference& ref) {
+    std::lock_guard<std::mutex> lk(m_Mutex);
     auto it = m_Assets.find(ref.guid);
     if (it != m_Assets.end()) {
         m_PathToGUID.erase(it->second.path);
@@ -65,16 +68,19 @@ void AssetLibrary::UnregisterAsset(const AssetReference& ref) {
 }
 
 AssetEntry* AssetLibrary::GetAsset(const AssetReference& ref) {
+    std::lock_guard<std::mutex> lk(m_Mutex);
     auto it = m_Assets.find(ref.guid);
     return it != m_Assets.end() ? &it->second : nullptr;
 }
 
 AssetEntry* AssetLibrary::GetAsset(const ClaymoreGUID& guid) {
+    std::lock_guard<std::mutex> lk(m_Mutex);
     auto it = m_Assets.find(guid);
     return it != m_Assets.end() ? &it->second : nullptr;
 }
 
 AssetEntry* AssetLibrary::GetAsset(const std::string& path) {
+    std::lock_guard<std::mutex> lk(m_Mutex);
     // Normalize slashes and resolve via GUID to be robust against absolute vs project-relative paths
     std::string norm = path;
     std::replace(norm.begin(), norm.end(), '\\', '/');
@@ -141,61 +147,76 @@ std::shared_ptr<Mesh> AssetLibrary::LoadMesh(const AssetReference& ref) {
         }
         // Cache per-fileID meshes inside the entry by reusing its mesh pointer for fileID 0
         // and loading a model once per request; keep a simple cache map local static for now.
-        static std::unordered_map<std::string, std::vector<std::shared_ptr<Mesh>>> s_modelMeshCache;
-        auto& meshList = s_modelMeshCache[entry->path];
-        if (meshList.empty()) {
+        struct Cache { std::mutex m; std::unordered_map<std::string, std::vector<std::shared_ptr<Mesh>>> map; };
+        static Cache s_cache;
+        std::vector<std::shared_ptr<Mesh>> meshListLocal;
+        {
+            std::lock_guard<std::mutex> lk(s_cache.m);
+            auto& meshList = s_cache.map[entry->path];
+            if (meshList.empty()) {
+                // Load outside lock
+            } else {
+                meshListLocal = meshList;
+            }
+        }
+        if (meshListLocal.empty()) {
             Model model = ModelLoader::LoadModel(entry->path);
-            meshList = model.Meshes;
+            meshListLocal = model.Meshes;
+            std::lock_guard<std::mutex> lk2(s_cache.m);
+            s_cache.map[entry->path] = meshListLocal;
         }
         int idx = std::max(0, ref.fileID);
-        if (idx < (int)meshList.size()) {
-            return meshList[idx];
+        if (idx < (int)meshListLocal.size()) {
+            return meshListLocal[idx];
         }
         std::cout << "[AssetLibrary] Warning: fileID " << ref.fileID << " out of range for model: " << entry->path << std::endl;
-        return meshList.empty() ? nullptr : meshList[0];
+        return meshListLocal.empty() ? nullptr : meshListLocal[0];
     }
 
     return nullptr;
 }
 
 std::shared_ptr<Material> AssetLibrary::LoadMaterial(const AssetReference& ref) {
-    AssetEntry* entry = GetAsset(ref);
-    if (!entry) {
-        return nullptr;
+    // Double-checked locking: avoid holding the mutex during heavy work
+    {
+        std::lock_guard<std::mutex> lk(m_Mutex);
+        auto it = m_Assets.find(ref.guid);
+        if (it == m_Assets.end()) return nullptr;
+        if (it->second.material) return it->second.material;
     }
-    
-    // If material is already loaded, return it
-    if (entry->material) {
-        return entry->material;
+    auto created = MaterialManager::Instance().CreateDefaultPBRMaterial();
+    {
+        std::lock_guard<std::mutex> lk(m_Mutex);
+        auto it = m_Assets.find(ref.guid);
+        if (it == m_Assets.end()) return created;
+        if (!it->second.material) it->second.material = created;
+        return it->second.material;
     }
-    
-    // For now, create a default PBR material
-    entry->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
-    return entry->material;
 }
 
 std::shared_ptr<bgfx::TextureHandle> AssetLibrary::LoadTexture(const AssetReference& ref) {
-    AssetEntry* entry = GetAsset(ref);
-    if (!entry) {
-        return nullptr;
+    std::string path;
+    {
+        std::lock_guard<std::mutex> lk(m_Mutex);
+        auto it = m_Assets.find(ref.guid);
+        if (it == m_Assets.end()) return nullptr;
+        if (it->second.texture) return it->second.texture;
+        path = it->second.path;
     }
-    
-    // If texture is already loaded, return it
-    if (entry->texture) {
-        return entry->texture;
+    if (!path.empty()) {
+        bgfx::TextureHandle handle = TextureLoader::Load2D(path);
+        auto texPtr = std::make_shared<bgfx::TextureHandle>(handle);
+        std::lock_guard<std::mutex> lk2(m_Mutex);
+        auto it = m_Assets.find(ref.guid);
+        if (it == m_Assets.end()) return texPtr;
+        if (!it->second.texture) it->second.texture = texPtr;
+        return it->second.texture;
     }
-    
-    // Load texture from file
-    if (!entry->path.empty()) {
-        bgfx::TextureHandle handle = TextureLoader::Load2D(entry->path);
-        entry->texture = std::make_shared<bgfx::TextureHandle>(handle);
-        return entry->texture;
-    }
-    
     return nullptr;
 }
 
 std::shared_ptr<Mesh> AssetLibrary::CreatePrimitiveMesh(const std::string& primitiveType) {
+    std::lock_guard<std::mutex> lk(m_Mutex);
     // Check if we already have this primitive cached
     auto it = m_PrimitiveMeshes.find(primitiveType);
     if (it != m_PrimitiveMeshes.end()) {
@@ -210,6 +231,8 @@ std::shared_ptr<Mesh> AssetLibrary::CreatePrimitiveMesh(const std::string& primi
         mesh = StandardMeshManager::Instance().GetSphereMesh();
     } else if (primitiveType == "Plane") {
         mesh = StandardMeshManager::Instance().GetPlaneMesh();
+    } else if (primitiveType == "Capsule") {
+        mesh = StandardMeshManager::Instance().GetCapsuleMesh();
     } else {
         std::cout << "[AssetLibrary] Warning: Unknown primitive type: " << primitiveType << std::endl;
         mesh = StandardMeshManager::Instance().GetCubeMesh(); // Fallback to cube
@@ -221,6 +244,7 @@ std::shared_ptr<Mesh> AssetLibrary::CreatePrimitiveMesh(const std::string& primi
 }
 
 ClaymoreGUID AssetLibrary::GetGUIDForPath(const std::string& path) {
+    std::lock_guard<std::mutex> lk(m_Mutex);
     // Normalize slashes
     std::string key = path;
     std::replace(key.begin(), key.end(), '\\', '/');
@@ -252,6 +276,7 @@ ClaymoreGUID AssetLibrary::GetGUIDForPath(const std::string& path) {
 }
 
 std::string AssetLibrary::GetPathForGUID(const ClaymoreGUID& guid) {
+    std::lock_guard<std::mutex> lk(m_Mutex);
     auto it = m_GUIDToPath.find(guid);
     return it != m_GUIDToPath.end() ? it->second : "";
 }
@@ -266,6 +291,7 @@ std::vector<std::tuple<std::string, ClaymoreGUID, AssetType>> AssetLibrary::GetA
 }
 
 void AssetLibrary::Clear() {
+    std::lock_guard<std::mutex> lk(m_Mutex);
     m_Assets.clear();
     m_PathToGUID.clear();
     m_GUIDToPath.clear();
@@ -274,6 +300,7 @@ void AssetLibrary::Clear() {
 
 void AssetLibrary::PrintAllAssets() const {
     std::cout << "[AssetLibrary] Registered Assets:" << std::endl;
+    std::lock_guard<std::mutex> lk(m_Mutex);
     for (const auto& pair : m_Assets) {
         const AssetEntry& entry = pair.second;
         std::cout << "  - " << entry.name << " (GUID: " << entry.reference.guid.ToString() 
