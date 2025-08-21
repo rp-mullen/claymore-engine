@@ -101,6 +101,17 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
    m_TintProgram = ShaderManager::Instance().LoadProgram("vs_pbr", "fs_tint");
    if (!bgfx::isValid(u_TintColor)) u_TintColor = bgfx::createUniform("uTintColor", bgfx::UniformType::Vec4);
 
+   // New screen-space outline programs and uniforms
+   m_ObjectIdProgram        = ShaderManager::Instance().LoadProgram("vs_pbr", "fs_object_id");
+   m_ObjectIdProgramSkinned = ShaderManager::Instance().LoadProgram("vs_pbr_skinned", "fs_object_id");
+   m_OutlineEdgeProgram     = ShaderManager::Instance().LoadProgram("vs_fullscreen", "fs_outline_edge");
+   m_OutlineCompositeProgram2 = ShaderManager::Instance().LoadProgram("vs_fullscreen", "fs_outline_composite");
+   if (!bgfx::isValid(u_ObjectIdPacked)) u_ObjectIdPacked = bgfx::createUniform("uObjectId", bgfx::UniformType::Vec4);
+   if (!bgfx::isValid(u_SelectedIdPacked)) u_SelectedIdPacked = bgfx::createUniform("uSelectedId", bgfx::UniformType::Vec4);
+   if (!bgfx::isValid(s_ObjectId)) s_ObjectId = bgfx::createUniform("sObjectId", bgfx::UniformType::Sampler);
+   if (!bgfx::isValid(s_EdgeMask)) s_EdgeMask = bgfx::createUniform("sEdgeMask", bgfx::UniformType::Sampler);
+   if (!bgfx::isValid(s_SceneColor)) s_SceneColor = bgfx::createUniform("sSceneColor", bgfx::UniformType::Sampler);
+
    // Create selection mask targets
    const uint64_t rFlags = BGFX_TEXTURE_RT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
    m_VisMaskTex = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::BGRA8, rFlags);
@@ -111,6 +122,20 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
       m_VisMaskFB = bgfx::createFrameBuffer(2, visAttachments, false);
    }
    m_OccMaskFB = bgfx::createFrameBuffer(1, &m_OccMaskTex, true);
+
+   // Create ObjectID and Edge mask render targets
+   {
+      const uint64_t idFlags = BGFX_TEXTURE_RT | BGFX_SAMPLER_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+      m_ObjectIdTex = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::BGRA8, idFlags);
+      bgfx::TextureHandle idAttachments[] = { m_ObjectIdTex, m_SceneDepthTexture };
+      // Don't destroy depth; it's shared with the scene framebuffer
+      m_ObjectIdFB = bgfx::createFrameBuffer(2, idAttachments, false);
+   }
+   {
+      const uint64_t edgeFlags = BGFX_TEXTURE_RT | BGFX_SAMPLER_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+      m_EdgeMaskTex = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::R8, edgeFlags);
+      m_EdgeMaskFB = bgfx::createFrameBuffer(1, &m_EdgeMaskTex, true);
+   }
    InitGrid(20.0f, 1.0f);
 
    // Create uniforms for lighting and environment
@@ -249,6 +274,23 @@ void Renderer::Resize(uint32_t width, uint32_t height) {
       m_VisMaskFB = bgfx::createFrameBuffer(2, visAttachments, false);
    }
    m_OccMaskFB = bgfx::createFrameBuffer(1, &m_OccMaskTex, true);
+
+   // Recreate ObjectID and Edge mask RTs
+   if (bgfx::isValid(m_ObjectIdFB)) { bgfx::destroy(m_ObjectIdFB); m_ObjectIdFB = BGFX_INVALID_HANDLE; }
+   if (bgfx::isValid(m_EdgeMaskFB)) { bgfx::destroy(m_EdgeMaskFB); m_EdgeMaskFB = BGFX_INVALID_HANDLE; }
+   if (bgfx::isValid(m_ObjectIdTex)) { bgfx::destroy(m_ObjectIdTex); m_ObjectIdTex = BGFX_INVALID_HANDLE; }
+   if (bgfx::isValid(m_EdgeMaskTex)) { bgfx::destroy(m_EdgeMaskTex); m_EdgeMaskTex = BGFX_INVALID_HANDLE; }
+   {
+      const uint64_t idFlags = BGFX_TEXTURE_RT | BGFX_SAMPLER_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+      m_ObjectIdTex = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::BGRA8, idFlags);
+      bgfx::TextureHandle idAttachments[] = { m_ObjectIdTex, m_SceneDepthTexture };
+      m_ObjectIdFB = bgfx::createFrameBuffer(2, idAttachments, false);
+   }
+   {
+      const uint64_t edgeFlags = BGFX_TEXTURE_RT | BGFX_SAMPLER_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+      m_EdgeMaskTex = bgfx::createTexture2D(width, height, false, 1, bgfx::TextureFormat::R8, edgeFlags);
+      m_EdgeMaskFB = bgfx::createFrameBuffer(1, &m_EdgeMaskTex, true);
+   }
 }
 
 // ---------------- Scene Rendering ----------------
@@ -815,7 +857,7 @@ void Renderer::DrawMesh(const Mesh& mesh, const float* transform, const Material
    if (propertyBlock && !propertyBlock->Empty()) {
       material.ApplyPropertyBlock(*propertyBlock);
       }
-   // Use the material’s depth state as-is
+   // Use the material's depth state as-is
    bgfx::setState(material.GetStateFlags());
    auto materialProgram = material.GetProgram();
 
@@ -1196,131 +1238,96 @@ void Renderer::DrawEntityOutline(Scene & scene, EntityID selectedEntity) {
    auto* data = scene.GetEntityData(selectedEntity);
    if (!data || !data->Visible || !data->Mesh || !data->Mesh->mesh) return;
 
-   if (!m_UseScreenSpaceOutline) {
-      // Legacy: scale + backface to draw silhouette (restores immediate visuals)
-      std::shared_ptr<Mesh> meshPtr = data->Mesh->mesh;
-      if (!meshPtr) return;
-      bool meshValid = meshPtr->Dynamic ? bgfx::isValid(meshPtr->dvbh) : bgfx::isValid(meshPtr->vbh);
-      if (!meshValid || !bgfx::isValid(meshPtr->ibh)) return;
+   // New pipeline: ObjectID -> Edge -> Composite
+   const uint16_t kView_ObjectId = 210;
+   const uint16_t kView_OutlineEdge = 211;
+   const uint16_t kView_OutlineComposite = 212;
 
-      float transform[16];
-      glm::mat4 scaled = data->Transform.WorldMatrix * glm::scale(glm::mat4(1.0f), glm::vec3(1.03f));
-      memcpy(transform, glm::value_ptr(scaled), sizeof(float) * 16);
-      bgfx::setTransform(transform);
-      if (meshPtr->Dynamic) bgfx::setVertexBuffer(0, meshPtr->dvbh, 0, meshPtr->numVertices); else bgfx::setVertexBuffer(0, meshPtr->vbh);
-      bgfx::setIndexBuffer(meshPtr->ibh);
-      uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_CULL_CW;
-      bgfx::setState(state);
-      glm::vec4 outlineColor = { 1.0f, 0.55f, 0.0f, 1.0f };
-      bgfx::setUniform(u_outlineColor, &outlineColor);
-      bgfx::submit(1, m_OutlineProgram);
-      return;
-   }
-
-   // Ensure mask targets exist
-   if (!bgfx::isValid(m_VisMaskFB) || !bgfx::isValid(m_OccMaskFB)) {
+   // Ensure RTs exist
+   if (!bgfx::isValid(m_ObjectIdFB) || !bgfx::isValid(m_EdgeMaskFB)) {
       Resize(m_Width, m_Height);
    }
 
-   const uint16_t kView_SelectVis = 180;
-   const uint16_t kView_SelectOcc = 181;
-   const uint16_t kView_OutlineFS = 182;
+   // 1) ObjectID pass: clear and draw only the selected entity (fast path)
+   {
+      bgfx::setViewRect(kView_ObjectId, 0, 0, (uint16_t)m_Width, (uint16_t)m_Height);
+      bgfx::setViewTransform(kView_ObjectId, m_view, m_proj);
+      bgfx::setViewFrameBuffer(kView_ObjectId, m_ObjectIdFB);
+      bgfx::setViewClear(kView_ObjectId, BGFX_CLEAR_COLOR, 0x00000000, 1.0f, 0);
+      bgfx::touch(kView_ObjectId);
 
-   // Clear masks
-   bgfx::setViewRect(kView_SelectVis, 0, 0, (uint16_t)m_Width, (uint16_t)m_Height);
-   bgfx::setViewRect(kView_SelectOcc, 0, 0, (uint16_t)m_Width, (uint16_t)m_Height);
-   bgfx::setViewFrameBuffer(kView_SelectVis, m_VisMaskFB);
-   bgfx::setViewFrameBuffer(kView_SelectOcc, m_OccMaskFB);
-   bgfx::setViewClear(kView_SelectVis, BGFX_CLEAR_COLOR, 0x00000000, 1.0f, 0);
-   bgfx::setViewClear(kView_SelectOcc, BGFX_CLEAR_COLOR, 0x00000000, 1.0f, 0);
-   bgfx::touch(kView_SelectVis);
-   bgfx::touch(kView_SelectOcc);
-
-   // Use same view/proj as main scene
-   bgfx::setViewTransform(kView_SelectVis, m_view, m_proj);
-   bgfx::setViewTransform(kView_SelectOcc, m_view, m_proj);
-
-   std::shared_ptr<Mesh> meshPtr = data->Mesh->mesh;
-   if (!meshPtr) return;
-   bool meshValid = meshPtr->Dynamic ? bgfx::isValid(meshPtr->dvbh) : bgfx::isValid(meshPtr->vbh);
-   if (!meshValid || !bgfx::isValid(meshPtr->ibh)) return;
-
-   // Visible mask: depth-tested
-   { 
-      float transform[16]; memcpy(transform, glm::value_ptr(data->Transform.WorldMatrix), sizeof(float) * 16);
-      bgfx::setTransform(transform);
-      if (meshPtr->Dynamic) bgfx::setVertexBuffer(0, meshPtr->dvbh, 0, meshPtr->numVertices); else bgfx::setVertexBuffer(0, meshPtr->vbh);
-      bgfx::setIndexBuffer(meshPtr->ibh);
-      uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LEQUAL;
-      bgfx::setState(state);
-      bgfx::ProgramHandle maskProg = m_SelectMaskProgram;
-      // Use skinned vs if this material is skinned PBR
-      if (std::dynamic_pointer_cast<SkinnedPBRMaterial>(data->Mesh->material)) {
-         maskProg = m_SelectMaskProgramSkinned;
-      }
-      bgfx::submit(kView_SelectVis, maskProg);
-
-      // --- DEBUG: submit mask directly to scene color to verify transform parity ---
-      {
-         const uint16_t kView_Tint = 183; // after 180/181/182
-         bgfx::setViewRect(kView_Tint, 0, 0, (uint16_t)m_Width, (uint16_t)m_Height);
-         bgfx::setViewTransform(kView_Tint, m_view, m_proj);
-         if (m_RenderToOffscreen) bgfx::setViewFrameBuffer(kView_Tint, m_SceneFrameBuffer); else bgfx::setViewFrameBuffer(kView_Tint, BGFX_INVALID_HANDLE);
-         bgfx::touch(kView_Tint);
-         // Rebind geometry and transform for this view
+      std::shared_ptr<Mesh> meshPtr2 = data->Mesh->mesh;
+      if (meshPtr2 && (meshPtr2->Dynamic ? bgfx::isValid(meshPtr2->dvbh) : bgfx::isValid(meshPtr2->vbh)) && bgfx::isValid(meshPtr2->ibh)) {
+         float transform[16]; memcpy(transform, glm::value_ptr(data->Transform.WorldMatrix), sizeof(float) * 16);
          bgfx::setTransform(transform);
-         if (meshPtr->Dynamic) bgfx::setVertexBuffer(0, meshPtr->dvbh, 0, meshPtr->numVertices); else bgfx::setVertexBuffer(0, meshPtr->vbh);
-         bgfx::setIndexBuffer(meshPtr->ibh);
-         uint64_t tintState = BGFX_STATE_WRITE_RGB | BGFX_STATE_BLEND_ALPHA | BGFX_STATE_DEPTH_TEST_ALWAYS;
-         bgfx::setState(tintState);
-         glm::vec4 tintColor(1.0f, 0.4f, 0.1f, 0.5f);
-         bgfx::setUniform(u_TintColor, &tintColor);
-         bgfx::submit(kView_Tint, m_TintProgram);
+         if (meshPtr2->Dynamic) bgfx::setVertexBuffer(0, meshPtr2->dvbh, 0, meshPtr2->numVertices); else bgfx::setVertexBuffer(0, meshPtr2->vbh);
+         bgfx::setIndexBuffer(meshPtr2->ibh);
+         uint64_t st = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LEQUAL;
+         bgfx::setState(st);
+         // Pack selected entity id into RGB
+         uint32_t id = (uint32_t)selectedEntity;
+         glm::vec4 packed((float)(id & 255u) / 255.0f,
+                          (float)((id >> 8) & 255u) / 255.0f,
+                          (float)((id >> 16) & 255u) / 255.0f,
+                          0.0f);
+         bgfx::setUniform(u_ObjectIdPacked, &packed);
+         bgfx::submit(kView_ObjectId, std::dynamic_pointer_cast<SkinnedPBRMaterial>(data->Mesh->material) ? m_ObjectIdProgramSkinned : m_ObjectIdProgram);
       }
    }
-    
-   // Occluded mask: depth always
-   {
-      float transform[16]; memcpy(transform, glm::value_ptr(data->Transform.WorldMatrix), sizeof(float) * 16);
-      bgfx::setTransform(transform);
-      if (meshPtr->Dynamic) bgfx::setVertexBuffer(0, meshPtr->dvbh, 0, meshPtr->numVertices); else bgfx::setVertexBuffer(0, meshPtr->vbh);
-      bgfx::setIndexBuffer(meshPtr->ibh);
-      uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_ALWAYS;
-      bgfx::setState(state);
-      bgfx::ProgramHandle maskProg2 = m_SelectMaskProgram;
-      if (std::dynamic_pointer_cast<SkinnedPBRMaterial>(data->Mesh->material)) {
-         maskProg2 = m_SelectMaskProgramSkinned;
-      }
-      bgfx::submit(kView_SelectOcc, maskProg2);
-   }
 
-   // Fullscreen composite over current scene framebuffer/backbuffer
+   // 2) Edge pass: fullscreen sampling ObjectId -> EdgeMask
    {
-      bgfx::setViewRect(kView_OutlineFS, 0, 0, (uint16_t)m_Width, (uint16_t)m_Height);
-      if (m_RenderToOffscreen) bgfx::setViewFrameBuffer(kView_OutlineFS, m_SceneFrameBuffer); else bgfx::setViewFrameBuffer(kView_OutlineFS, BGFX_INVALID_HANDLE);
-      float id[16]; bx::mtxIdentity(id); bgfx::setTransform(id);
-
+      bgfx::setViewRect(kView_OutlineEdge, 0, 0, (uint16_t)m_Width, (uint16_t)m_Height);
+      bgfx::setViewFrameBuffer(kView_OutlineEdge, m_EdgeMaskFB);
+      bgfx::setViewClear(kView_OutlineEdge, BGFX_CLEAR_COLOR, 0x00000000, 1.0f, 0);
+      float idM[16]; bx::mtxIdentity(idM); bgfx::setTransform(idM);
       struct Pos { float x,y,z; };
       const Pos verts[3] = { {-1.0f,-1.0f,0.0f}, {3.0f,-1.0f,0.0f}, {-1.0f,3.0f,0.0f} };
       const uint16_t idx[3] = {0,1,2};
-      bgfx::TransientVertexBuffer tvb; bgfx::TransientIndexBuffer tib;
-      bgfx::VertexLayout layout; layout.begin().add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float).end();
+      bgfx::TransientVertexBuffer tvb; bgfx::TransientIndexBuffer tib; bgfx::VertexLayout layout; layout.begin().add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float).end();
       if (bgfx::getAvailTransientVertexBuffer(3, layout) >= 3 && bgfx::getAvailTransientIndexBuffer(3) >= 3) {
          bgfx::allocTransientVertexBuffer(&tvb, 3, layout);
          bgfx::allocTransientIndexBuffer(&tib, 3);
          memcpy(tvb.data, verts, sizeof(verts)); memcpy(tib.data, idx, sizeof(idx));
          bgfx::setVertexBuffer(0, &tvb); bgfx::setIndexBuffer(&tib);
-         // Bind masks and uniforms
-         bgfx::setTexture(0, s_MaskVis, m_VisMaskTex);
-         bgfx::setTexture(1, s_MaskOcc, m_OccMaskTex);
+         bgfx::setTexture(0, s_ObjectId, m_ObjectIdTex);
          glm::vec4 texelSize(1.0f / float(m_Width), 1.0f / float(m_Height), 0.0f, 0.0f);
          bgfx::setUniform(u_TexelSize, &texelSize);
-         glm::vec4 color(1.0f, 0.6f, 0.0f, 1.0f);
-         bgfx::setUniform(u_OutlineColor, &color);
-         glm::vec4 params(1.0f, 0.4f, 0.0f, 0.0f);
-         bgfx::setUniform(u_OutlineParams, &params);
+         // Selected id packed matches the object id we wrote
+         uint32_t id = (uint32_t)selectedEntity;
+         glm::vec4 selPacked((float)(id & 255u) / 255.0f,
+                             (float)((id >> 8) & 255u) / 255.0f,
+                             (float)((id >> 16) & 255u) / 255.0f,
+                             0.0f);
+         bgfx::setUniform(u_SelectedIdPacked, &selPacked);
+         glm::vec4 edgeParams(m_OutlineThicknessPx, 0.0f, 0.0f, 0.0f);
+         bgfx::setUniform(u_OutlineParams, &edgeParams);
+         bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
+         bgfx::submit(kView_OutlineEdge, m_OutlineEdgeProgram);
+      }
+   }
+
+   // 3) Composite pass: blend onto scene color/backbuffer
+   {
+      bgfx::setViewRect(kView_OutlineComposite, 0, 0, (uint16_t)m_Width, (uint16_t)m_Height);
+      if (m_RenderToOffscreen) bgfx::setViewFrameBuffer(kView_OutlineComposite, m_SceneFrameBuffer); else bgfx::setViewFrameBuffer(kView_OutlineComposite, BGFX_INVALID_HANDLE);
+      float idM[16]; bx::mtxIdentity(idM); bgfx::setTransform(idM);
+      struct Pos { float x,y,z; };
+      const Pos verts[3] = { {-1.0f,-1.0f,0.0f}, {3.0f,-1.0f,0.0f}, {-1.0f,3.0f,0.0f} };
+      const uint16_t idx[3] = {0,1,2};
+      bgfx::TransientVertexBuffer tvb; bgfx::TransientIndexBuffer tib; bgfx::VertexLayout layout; layout.begin().add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float).end();
+      if (bgfx::getAvailTransientVertexBuffer(3, layout) >= 3 && bgfx::getAvailTransientIndexBuffer(3) >= 3) {
+         bgfx::allocTransientVertexBuffer(&tvb, 3, layout);
+         bgfx::allocTransientIndexBuffer(&tib, 3);
+         memcpy(tvb.data, verts, sizeof(verts)); memcpy(tib.data, idx, sizeof(idx));
+         bgfx::setVertexBuffer(0, &tvb); bgfx::setIndexBuffer(&tib);
+         // Bind edge mask only; blending will overlay over the existing scene color
+         bgfx::setTexture(0, s_EdgeMask, m_EdgeMaskTex);
+         glm::vec4 texelSize(1.0f / float(m_Width), 1.0f / float(m_Height), 0.0f, 0.0f);
+         bgfx::setUniform(u_TexelSize, &texelSize);
+         bgfx::setUniform(u_OutlineColor, &m_OutlineColor);
          bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_BLEND_ALPHA);
-         bgfx::submit(kView_OutlineFS, m_OutlineCompositeProgram);
+         bgfx::submit(kView_OutlineComposite, m_OutlineCompositeProgram2);
       }
    }
 }

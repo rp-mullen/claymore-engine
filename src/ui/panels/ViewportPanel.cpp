@@ -32,12 +32,6 @@
 // =============================================================
 void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
     ImGui::Begin("Viewport");
-    // Toggle for screen-space outline (debug)
-    bool useSS = m_ScreenSpaceOutline;
-    if (ImGui::Checkbox("Screen-space outline", &useSS)) {
-        m_ScreenSpaceOutline = useSS;
-        Renderer::Get().m_UseScreenSpaceOutline = useSS;
-    }
     m_WindowFocusedOrHovered = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) ||
                                ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
     // Reuse the same rendering path as embedded panels so behavior is identical

@@ -105,5 +105,4 @@ private:
     std::unique_ptr<class Camera> m_Camera;
 
     bool m_WindowFocusedOrHovered = false;
-    bool m_ScreenSpaceOutline = false;
 };

@@ -64,7 +64,7 @@ __declspec(dllexport) void SetMouseMode(int mode)
 {
     // 0 = free, 1 = captured/relative
     bool capture = (mode == 1);
-    // Toggle platform capture and input relative mode
+    // Toggle platform capture and input relative mode 
     Application::Get().SetMouseCaptured(capture);
     // In editor, make sure ImGui doesn't capture/hover when captured
     if (capture) {

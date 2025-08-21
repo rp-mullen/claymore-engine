@@ -7,7 +7,7 @@
 #include "backends/imgui_impl_win32.h"
 #include "editor/Input.h"
 
-static Win32Window* g_WindowInstance = nullptr;
+static Win32Window* g_WindowInstance = nullptr; 
 
 float Win32Window::GetDPIScale() const {
 	if (!m_HighDPI || m_hWnd == nullptr) return 1.0f;

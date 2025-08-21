@@ -93,7 +93,6 @@ public:
     void SetShowAABBs(bool v) { m_ShowAABBs = v; }
     bool GetShowAABBs() const { return m_ShowAABBs; }
 
-    bool m_UseScreenSpaceOutline = false;
 private:
     Renderer() = default;
     ~Renderer();
@@ -137,12 +136,27 @@ private:
     bgfx::UniformHandle u_OutlineParams = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle m_SelectMaskProgram = BGFX_INVALID_HANDLE; // static mask (vs_pbr)
     bgfx::ProgramHandle m_SelectMaskProgramSkinned = BGFX_INVALID_HANDLE; // skinned mask (vs_pbr_skinned)
-    bgfx::ProgramHandle m_OutlineCompositeProgram = BGFX_INVALID_HANDLE; // fullscreen
+    bgfx::ProgramHandle m_OutlineCompositeProgram = BGFX_INVALID_HANDLE; // fullscreen (legacy masks)
     bgfx::UniformHandle s_MaskVis = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle s_MaskOcc = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle m_TintProgram = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_TintColor = BGFX_INVALID_HANDLE;
 
+    // New screen-space outline pipeline: ObjectID -> Edge -> Composite
+    bgfx::TextureHandle m_ObjectIdTex = BGFX_INVALID_HANDLE;
+    bgfx::FrameBufferHandle m_ObjectIdFB = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle m_EdgeMaskTex = BGFX_INVALID_HANDLE;
+    bgfx::FrameBufferHandle m_EdgeMaskFB = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle m_ObjectIdProgram = BGFX_INVALID_HANDLE;            // vs_pbr + fs_object_id
+    bgfx::ProgramHandle m_ObjectIdProgramSkinned = BGFX_INVALID_HANDLE;     // vs_pbr_skinned + fs_object_id
+    bgfx::ProgramHandle m_OutlineEdgeProgram = BGFX_INVALID_HANDLE;         // vs_fullscreen + fs_outline_edge
+    bgfx::ProgramHandle m_OutlineCompositeProgram2 = BGFX_INVALID_HANDLE;   // vs_fullscreen + fs_outline_composite
+    bgfx::UniformHandle u_ObjectIdPacked = BGFX_INVALID_HANDLE;             // per-draw ID (packed into rgb)
+    bgfx::UniformHandle u_SelectedIdPacked = BGFX_INVALID_HANDLE;           // selected entity id (packed)
+    bgfx::UniformHandle s_ObjectId = BGFX_INVALID_HANDLE;                   // sampler for ObjectIdTex
+    bgfx::UniformHandle s_EdgeMask = BGFX_INVALID_HANDLE;                   // sampler for EdgeMaskTex
+    bgfx::UniformHandle s_SceneColor = BGFX_INVALID_HANDLE;                 // sampler for scene color in composite
+ 
 
     // Terrain rendering resources
     bgfx::ProgramHandle m_TerrainProgram = BGFX_INVALID_HANDLE;
@@ -171,13 +185,18 @@ private:
     bool m_RenderToOffscreen = true;
     // Toggle: when false, use legacy geometry-scaled outline; when true, use screen-space mask+dilate
     
-
+    // Outline parameters (editor defaults)
+    float m_OutlineThicknessPx = 3.0f;
+    glm::vec4 m_OutlineColor = glm::vec4(1.0f, 0.6f, 0.0f, 1.0f);
+ 
 public:
     void SetShowUIOverlay(bool v){ m_ShowUIOverlay = v; }
     bool WasUIInputConsumedThisFrame() const { return m_UIInputConsumed; }
     void SetUIMode(bool enabled){ m_ShowUIOverlay = enabled; }
     void SetUIMousePosition(float x, float y, bool valid){ m_UIMouseX = x; m_UIMouseY = y; m_UIMouseValid = valid; }
-
+    void SetOutlineThickness(float px){ m_OutlineThicknessPx = px; }
+    void SetOutlineColor(const glm::vec4& color){ m_OutlineColor = color; }
+ 
  private:
     // Helper: draw world-space axis-aligned bounding box on a given view (default debug view 0)
     void DrawAABB(const glm::vec3& worldMin, const glm::vec3& worldMax, uint16_t viewId = 0);
