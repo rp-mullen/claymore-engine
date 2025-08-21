@@ -3,6 +3,8 @@
 #include "prefab/PrefabCache.h"
 #include "serialization/Serializer.h"
 #include "animation/SkeletonBinding.h"
+#include "animation/AvatarDefinition.h"
+#include "animation/AvatarSerializer.h"
 #include "prefab/PathResolver.h"
 #include "pipeline/AssetLibrary.h"
 #include "rendering/ModelBuild.h"
@@ -54,11 +56,13 @@ static void GenerateBoneEntitiesForSkeleton(Scene& scene, EntityID skeletonEntit
     if (bound == n) return; // all mapped to existing authored bones
 
     // Create any missing bones and parent them using BoneParents; set local from inverse bind
+    std::vector<uint8_t> created(n, 0);
     for (size_t b = 0; b < n; ++b) {
         if (sk.BoneEntities[b] != (EntityID)-1) continue;
         const std::string name = sk.BoneNames[b].empty() ? (std::string("Bone_") + std::to_string(b)) : sk.BoneNames[b];
         Entity boneEnt = scene.CreateEntity(name);
         sk.BoneEntities[b] = boneEnt.GetID();
+        created[b] = 1;
     }
     for (size_t b = 0; b < n; ++b) {
         EntityID boneID = sk.BoneEntities[b];
@@ -66,19 +70,22 @@ static void GenerateBoneEntitiesForSkeleton(Scene& scene, EntityID skeletonEntit
         EntityID parentEntity = (pIdx >= 0 && (size_t)pIdx < n) ? sk.BoneEntities[(size_t)pIdx] : skeletonEntity;
         scene.SetParent(boneID, parentEntity);
 
-        glm::mat4 thisGlobal = glm::inverse(sk.InverseBindPoses[b]);
-        glm::mat4 parentGlobal = (pIdx >= 0 && (size_t)pIdx < n) ? glm::inverse(sk.InverseBindPoses[(size_t)pIdx]) : glm::mat4(1.0f);
-        glm::mat4 localBind = glm::inverse(parentGlobal) * thisGlobal;
+        // Only initialize transforms for newly created bones; preserve authored bone locals
+        if (created[b]) {
+            glm::mat4 thisGlobal = glm::inverse(sk.InverseBindPoses[b]);
+            glm::mat4 parentGlobal = (pIdx >= 0 && (size_t)pIdx < n) ? glm::inverse(sk.InverseBindPoses[(size_t)pIdx]) : glm::mat4(1.0f);
+            glm::mat4 localBind = glm::inverse(parentGlobal) * thisGlobal;
 
-        glm::vec3 t, scale, skew; glm::vec4 persp; glm::quat rq;
-        glm::decompose(localBind, scale, rq, t, skew, persp);
-        if (auto* bd = scene.GetEntityData(boneID)) {
-            bd->Transform.Position = t;
-            bd->Transform.Scale    = scale;
-            bd->Transform.RotationQ = glm::normalize(rq);
-            bd->Transform.UseQuatRotation = true;
-            bd->Transform.Rotation = glm::degrees(glm::eulerAngles(rq));
-            bd->Transform.TransformDirty = true;
+            glm::vec3 t, scale, skew; glm::vec4 persp; glm::quat rq;
+            glm::decompose(localBind, scale, rq, t, skew, persp);
+            if (auto* bd = scene.GetEntityData(boneID)) {
+                bd->Transform.Position = t;
+                bd->Transform.Scale    = scale;
+                bd->Transform.RotationQ = glm::normalize(rq);
+                bd->Transform.UseQuatRotation = true;
+                bd->Transform.Rotation = glm::degrees(glm::eulerAngles(rq));
+                bd->Transform.TransformDirty = true;
+            }
         }
     }
 }
@@ -170,7 +177,15 @@ EntityID InstantiatePrefab(const ClaymoreGUID& prefabGuid, Scene& dst, const Pre
         }
         // Components (shells) — skip for compact model asset nodes (they were handled on creation)
         if (e.Components.contains("asset") && e.Components["asset"].is_object()) continue;
-        if (e.Components.contains("transform")) { Serializer::DeserializeTransform(e.Components["transform"], d->Transform); d->Transform.TransformDirty = true; d->Transform.CalculateLocalMatrix(); }
+        if (e.Components.contains("transform")) {
+            Serializer::DeserializeTransform(e.Components["transform"], d->Transform);
+            // Ensure quaternion path is used for fidelity
+            if (!glm::all(glm::epsilonEqual(d->Transform.RotationQ, glm::quat(1,0,0,0), 0.0f))) {
+                d->Transform.UseQuatRotation = true;
+            }
+            d->Transform.TransformDirty = true;
+            d->Transform.CalculateLocalMatrix();
+        }
         if (e.Components.contains("mesh")) { d->Mesh = std::make_unique<MeshComponent>(); /* defer actual mesh load to build step */ }
         if (e.Components.contains("skeleton")) { d->Skeleton = std::make_unique<SkeletonComponent>(); Serializer::DeserializeSkeleton(e.Components["skeleton"], *d->Skeleton); }
         if (e.Components.contains("skinning")) { d->Skinning = std::make_unique<SkinningComponent>(); /* SkeletonRoot resolved later */ }
@@ -193,6 +208,11 @@ EntityID InstantiatePrefab(const ClaymoreGUID& prefabGuid, Scene& dst, const Pre
         auto itId = guidToId.find(pack(e.Guid)); if (itId == guidToId.end()) continue;
         auto* d = dst.GetEntityData(itId->second); if (!d || !d->Skeleton) continue;
         GenerateBoneEntitiesForSkeleton(dst, itId->second);
+        // Ensure avatar exists (mirrors scene import behavior)
+        if (d->Skeleton && !d->Skeleton->Avatar) {
+            d->Skeleton->Avatar = std::make_unique<cm::animation::AvatarDefinition>();
+            cm::animation::avatar_builders::BuildFromSkeleton(*d->Skeleton, *d->Skeleton->Avatar, true);
+        }
     }
 
     // Pass 4a: Apply per-node overrides under compact model roots (if any entity had an asset block)
@@ -275,6 +295,7 @@ EntityID InstantiatePrefab(const ClaymoreGUID& prefabGuid, Scene& dst, const Pre
             if (childOverride.contains("button")) { if (!td->Button) td->Button = std::make_unique<ButtonComponent>(); Serializer::DeserializeButton(childOverride["button"], *td->Button); }
             if (childOverride.contains("scripts")) { Serializer::DeserializeScripts(childOverride["scripts"], td->Scripts); }
             if (childOverride.contains("animator")) { if (!td->AnimationPlayer) td->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(); Serializer::DeserializeAnimator(childOverride["animator"], *td->AnimationPlayer); }
+            if (childOverride.contains("extra")) { td->Extra = childOverride["extra"]; }
             if (childOverride.contains("name")) { td->Name = childOverride["name"].get<std::string>(); }
         }
     }
@@ -299,6 +320,10 @@ EntityID InstantiatePrefab(const ClaymoreGUID& prefabGuid, Scene& dst, const Pre
             if (!br.ok) {
                 std::cerr << "[Prefab] ERROR: Failed to build renderer for entity '" << d->Name << "' (meshGuid=" << meshGuid.ToString() << ")" << std::endl;
             }
+            // Ensure skinned material if SkinningComponent exists
+            if (d->Skinning && d->Mesh && !std::dynamic_pointer_cast<SkinnedPBRMaterial>(d->Mesh->material)) {
+                d->Mesh->material = MaterialManager::Instance().CreateSkinnedPBRMaterial();
+            }
         }
     }
 
@@ -319,6 +344,48 @@ EntityID InstantiatePrefab(const ClaymoreGUID& prefabGuid, Scene& dst, const Pre
         }
         for (size_t i = 0; i < sk.BoneNames.size(); ++i) {
             auto itE = nameToEntity.find(sk.BoneNames[i]); if (itE != nameToEntity.end()) sk.BoneEntities[i] = itE->second;
+        }
+        // If any bones remain unmapped (prefab authoring with no physical bone entities), generate missing bone entities now
+        bool anyMissing = false;
+        for (EntityID be : sk.BoneEntities) if (be == (EntityID)-1) { anyMissing = true; break; }
+        if (anyMissing) {
+            // Create bone entities under this skeleton using bind-pose decomposition, matching Scene::InstantiateModel
+            const size_t n = sk.InverseBindPoses.size();
+            if (n > 0) {
+                // Precreate missing
+                for (size_t b = 0; b < n; ++b) {
+                    if (sk.BoneEntities[b] != (EntityID)-1) continue;
+                    const std::string name = (b < sk.BoneNames.size() && !sk.BoneNames[b].empty()) ? sk.BoneNames[b] : (std::string("Bone_") + std::to_string(b));
+                    Entity boneEnt = dst.CreateEntity(name);
+                    sk.BoneEntities[b] = boneEnt.GetID();
+                }
+                // Parent and set local from bind
+                for (size_t b = 0; b < n; ++b) {
+                    EntityID boneID = sk.BoneEntities[b];
+                    int pIdx = (b < sk.BoneParents.size() ? sk.BoneParents[b] : -1);
+                    EntityID parentEntity = (pIdx >= 0 && (size_t)pIdx < n) ? sk.BoneEntities[(size_t)pIdx] : id;
+                    dst.SetParent(boneID, parentEntity);
+                    glm::mat4 thisGlobal = glm::inverse(sk.InverseBindPoses[b]);
+                    glm::mat4 parentGlobal = (pIdx >= 0 && (size_t)pIdx < n) ? glm::inverse(sk.InverseBindPoses[(size_t)pIdx]) : glm::mat4(1.0f);
+                    glm::mat4 localBind = glm::inverse(parentGlobal) * thisGlobal;
+                    glm::vec3 t, scale, skew; glm::vec4 persp; glm::quat rq;
+                    glm::decompose(localBind, scale, rq, t, skew, persp);
+                    if (auto* bd = dst.GetEntityData(boneID)) {
+                        bd->Transform.Position = t;
+                        bd->Transform.Scale    = scale;
+                        bd->Transform.RotationQ = glm::normalize(rq);
+                        bd->Transform.UseQuatRotation = true;
+                        bd->Transform.Rotation = glm::degrees(glm::eulerAngles(rq));
+                        bd->Transform.TransformDirty = true;
+                    }
+                }
+            }
+        }
+        // Populate stable joint GUIDs and ensure avatar exists (humanoid constraints / root motion)
+        ComputeSkeletonJointGuids(sk);
+        if (!sk.Avatar) {
+            sk.Avatar = std::make_unique<cm::animation::AvatarDefinition>();
+            cm::animation::avatar_builders::BuildFromSkeleton(sk, *sk.Avatar, true);
         }
     }
 
@@ -351,15 +418,55 @@ EntityID InstantiatePrefabFromAuthoringPath(const std::string& authoringPath, Sc
         if (e.Components.contains("skinning")) { d->Skinning = std::make_unique<SkinningComponent>(); Serializer::DeserializeSkinning(e.Components["skinning"], *d->Skinning); }
         if (e.Components.contains("animator")) { if (!d->AnimationPlayer) d->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(); Serializer::DeserializeAnimator(e.Components["animator"], *d->AnimationPlayer); }
         if (e.Components.contains("scripts")) { Serializer::DeserializeScripts(e.Components["scripts"], d->Scripts); }
+        if (e.Components.contains("camera")) { d->Camera = std::make_unique<CameraComponent>(); Serializer::DeserializeCamera(e.Components["camera"], *d->Camera); }
+        if (e.Components.contains("light")) { d->Light = std::make_unique<LightComponent>(); Serializer::DeserializeLight(e.Components["light"], *d->Light); }
+        if (e.Components.contains("collider")) { d->Collider = std::make_unique<ColliderComponent>(); Serializer::DeserializeCollider(e.Components["collider"], *d->Collider); }
+        if (e.Components.contains("rigidbody")) { d->RigidBody = std::make_unique<RigidBodyComponent>(); Serializer::DeserializeRigidBody(e.Components["rigidbody"], *d->RigidBody); }
+        if (e.Components.contains("staticbody")) { d->StaticBody = std::make_unique<StaticBodyComponent>(); Serializer::DeserializeStaticBody(e.Components["staticbody"], *d->StaticBody); }
+        if (e.Components.contains("terrain")) { d->Terrain = std::make_unique<TerrainComponent>(); Serializer::DeserializeTerrain(e.Components["terrain"], *d->Terrain); }
+        if (e.Components.contains("emitter")) { d->Emitter = std::make_unique<ParticleEmitterComponent>(); Serializer::DeserializeParticleEmitter(e.Components["emitter"], *d->Emitter); }
+        if (e.Components.contains("canvas")) { d->Canvas = std::make_unique<CanvasComponent>(); Serializer::DeserializeCanvas(e.Components["canvas"], *d->Canvas); }
+        if (e.Components.contains("panel")) { d->Panel = std::make_unique<PanelComponent>(); Serializer::DeserializePanel(e.Components["panel"], *d->Panel); }
+        if (e.Components.contains("button")) { d->Button = std::make_unique<ButtonComponent>(); Serializer::DeserializeButton(e.Components["button"], *d->Button); }
     }
-    // Skinning fixup for authoring path
+    // Skinning + skeleton fixup for authoring path
+    // 1) Ensure skeletons have bone entities and avatars
     for (const auto& e : author.Entities) {
         auto itId = guidToId.find(pack(e.Guid)); if (itId == guidToId.end()) continue;
-        EntityID id = itId->second; auto* d = dst.GetEntityData(id); if (!d || !d->Skinning) continue;
-        EntityID p = d->Parent; EntityID found = (EntityID)-1;
-        while (p != (EntityID)-1 && p != 0) { auto* pd = dst.GetEntityData(p); if (!pd) break; if (pd->Skeleton) { found = p; break; } p = pd->Parent; }
-        d->Skinning->SkeletonRoot = found;
-        if (d->Mesh && !std::dynamic_pointer_cast<SkinnedPBRMaterial>(d->Mesh->material)) { d->Mesh->material = MaterialManager::Instance().CreateSkinnedPBRMaterial(); }
+        EntityID id = itId->second; auto* d = dst.GetEntityData(id); if (!d) continue;
+        if (d->Skeleton) {
+            GenerateBoneEntitiesForSkeleton(dst, id);
+            if (!d->Skeleton->Avatar) {
+                d->Skeleton->Avatar = std::make_unique<cm::animation::AvatarDefinition>();
+                cm::animation::avatar_builders::BuildFromSkeleton(*d->Skeleton, *d->Skeleton->Avatar, true);
+            }
+        }
+    }
+    // 2) Resolve mesh assets via builder and bind to nearest skeleton; enforce skinned material
+    for (const auto& e : author.Entities) {
+        auto itId = guidToId.find(pack(e.Guid)); if (itId == guidToId.end()) continue;
+        EntityID id = itId->second; auto* d = dst.GetEntityData(id); if (!d || !d->Mesh) continue;
+        ClaymoreGUID meshGuid{}; int fileId = 0; ClaymoreGUID skelGuid{};
+        if (e.Components.contains("mesh") && e.Components["mesh"].contains("meshReference")) {
+            AssetReference tmp; e.Components["mesh"]["meshReference"].get_to(tmp); meshGuid = tmp.guid; fileId = tmp.fileID;
+        }
+        if (e.Components.contains("skeleton") && e.Components["skeleton"].contains("skeletonGuid")) {
+            e.Components["skeleton"]["skeletonGuid"].get_to(skelGuid);
+        }
+        BuildModelParams bp{ meshGuid, fileId, skelGuid, {}, id, &dst };
+        BuildResult br = BuildRendererFromAssets(bp);
+        if (!br.ok) {
+            std::cerr << "[Prefab] ERROR: Authoring build failed for entity '" << d->Name << "'" << std::endl;
+        }
+        if (d->Skinning && d->Mesh && !std::dynamic_pointer_cast<SkinnedPBRMaterial>(d->Mesh->material)) {
+            d->Mesh->material = MaterialManager::Instance().CreateSkinnedPBRMaterial();
+        }
+        // If Skinning exists but SkeletonRoot not set, link to nearest ancestor skeleton
+        if (d->Skinning && d->Skinning->SkeletonRoot == (EntityID)-1) {
+            EntityID p = d->Parent; EntityID found = (EntityID)-1;
+            while (p != (EntityID)-1 && p != 0) { auto* pd = dst.GetEntityData(p); if (!pd) break; if (pd->Skeleton) { found = p; break; } p = pd->Parent; }
+            d->Skinning->SkeletonRoot = found;
+        }
     }
     if (root != (EntityID)-1) dst.MarkTransformDirty(root), dst.UpdateTransforms();
     if (root != (EntityID)-1 && instanceOverridesOpt) { for (const auto& op : instanceOverridesOpt->Ops) if (op.Op == "set") { ResolvedTarget tgt; if (ResolvePath(op.Path, root, dst, tgt)) ApplySet(dst, tgt, op.Value); } dst.UpdateTransforms(); }
@@ -392,7 +499,14 @@ bool ApplyOverrides(EntityID root, const PrefabOverrides& ov, Scene& scene) {
         // Component shells
         if (node.contains("components") && node["components"].is_object()) {
             const auto& c = node["components"];
-            if (c.contains("transform")) { Serializer::DeserializeTransform(c["transform"], d->Transform); d->Transform.TransformDirty = true; d->Transform.CalculateLocalMatrix(); }
+            if (c.contains("transform")) {
+                Serializer::DeserializeTransform(c["transform"], d->Transform);
+                if (!glm::all(glm::epsilonEqual(d->Transform.RotationQ, glm::quat(1,0,0,0), 0.0f))) {
+                    d->Transform.UseQuatRotation = true;
+                }
+                d->Transform.TransformDirty = true;
+                d->Transform.CalculateLocalMatrix();
+            }
             if (c.contains("mesh")) { if (!d->Mesh) d->Mesh = std::make_unique<MeshComponent>(); }
             if (c.contains("skeleton")) { if (!d->Skeleton) d->Skeleton = std::make_unique<SkeletonComponent>(); Serializer::DeserializeSkeleton(c["skeleton"], *d->Skeleton); }
             if (c.contains("skinning")) { if (!d->Skinning) d->Skinning = std::make_unique<SkinningComponent>(); }
@@ -467,7 +581,8 @@ bool BuildPrefabAssetFromScene(Scene& scene, EntityID root, PrefabAsset& out) {
     std::function<void(EntityID, ClaymoreGUID)> dfs = [&](EntityID id, ClaymoreGUID parent) {
         auto* d = scene.GetEntityData(id); if (!d) return;
         PrefabAssetEntityNode n; n.Guid = d->EntityGuid; n.ParentGuid = parent; n.Name = d->Name;
-        // Use existing serializer for stable component JSON
+        // Use existing serializer for stable component JSON; include all supported components so
+        // prefab child components (e.g., Camera on a bone child) round-trip correctly
         nlohmann::json e = Serializer::SerializeEntity(id, scene);
         if (e.contains("transform")) n.Components["transform"] = e["transform"];
         if (e.contains("mesh")) n.Components["mesh"] = e["mesh"];
@@ -475,6 +590,18 @@ bool BuildPrefabAssetFromScene(Scene& scene, EntityID root, PrefabAsset& out) {
         if (e.contains("skinning")) n.Components["skinning"] = e["skinning"];
         if (e.contains("animator")) n.Components["animator"] = e["animator"];
         if (e.contains("scripts")) n.Components["scripts"] = e["scripts"];
+        if (e.contains("camera")) n.Components["camera"] = e["camera"];
+        if (e.contains("light")) n.Components["light"] = e["light"];
+        if (e.contains("collider")) n.Components["collider"] = e["collider"];
+        if (e.contains("rigidbody")) n.Components["rigidbody"] = e["rigidbody"];
+        if (e.contains("staticbody")) n.Components["staticbody"] = e["staticbody"];
+        if (e.contains("terrain")) n.Components["terrain"] = e["terrain"];
+        if (e.contains("emitter")) n.Components["emitter"] = e["emitter"];
+        if (e.contains("canvas")) n.Components["canvas"] = e["canvas"];
+        if (e.contains("panel")) n.Components["panel"] = e["panel"];
+        if (e.contains("button")) n.Components["button"] = e["button"];
+        // Preserve any serializer Extra fields under a dedicated key to avoid loss
+        if (d->Extra.is_object() && !d->Extra.empty()) n.Components["extra"] = d->Extra;
         for (EntityID c : d->Children) { auto* cd = scene.GetEntityData(c); if (cd) n.Children.push_back(cd->EntityGuid); }
         out.Entities.push_back(std::move(n));
         for (EntityID c : d->Children) dfs(c, d->EntityGuid);

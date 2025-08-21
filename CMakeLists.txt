@@ -292,7 +292,8 @@ endif()
 # Ensure any dependent runtime DLLs (e.g., assimp when built shared) are copied next to the executable on Windows
 if(WIN32)
     add_custom_command(TARGET Claymore POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:Claymore> $<TARGET_FILE_DIR:Claymore> COMMAND_EXPAND_LISTS
+        COMMAND ${CMAKE_COMMAND} -E $<IF:$<BOOL:$<TARGET_RUNTIME_DLLS:Claymore>>,copy,echo> $<TARGET_RUNTIME_DLLS:Claymore> $<TARGET_FILE_DIR:Claymore>
+        COMMAND_EXPAND_LISTS
     )
 endif()
 

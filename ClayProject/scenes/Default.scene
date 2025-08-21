@@ -1,94 +1,215 @@
 {
+    "assetMap": [
+        {
+            "guid": "ef3bd3b19889952ed6c3085aaaba8a5f",
+            "path": "assets/textures/level_01/imgp5511.jpg"
+        },
+        {
+            "guid": "7901f92dce786db9e912ae22e7e99fd7",
+            "path": "TestScriptManaged.cs"
+        },
+        {
+            "guid": "7e4c369851c7fcd0748844bc343793b9",
+            "path": "assets/animations/Idle.fbx"
+        },
+        {
+            "guid": "4b5cac01f732236ccd29a713fe2a7ab8",
+            "path": "assets/animations/BoxOpen.fbx"
+        },
+        {
+            "guid": "c91640489c4a314bbb24c2161efa96f2",
+            "path": "MyTestScript.cs"
+        },
+        {
+            "guid": "29d187ea66d55e45f8e140729929e920",
+            "path": "assets/animations/Punching (3).fbx"
+        },
+        {
+            "guid": "c312a97ac7f54e666a8a86871b097cae",
+            "path": "assets/Tree01.fbx"
+        },
+        {
+            "guid": "80e959894ce0a94463930144aaf2173e",
+            "path": "assets/animations/Walking.fbx"
+        },
+        {
+            "guid": "06acb0aae5e331c507994b6085df9881",
+            "path": "assets/building_01.fbx"
+        },
+        {
+            "guid": "a89215df8751cc7d0822dbccfa09c7b3",
+            "path": "assets/textures/level_01/imgp5511.jpg"
+        },
+        {
+            "guid": "8475658194338ea95d82b5cdd19ffe01",
+            "path": "assets/textures/level_01/imgp5511.jpg"
+        },
+        {
+            "guid": "d42b7671d75a9b7beed316f1e6297aea",
+            "path": "assets/char_01.fbx"
+        },
+        {
+            "guid": "44fae8d5737777c1e0e73cb27a5cb75b",
+            "path": "assets/debug_grid.png"
+        },
+        {
+            "guid": "ab517240bfdeca902dc08a633a7a2ce4",
+            "path": "assets/animations/Idle.fbx"
+        },
+        {
+            "guid": "aafab941e55aa919a42341d976f89f1f",
+            "path": "assets/CubseSphere.fbx"
+        },
+        {
+            "guid": "f71eace82ab73e8b921564d29530c0fb",
+            "path": "assets/face01.png"
+        },
+        {
+            "guid": "dd7f63e5a34c80cfbcc0d28a2a355f45",
+            "path": "assets/Idle.fbx"
+        },
+        {
+            "guid": "450f0d87aeb18b7f5badd6183a1ba743",
+            "path": "ButtonTest.cs"
+        },
+        {
+            "guid": "64627a397c3ba95047e51d2b5cf11f29",
+            "path": "assets/textures/char_01/hair_01.png"
+        },
+        {
+            "guid": "5f2f6aa85f869834e1e0f6b46eade98d",
+            "path": "assets/level_01.fbx"
+        },
+        {
+            "guid": "3a84487198609b0985bf2466e6070a7b",
+            "path": "assets/textures/char_01/face01.png"
+        },
+        {
+            "guid": "94a55a0c2de297bf9016c557f1e5408c",
+            "path": "assets/textures/level_01/trak_panel_lrg6.jpg"
+        },
+        {
+            "guid": "9cccf995e993d55981c75f1e9dc0cec6",
+            "path": "assets/textures/level_01/imgp5511.jpg"
+        },
+        {
+            "guid": "c208f56eb144413d276452ee2f8b6581",
+            "path": "assets/X Bot.fbx"
+        },
+        {
+            "guid": "682ed55648d5c73904cb07f31cd6c0f0",
+            "path": "assets/textures/level_01/trak_panel_lrg6.jpg"
+        },
+        {
+            "guid": "5fbc4780737af8e5877d14530373b1ef",
+            "path": "assets/Idle.fbx"
+        },
+        {
+            "guid": "5493fdfd3c3b050d0867de0bb580bde2",
+            "path": "assets/textures/ui_panel.png"
+        },
+        {
+            "guid": "4d8ab1ab2b822f193fee79ee004e1a5e",
+            "path": "AnimTrigger.cs"
+        },
+        {
+            "guid": "06872059d30b6c67fcd3929e6ea4dc5c",
+            "path": "assets/textures/char_01/hair_01.png"
+        },
+        {
+            "guid": "2e064b662f87137fb4f2adc0b551bfde",
+            "path": "Material.mat"
+        },
+        {
+            "guid": "33e2e46cd3d468a14c4134acf9d8ae30",
+            "path": "NewMaterial.mat"
+        },
+        {
+            "guid": "06f76620ab7b6009345ce697a9c40524",
+            "path": "TestScript.cs"
+        },
+        {
+            "guid": "431811f2ca6d410aa7e66a9d6db38b57",
+            "path": "assets/animations/BoxOpen.fbx"
+        },
+        {
+            "guid": "96b163a78d6fabc2767dba57381d049b",
+            "path": "assets/face01.png"
+        },
+        {
+            "guid": "7f527797e3e651a717e3ab2726b38679",
+            "path": "assets/animations/Punching (3).fbx"
+        },
+        {
+            "guid": "31900b5336484090718ec280e0e0bf4f",
+            "path": "assets/animations/Walking.fbx"
+        },
+        {
+            "guid": "64f5f14a3ce565e9b7d05018105b6cb9",
+            "path": "assets/textures/char_01/face01.png"
+        },
+        {
+            "guid": "98652516e6cb014b8f145117162c9f1d",
+            "path": "assets/building_01.fbx"
+        },
+        {
+            "guid": "b145e1de074e35bcd3e139bc1e43b5cd",
+            "path": "Material.mat"
+        },
+        {
+            "guid": "b2ae935e0a2c4ac0214344e8104808dd",
+            "path": "assets/char_01.fbx"
+        },
+        {
+            "guid": "fb3c2d458afe3f55fd87702fc5d6b710",
+            "path": "assets/level_01.fbx"
+        },
+        {
+            "guid": "2aeed17152332c7ef9b65b68b9500f08",
+            "path": "assets/X Bot.fbx"
+        },
+        {
+            "guid": "debfaa1fc3a99b1e88e9eec90920a4f6",
+            "path": "assets/textures/ui_panel.png"
+        },
+        {
+            "guid": "721debd982fcafae77564fbbd56a8ee4",
+            "path": "AnimTrigger.cs"
+        },
+        {
+            "guid": "832eb4d291245db150660e08513d4c39",
+            "path": "NewMaterial.mat"
+        },
+        {
+            "guid": "86b7c558efdc6110156a768a57b81faf",
+            "path": "ButtonTest.cs"
+        },
+        {
+            "guid": "00000000000000000000000000000000",
+            "path": "C:/Users/rpmul/projects/claymore/ClayProject/assets/textures/char_01/hair_01.png"
+        },
+        {
+            "guid": "be61209bb1d4587689c232279cb4e49c",
+            "path": "assets/textures/level_01/trak_panel_lrg6.jpg"
+        },
+        {
+            "guid": "c7d693af47f539a9965c601d4dbea76f",
+            "path": "assets/level_01.fbx"
+        },
+        {
+            "guid": "d789ede4ce7957442693e55902815dc1",
+            "path": "assets/textures/level_01/trak_panel_lrg6.jpg"
+        },
+        {
+            "guid": "c3cfa97a750fd0fa8fb4459f74ac5dd4",
+            "path": "assets/textures/char_01/face01.png"
+        }
+    ],
     "entities": [
         {
             "children": [],
-            "guid": "936d006fc918ffc88a636f1f80192dfa",
-            "id": 1,
-            "layer": 0,
-            "mesh": {
-                "materialName": "DefaultPBR",
-                "materialType": "PBR",
-                "meshName": "DebugCube",
-                "meshReference": {
-                    "fileID": 0,
-                    "guid": "00000000000000000000000000000000",
-                    "type": 0
-                },
-                "propertyBlockTextures": {
-                    "s_albedo": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\debug_grid.png"
-                },
-                "propertyBlockVec4": {
-                    "u_ColorTint": [
-                        0.7821782231330872,
-                        0.14197953045368195,
-                        0.14197953045368195,
-                        1.0
-                    ]
-                },
-                "uniqueMaterial": false
-            },
-            "name": "Debug Cube",
-            "parent": 4294967295,
-            "tag": "",
-            "transform": {
-                "localMatrix": [
-                    1.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    1.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    1.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    1.0
-                ],
-                "position": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
-                },
-                "rotation": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
-                },
-                "scale": {
-                    "x": 1.0,
-                    "y": 1.0,
-                    "z": 1.0
-                },
-                "transformDirty": false,
-                "worldMatrix": [
-                    1.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    1.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    1.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    1.0
-                ]
-            }
-        },
-        {
-            "children": [],
             "guid": "b509d79e8d62b51d5028d76406e67e4f",
-            "id": 2,
+            "id": 82,
             "layer": 0,
             "light": {
                 "color": {
@@ -158,5 +279,34 @@
             }
         }
     ],
+    "environment": {
+        "ambientColor": {
+            "x": 0.20000000298023224,
+            "y": 0.20000000298023224,
+            "z": 0.20000000298023224
+        },
+        "ambientIntensity": 1.0,
+        "ambientMode": "FlatColor",
+        "exposure": 1.0,
+        "fogColor": {
+            "x": 0.5,
+            "y": 0.6000000238418579,
+            "z": 0.699999988079071
+        },
+        "fogDensity": 0.019999999552965164,
+        "fogEnabled": false,
+        "proceduralSky": false,
+        "skyHorizonColor": {
+            "x": 0.699999988079071,
+            "y": 0.8500000238418579,
+            "z": 1.0
+        },
+        "skyZenithColor": {
+            "x": 0.20000000298023224,
+            "y": 0.3499999940395355,
+            "z": 0.6000000238418579
+        },
+        "useSkybox": false
+    },
     "version": "1.0"
 }

@@ -81,6 +81,9 @@ json Serializer::SerializeTransform(const TransformComponent& transform) {
     data["position"] = SerializeVec3(transform.Position);
     data["rotation"] = SerializeVec3(transform.Rotation);
     data["scale"] = SerializeVec3(transform.Scale);
+    // Preserve quaternion-based rotation when authoring uses it
+    data["useQuatRotation"] = transform.UseQuatRotation;
+    data["rotationQ"] = json::array({ transform.RotationQ.w, transform.RotationQ.x, transform.RotationQ.y, transform.RotationQ.z });
     data["localMatrix"] = SerializeMat4(transform.LocalMatrix);
     data["worldMatrix"] = SerializeMat4(transform.WorldMatrix);
     data["transformDirty"] = transform.TransformDirty;
@@ -91,6 +94,29 @@ void Serializer::DeserializeTransform(const json& data, TransformComponent& tran
     if (data.contains("position")) transform.Position = DeserializeVec3(data["position"]);
     if (data.contains("rotation")) transform.Rotation = DeserializeVec3(data["rotation"]);
     if (data.contains("scale")) transform.Scale = DeserializeVec3(data["scale"]);
+    // Quaternions (preferred if present)
+    if (data.contains("rotationQ") && data["rotationQ"].is_array() && data["rotationQ"].size() == 4) {
+        // Stored as [w,x,y,z] for readability
+        transform.RotationQ = glm::quat(
+            (float)data["rotationQ"][0],
+            (float)data["rotationQ"][1],
+            (float)data["rotationQ"][2],
+            (float)data["rotationQ"][3]
+        );
+        transform.UseQuatRotation = true;
+    }
+    if (data.contains("useQuatRotation")) {
+        bool uqr = data["useQuatRotation"].get<bool>();
+        // If rotationQ missing but flag true, derive from Euler now
+        if (uqr && !(data.contains("rotationQ") && data["rotationQ"].is_array())) {
+            glm::mat4 r = glm::yawPitchRoll(
+                glm::radians(transform.Rotation.y),
+                glm::radians(transform.Rotation.x),
+                glm::radians(transform.Rotation.z));
+            transform.RotationQ = glm::quat_cast(r);
+        }
+        transform.UseQuatRotation = uqr;
+    }
     if (data.contains("localMatrix")) transform.LocalMatrix = DeserializeMat4(data["localMatrix"]);
     if (data.contains("worldMatrix")) transform.WorldMatrix = DeserializeMat4(data["worldMatrix"]);
     if (data.contains("transformDirty")) transform.TransformDirty = data["transformDirty"];

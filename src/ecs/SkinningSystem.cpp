@@ -131,46 +131,36 @@ void SkinningSystem::Update(Scene& scene)
          if (w.palette->size() != boneCount) w.palette->assign(boneCount, glm::mat4(1.0f)); // :contentReference[oaicite:12]{index=12}
          }
 
-      if (!g.inBindPose) {
-         // Build boneWorld once (from bone entities), then pose = boneWorld * invBind
-         std::vector<glm::mat4> boneWorld(boneCount);
-         for (size_t i = 0; i < boneCount; ++i) {
-            boneWorld[i] = scene.GetEntityData(g.skel->BoneEntities[i])
-               ? scene.GetEntityData(g.skel->BoneEntities[i])->Transform.WorldMatrix
-               : glm::mat4(1.0f);                         // :contentReference[oaicite:13]{index=13}
-            }
-         g.pose.resize(boneCount);
-         for (size_t i = 0; i < boneCount; ++i) {
-            g.pose[i] = boneWorld[i] * g.skel->InverseBindPoses[i];
-            }
+      // Build pose matrices once (animated or bind-pose)
+      std::vector<glm::mat4> boneWorld(boneCount);
+      // Always source current bone entity world transforms so authored/rest poses (e.g., T-pose) are respected in Edit mode
+      for (size_t i = 0; i < boneCount; ++i) {
+         const EntityID be = g.skel->BoneEntities[i];
+         const EntityData* bd = scene.GetEntityData(be);
+         if (bd) boneWorld[i] = bd->Transform.WorldMatrix;
+         else if (i < g.skel->BindPoseGlobals.size()) boneWorld[i] = g.skel->BindPoseGlobals[i];
+         else boneWorld[i] = glm::inverse(g.skel->InverseBindPoses[i]);
+      }
 
-         // Fill palettes across meshes: palette[i] = invMesh * pose[i]
-         // Parallelize per mesh first (bone counts are modest)
-         parallel_for(Jobs(), size_t{ 0 }, g.meshes.size(), size_t{ 1 },
-            [&](size_t mStart, size_t mCount) {
-            for (size_t m = mStart; m < mStart + mCount; ++m) {
-               auto& w = g.meshes[m];
-               PaletteArgs a{ g.pose.data(), w.invMeshWorld, w.palette->data(), 0, (int)boneCount };
-               PaletteKernel(a);
-               }
-            });
-           
-         }
-      else {
-         // Bind pose: palette is identity; we already resized to I.
-         // Nothing to compute (fast path).
-         }
+      g.pose.resize(boneCount);
+      for (size_t i = 0; i < boneCount; ++i) {
+         g.pose[i] = boneWorld[i] * g.skel->InverseBindPoses[i];
+      }
 
-      // Upload bones on main thread (after kernels done). Ensure palette filled for bind-pose too
+      // Fill palettes across meshes: palette[i] = invMesh * pose[i]
+      // Parallelize per mesh first (bone counts are modest)
+      parallel_for(Jobs(), size_t{ 0 }, g.meshes.size(), size_t{ 1 },
+         [&](size_t mStart, size_t mCount) {
+         for (size_t m = mStart; m < mStart + mCount; ++m) {
+            auto& w = g.meshes[m];
+            PaletteArgs a{ g.pose.data(), w.invMeshWorld, w.palette->data(), 0, (int)boneCount };
+            PaletteKernel(a);
+            }
+         });
+
+      // Upload bones on main thread (after kernels done)
       for (auto& w : g.meshes) {
          if (!w.palette->empty()) {
-            // If still identity (bind pose), compute palette = invMesh * (globalBind) where pose was identity
-            // g.pose may be empty in bind pose; in that case, construct from skeleton bind data
-            if (g.inBindPose) {
-               for (size_t i = 0; i < w.palette->size(); ++i) {
-                  (*w.palette)[i] = w.invMeshWorld * glm::mat4(1.0f);
-               }
-            }
             if (w.skMat) w.skMat->UploadBones(*w.palette);
          }
       }

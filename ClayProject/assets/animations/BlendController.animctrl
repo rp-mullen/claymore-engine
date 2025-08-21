@@ -17,13 +17,13 @@
       "clip": "",
       "entries": [
         {
-          "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
-          "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
+          "asset": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
+          "clip": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
           "key": 0.0
         },
         {
-          "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
-          "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+          "asset": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+          "clip": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
           "key": 1.0
         }
       ],
@@ -33,7 +33,7 @@
       "name": "Entry",
       "speed": 1.0,
       "x": 0.0,
-      "y": 43.0
+      "y": 0.0
     }
   ],
   "transitions": []
