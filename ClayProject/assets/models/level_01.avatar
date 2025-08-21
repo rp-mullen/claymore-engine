@@ -1,0 +1,389 @@
+{
+    "axes": {
+        "forward": 2,
+        "rightHanded": true,
+        "up": 1
+    },
+    "map": [
+        {
+            "bone": 0,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 1,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 2,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 3,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 4,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 5,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 6,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 7,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 8,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 9,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 10,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 11,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 12,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 13,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 14,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 15,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 16,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 17,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 18,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 19,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 20,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 21,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 22,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 23,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 24,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 25,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 26,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 27,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 28,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 29,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 30,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 31,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 32,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 33,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 34,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 35,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 36,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 37,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 38,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 39,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 40,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 41,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 42,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 43,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 44,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 45,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 46,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 47,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 48,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 49,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 50,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 51,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 52,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 53,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 54,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 55,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 56,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 57,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 58,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 59,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 60,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 61,
+            "index": -1,
+            "name": "",
+            "present": false
+        },
+        {
+            "bone": 62,
+            "index": -1,
+            "name": "",
+            "present": false
+        }
+    ],
+    "rig": "level_01",
+    "unitsPerMeter": 1.0
+}

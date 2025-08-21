@@ -328,16 +328,29 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
 
    ImGui::Columns(columnCount, nullptr, false);
     
+   // Collect entries, group directories first, then files
+   struct Entry { fs::directory_entry de; bool isDir; std::string name; };
+   std::vector<Entry> entries; entries.reserve(128);
    for (auto& entry : fs::directory_iterator(folderPath)) {
+      Entry e{ entry, entry.is_directory(), entry.path().filename().string() };
+      entries.push_back(std::move(e));
+   }
+   std::stable_sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b){
+       if (a.isDir != b.isDir) return a.isDir && !b.isDir; // directories first
+       return a.name < b.name; // alphabetical within groups
+   });
+
+   for (const auto& item : entries) {
+      auto& entry = item.de;
       std::string fileName = entry.path().filename().string();
       if (!m_SearchQuery.empty() && fileName.find(m_SearchQuery) == std::string::npos)
          continue;
 
-      bool isDir = entry.is_directory();
-      // Hide .meta and model cache binaries
+      bool isDir = item.isDir;
+      // Hide .meta and model/animation cache binaries and avatar files
       std::string ext = entry.path().extension().string();
       std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-      if (!isDir && (ext == ".meta" || ext == ".meshbin" || ext == ".skelbin" || ext == ".animbin")) {
+      if (!isDir && (ext == ".meta" || ext == ".meshbin" || ext == ".skelbin" || ext == ".animbin" || ext == ".avatar")) {
          continue;
       }
       EnsureExtraIconsLoaded();
@@ -391,6 +404,16 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
          } else if (IsPrefabFile(fullPath)) {
             if (m_UILayer) {
                m_UILayer->OpenPrefabEditor(fullPath);
+            }
+         } else {
+            // Treat .json under assets/prefabs as prefab files
+            std::string norm = fullPath; std::replace(norm.begin(), norm.end(), '\\', '/');
+            std::string extlc = fs::path(norm).extension().string();
+            std::transform(extlc.begin(), extlc.end(), extlc.begin(), ::tolower);
+            if (extlc == ".json" && norm.find("/assets/prefabs/") != std::string::npos) {
+                if (m_UILayer) {
+                    m_UILayer->OpenPrefabEditor(fullPath);
+                }
             }
          }
       }
@@ -465,13 +488,18 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
 
 // Pick icons based on file type
 ImTextureID ProjectPanel::GetFileIconForPath(const std::string& path) const {
-    std::string ext = fs::path(path).extension().string();
+    std::string norm = path; std::replace(norm.begin(), norm.end(), '\\', '/');
+    std::string ext = fs::path(norm).extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     if (ext == ".fbx" || ext == ".obj" || ext == ".gltf" || ext == ".glb") return m_Icon3DModel ? m_Icon3DModel : m_FileIcon;
     if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" || ext == ".bmp" || ext == ".hdr") return m_IconImage ? m_IconImage : m_FileIcon;
     if (ext == ".mat") return m_IconMaterial ? m_IconMaterial : m_FileIcon;
-    if (ext == ".scene") return m_FileIcon;
-    if (ext == ".prefab") return m_FileIcon;
+    if (ext == ".scene") return m_IconScene ? m_IconScene : m_FileIcon;
+    if (ext == ".prefab") return m_IconPrefab ? m_IconPrefab : m_FileIcon;
+    if (ext == ".json" && norm.find("/assets/prefabs/") != std::string::npos) return m_IconPrefab ? m_IconPrefab : m_FileIcon;
+    if (ext == ".anim") return m_IconAnimation ? m_IconAnimation : m_FileIcon;
+    if (ext == ".cs") return m_IconCSharp ? m_IconCSharp : m_FileIcon;
+    if (ext == ".animctrl") return m_IconAnimController ? m_IconAnimController : m_FileIcon;
     return m_FileIcon;
 }
 
@@ -599,6 +627,11 @@ void ProjectPanel::EnsureExtraIconsLoaded() const {
     m_Icon3DModel = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/3d_model.svg"));
     m_IconImage   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/image.svg"));
     m_IconMaterial= TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/material.svg"));
+    m_IconScene   = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/scene.svg"));
+    m_IconPrefab  = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/cube.svg"));
+    m_IconAnimation = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/animation.svg"));
+    m_IconCSharp  = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/csharp.svg"));
+    m_IconAnimController = TextureLoader::ToImGuiTextureID(TextureLoader::LoadIconTexture("assets/icons/anim_controller.svg"));
     m_IconsLoaded = true;
 }
 
@@ -667,8 +700,11 @@ bool ProjectPanel::IsSceneFile(const std::string& filepath) const {
 }
 
 bool ProjectPanel::IsPrefabFile(const std::string& filepath) const {
-   std::string ext = fs::path(filepath).extension().string();
+   std::string norm = filepath; std::replace(norm.begin(), norm.end(), '\\', '/');
+   std::string ext = fs::path(norm).extension().string();
    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-   return ext == ".prefab";
+   if (ext == ".prefab") return true;
+   if (ext == ".json" && norm.find("/assets/prefabs/") != std::string::npos) return true;
+   return false;
 }
 

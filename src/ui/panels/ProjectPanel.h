@@ -67,6 +67,11 @@ private:
     mutable ImTextureID m_Icon3DModel{};
     mutable ImTextureID m_IconImage{};
     mutable ImTextureID m_IconMaterial{};
+    mutable ImTextureID m_IconScene{};
+    mutable ImTextureID m_IconPrefab{};
+    mutable ImTextureID m_IconAnimation{};
+    mutable ImTextureID m_IconCSharp{};
+    mutable ImTextureID m_IconAnimController{};
 
    UILayer* m_UILayer = nullptr; // Non-owning pointer back to UI layer
    };
