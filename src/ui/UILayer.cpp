@@ -28,6 +28,7 @@
 #include <editor/Input.h>
 #include "serialization/Serializer.h"
 #include <ImGuizmo.h>
+#include <navigation/NavDebugDraw.h>
 
 // Forward-declare file dialog helper from MenuBarPanel.cpp
 extern std::string ShowSaveFileDialog(const std::string& defaultName);
@@ -479,6 +480,20 @@ void UILayer::BeginDockspace() {
             }
             if (ImGui::Checkbox("Colliders", &showColliders)) {
                 Renderer::Get().SetShowColliders(showColliders);
+            }
+            // Navigation debug draw toggles
+            {
+                ImGui::Separator();
+                ImGui::Text("Navigation Debug");
+                uint32_t mask = (uint32_t)nav::debug::GetMask();
+                auto toggle = [&](const char* label, nav::NavDrawMask bit){ bool v = (mask & (uint32_t)bit)!=0; if(ImGui::Checkbox(label, &v)){ if(v) mask |= (uint32_t)bit; else mask &= ~(uint32_t)bit; }};
+                toggle("Triangles", nav::NavDrawMask::TriMesh);
+                toggle("Polys",     nav::NavDrawMask::Polys);
+                toggle("BVTree",    nav::NavDrawMask::BVTree);
+                toggle("Path",      nav::NavDrawMask::Path);
+                toggle("Links",     nav::NavDrawMask::Links);
+                toggle("Agents",    nav::NavDrawMask::Agents);
+                nav::Navigation::Get().SetDebugMask((nav::NavDrawMask)mask);
             }
             ImGui::EndCombo();
         }

@@ -7,6 +7,8 @@
 #include "DotNetHost.h"
 #include "animation/AnimationPlayerComponent.h"
 #include "animation/AnimatorRuntime.h"
+#include "navigation/NavMesh.h"
+#include "navigation/NavAgent.h"
 
 // --- Global Function Pointers ---
 HasComponent_fn HasComponentPtr = &HasComponent;
@@ -46,6 +48,8 @@ bool HasComponent(int entityID, const char* componentName) {
     if (strcmp(componentName, "RigidBodyComponent") == 0) return data->RigidBody != nullptr;
     if (strcmp(componentName, "MeshComponent") == 0) return data->Mesh != nullptr;
     if (strcmp(componentName, "Animator") == 0 || strcmp(componentName, "AnimationPlayerComponent") == 0) return data->AnimationPlayer != nullptr;
+    if (strcmp(componentName, "NavMeshComponent") == 0) return data->Navigation != nullptr;
+    if (strcmp(componentName, "NavAgentComponent") == 0) return data->NavAgent != nullptr;
     // UI components: accept both short and full names
     if (strcmp(componentName, "Canvas") == 0 || strcmp(componentName, "CanvasComponent") == 0) return data->Canvas != nullptr;
     if (strcmp(componentName, "Panel") == 0 || strcmp(componentName, "PanelComponent") == 0) return data->Panel != nullptr;
@@ -76,6 +80,10 @@ void AddComponent(int entityID, const char* componentName) {
         data->Panel = std::make_unique<PanelComponent>();
     } else if ((strcmp(componentName, "Button") == 0 || strcmp(componentName, "ButtonComponent") == 0) && !data->Button) {
         data->Button = std::make_unique<ButtonComponent>();
+    } else if (strcmp(componentName, "NavMeshComponent") == 0 && !data->Navigation) {
+        data->Navigation = std::make_unique<nav::NavMeshComponent>();
+    } else if (strcmp(componentName, "NavAgentComponent") == 0 && !data->NavAgent) {
+        data->NavAgent = std::make_unique<nav::NavAgentComponent>();
     }
     // Add other components here...
 }
@@ -97,6 +105,10 @@ void RemoveComponent(int entityID, const char* componentName) {
         data->Panel.reset();
     } else if (strcmp(componentName, "Button") == 0 || strcmp(componentName, "ButtonComponent") == 0) {
         data->Button.reset();
+    } else if (strcmp(componentName, "NavMeshComponent") == 0) {
+        data->Navigation.reset();
+    } else if (strcmp(componentName, "NavAgentComponent") == 0) {
+        data->NavAgent.reset();
     }
     // Add other components here...
 }

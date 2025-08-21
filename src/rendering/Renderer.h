@@ -76,6 +76,9 @@ public:
     void DrawGrid(uint16_t viewId);
     void DrawDebugRay(const glm::vec3& origin, const glm::vec3& dir, float length = 10.0f);
     void DrawCollider(const ColliderComponent& collider, const TransformComponent& transform);
+    // Hook to allow external debug overlays like navigation to draw after scene
+    void AddOverlayCallback(void(*fn)(uint16_t));
+    void RemoveOverlayCallback(void(*fn)(uint16_t));
 
     void UploadLightsToShader(const std::vector<LightData>& lights);
     void UploadEnvironmentToShader(const Environment& env);
@@ -205,4 +208,5 @@ public:
     bool m_ShowGrid = true;
     bool m_ShowColliders = true;   // enabled by default per requirement
     bool m_ShowAABBs = false;
+    std::vector<void(*)(uint16_t)> m_OverlayCallbacks;
 };

@@ -43,6 +43,7 @@ namespace fs = std::filesystem;
 #include "pipeline/AssetLibrary.h"    
 #include "utils/Profiler.h"
 #include <prefab/PrefabAPI.h>
+#include "animation/ik/IKSystem.h"
 // --- Kernels --------------------------------------------------------------------------------
 
 
@@ -1096,6 +1097,11 @@ void Scene::Update(float dt) {
       cm::animation::AnimationSystem::Update(*this, dt);
    }
 
+   // IK pass: after animation sampling, before transforms/skinning
+   if (m_IsPlaying) {
+      cm::animation::ik::IKSystem::Get().SolveAndBlend(*this, dt);
+   }
+
    // Recompute world transforms after potential animation updates
    {
       ScopedTimer t("Transforms");
@@ -1113,6 +1119,12 @@ void Scene::Update(float dt) {
    {
       ScopedTimer t("Particles");
       ecs::ParticleEmitterSystem::Get().Update(*this, dt);
+   }
+
+   // Update navigation agents and debug drawing
+   {
+      ScopedTimer t("Navigation");
+      nav::Navigation::Get().Update(*this, dt);
    }
 
    extern void(__stdcall * EnsureInstalledPtr)();    // forward if needed, or capture in a singleton

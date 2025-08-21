@@ -2,6 +2,8 @@
 #include <unordered_map>
 #include <memory>
 #include <string>
+#include <vector>
+#include <tuple>
 #include "AssetReference.h"
 #include "rendering/Mesh.h"
 #include "rendering/Material.h"
@@ -21,7 +23,8 @@ enum class AssetType {
     Shader = 48,
     Script = 115,
     Animation = 196,
-    Prefab = 250
+    Prefab = 250,
+    NavMesh = 310
 };
 
 // Asset entry in the library
@@ -64,35 +67,30 @@ public:
     std::shared_ptr<Mesh> LoadMesh(const AssetReference& ref);
     std::shared_ptr<Material> LoadMaterial(const AssetReference& ref);
     std::shared_ptr<bgfx::TextureHandle> LoadTexture(const AssetReference& ref);
-    bool LoadPrefabIntoEntity(const AssetReference& ref, EntityData& outEntity, Scene& scene);
-    
-    // Primitive mesh creation
+    std::shared_ptr<cm::animation::AnimationClip> LoadAnimation(const AssetReference& ref);
+
+    // Prefab support
+    bool LoadPrefabIntoEntity(const AssetReference& ref, struct EntityData& outEntity, class Scene& scene);
+
+    // Path/GUID helpers
+    ClaymoreGUID GetGUIDForPath(const std::string& path);
+    std::string GetPathForGUID(const ClaymoreGUID& guid);
+    // Primitive helpers
     std::shared_ptr<Mesh> CreatePrimitiveMesh(const std::string& primitiveType);
-    
-                // Asset path to GUID mapping
-            ClaymoreGUID GetGUIDForPath(const std::string& path);
-            std::string GetPathForGUID(const ClaymoreGUID& guid);
-            std::vector<std::tuple<std::string, ClaymoreGUID, AssetType>> GetAllAssets() const;
-    
-    // Clear all assets
+    // Meta helpers
+    std::string ResolveMeshBinFromMeta(const std::string& metaPath, int fileID);
+    std::shared_ptr<Mesh> LoadMeshBin(const std::string& meshBinPath, int fileID);
+
+    // Introspection
+    std::vector<std::tuple<std::string, ClaymoreGUID, AssetType>> GetAllAssets() const;
     void Clear();
-    
-    // Debug
     void PrintAllAssets() const;
-    
-    // Internal helpers for fast-path model cache loading
-    static std::string ResolveMeshBinFromMeta(const std::string& metaPath, int fileID);
-    static std::shared_ptr<Mesh> LoadMeshBin(const std::string& meshBinPath, int fileID);
 
 private:
     AssetLibrary() = default;
-    ~AssetLibrary() = default;
-    
-                mutable std::mutex m_Mutex;
-                std::unordered_map<ClaymoreGUID, AssetEntry> m_Assets;
-            std::unordered_map<std::string, ClaymoreGUID> m_PathToGUID;
-            std::unordered_map<ClaymoreGUID, std::string> m_GUIDToPath;
-    
-    // Primitive mesh cache
+    mutable std::mutex m_Mutex;
+    std::unordered_map<ClaymoreGUID, AssetEntry> m_Assets;
+    std::unordered_map<std::string, ClaymoreGUID> m_PathToGUID;
+    std::unordered_map<ClaymoreGUID, std::string> m_GUIDToPath;
     std::unordered_map<std::string, std::shared_ptr<Mesh>> m_PrimitiveMeshes;
 }; 

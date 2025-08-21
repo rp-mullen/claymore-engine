@@ -9,6 +9,7 @@
 #include <rendering/Camera.h>
 #include "Components.h"
 #include <rendering/Environment.h>
+#include "navigation/Navigation.h"
 
 class Scene {
 public:

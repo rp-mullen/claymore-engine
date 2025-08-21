@@ -90,6 +90,12 @@ public:
     static json SerializeEntity(EntityID id, Scene& scene);
     static EntityID DeserializeEntity(const json& data, Scene& scene);
 
+    // Navigation components
+    static json SerializeNavMesh(const nav::NavMeshComponent& navmesh);
+    static void DeserializeNavMesh(const json& data, nav::NavMeshComponent& navmesh);
+    static json SerializeNavAgent(const nav::NavAgentComponent& agent);
+    static void DeserializeNavAgent(const json& data, nav::NavAgentComponent& agent);
+
 private:
     // Helper functions
     static json SerializeVec3(const glm::vec3& vec);

@@ -134,3 +134,18 @@ extern ClearSyncContext_fn   ClearSyncContextPtr;
 
 extern InstallSyncContext_fn InstallSyncContextPtr;
 extern EnsureInstalled_fn    EnsureInstalledPtr;
+
+// Navigation interop raw pointer getters (resolved from NavInterop.cpp)
+extern "C" void* Get_Nav_FindPath_Ptr();
+extern "C" void* Get_Nav_Agent_SetDest_Ptr();
+extern "C" void* Get_Nav_Agent_Stop_Ptr();
+extern "C" void* Get_Nav_Agent_Warp_Ptr();
+extern "C" void* Get_Nav_Agent_Remaining_Ptr();
+extern "C" void* Get_Nav_SetOnPathComplete_Ptr();
+
+// IK interop raw pointer getters (resolved from IKInterop.cpp)
+extern "C" void* Get_IK_SetWeight_Ptr();
+extern "C" void* Get_IK_SetTarget_Ptr();
+extern "C" void* Get_IK_SetPole_Ptr();
+extern "C" void* Get_IK_SetChain_Ptr();
+extern "C" void* Get_IK_GetErrorMeters_Ptr();

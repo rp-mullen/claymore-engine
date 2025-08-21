@@ -10,6 +10,9 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include "pipeline/AssetReference.h"
+#include "animation/ik/IKComponent.h"
+#include "navigation/NavMesh.h"
+#include "navigation/NavAgent.h"
 
 // Forward declaration
 class Scene;
@@ -37,6 +40,10 @@ struct EntityData {
    std::unique_ptr<TerrainComponent> Terrain; // Optional Terrain
    std::unique_ptr<ParticleEmitterComponent> Emitter; // Optional particle emitter
 
+   // Navigation
+   std::unique_ptr<nav::NavMeshComponent> Navigation; // Optional NavMesh surface
+   std::unique_ptr<nav::NavAgentComponent> NavAgent;  // Optional Nav agent
+
    // Text rendering
    std::unique_ptr<TextRendererComponent> Text; // Optional text renderer
 
@@ -46,6 +53,9 @@ struct EntityData {
    std::unique_ptr<ButtonComponent> Button; // Optional UI button behavior
 
    std::unique_ptr<cm::animation::AnimationPlayerComponent> AnimationPlayer; // Optional animation player
+
+   // IK components (multiple allowed per skeleton root)
+   std::vector<cm::animation::ik::IKComponent> IKs;
 
    std::vector<ScriptInstance> Scripts;
 

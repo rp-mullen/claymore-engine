@@ -19,6 +19,8 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include "ui/panels/AvatarBuilderPanel.h"
+// IK
+#include "animation/ik/IKComponent.h"
 // For project asset directory discovery and animation asset helpers
 #include <editor/Project.h>
 #include "animation/AnimationSerializer.h"
@@ -681,6 +683,57 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         ImGui::PopStyleColor(3);
     }
 
+    // Navigation components
+    if (data->Navigation && ImGui::CollapsingHeader("Nav Mesh")) {
+        registry.DrawComponentUI("Nav Mesh", data->Navigation.get());
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
+            data->Navigation.reset();
+        }
+        ImGui::PopStyleColor(3);
+    }
+
+    if (data->NavAgent && ImGui::CollapsingHeader("Nav Agent")) {
+        registry.DrawComponentUI("Nav Agent", data->NavAgent.get());
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
+        if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
+            data->NavAgent.reset();
+        }
+        ImGui::PopStyleColor(3);
+    }
+
+    // IK Components (multiple)
+    if (!data->IKs.empty()) {
+        if (ImGui::CollapsingHeader("IK")) {
+            for (size_t i = 0; i < data->IKs.size(); ++i) {
+                auto& ik = data->IKs[i];
+                ImGui::PushID((int)i);
+                if (ImGui::TreeNodeEx("IK Component", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    ImGui::Checkbox("Enabled", &ik.Enabled);
+                    ImGui::DragFloat("Weight", &ik.Weight, 0.01f, 0.0f, 1.0f);
+                    ImGui::Checkbox("Two Bone", &ik.UseTwoBone);
+                    // Minimal display for target/pole
+                    ImGui::Text("Target Entity: %u", (unsigned)ik.TargetEntity);
+                    ImGui::Text("Pole Entity: %u", (unsigned)ik.PoleEntity);
+                    if (ImGui::SmallButton("Remove IK")) {
+                        data->IKs.erase(data->IKs.begin() + i);
+                        ImGui::TreePop();
+                        ImGui::PopID();
+                        break;
+                    }
+                    ImGui::TreePop();
+                }
+                ImGui::PopID();
+            }
+        }
+    }
+
     // Draw script components
     for (size_t i = 0; i < data->Scripts.size(); ++i) {
         DrawScriptComponent(data->Scripts[i], static_cast<int>(i), entity);
@@ -839,6 +892,20 @@ void InspectorPanel::DrawAddComponentButton(EntityID entity) {
 
         if (!data->Text && ImGui::MenuItem("TextRenderer Component")) {
             data->Text = std::make_unique<TextRendererComponent>();
+        }
+
+        // Navigation components
+        if (!data->Navigation && ImGui::MenuItem("Nav Mesh Component")) {
+            data->Navigation = std::make_unique<nav::NavMeshComponent>();
+        }
+        if (!data->NavAgent && ImGui::MenuItem("Nav Agent Component")) {
+            data->NavAgent = std::make_unique<nav::NavAgentComponent>();
+        }
+
+        // IK authoring: add a new IK block on demand
+        if (ImGui::MenuItem("IK Component")) {
+            cm::animation::ik::IKComponent ik;
+            data->IKs.push_back(std::move(ik));
         }
 
         // UI components

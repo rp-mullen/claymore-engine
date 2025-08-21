@@ -17,8 +17,10 @@ extern "C" {
 #include "pipeline/AssetPipeline.h"
 #include "scripting/InputInterop.h"
 #include "scripting/ScriptReflectionInterop.h"
+#include "navigation/NavInterop.h" // for Get_Nav_*_Ptr declarations
 #include "scripting/ComponentInterop.h"
 #include <filesystem>
+#include <navigation/NavInterop.h>
 
 // --------------------------------------------------------------------------------------
 extern "C" void GetEntityPosition(int entityID, float* outX, float* outY, float* outZ);
@@ -400,6 +402,54 @@ bool LoadDotnetRuntime(const std::wstring& assemblyPath, const std::wstring& typ
    SetupEntityInterop(fullPath);
    SetupInputInterop(fullPath);
    SetupReflectionInterop(fullPath);
+
+   // Navigation interop bootstrap
+   {
+       void* navArgs[6];
+       navArgs[0] = (void*)Get_Nav_FindPath_Ptr();
+       navArgs[1] = (void*)Get_Nav_Agent_SetDest_Ptr();
+       navArgs[2] = (void*)Get_Nav_Agent_Stop_Ptr();
+       navArgs[3] = (void*)Get_Nav_Agent_Warp_Ptr();
+       navArgs[4] = (void*)Get_Nav_Agent_Remaining_Ptr();
+       navArgs[5] = (void*)Get_Nav_SetOnPathComplete_Ptr();
+       using NavInteropInitFn = void(*)(void**, int);
+       NavInteropInitFn initNavFn = nullptr;
+       int rcNav = load_assembly_and_get_function_pointer(
+           fullPath.c_str(),
+           L"ClaymoreEngine.NavigationInterop, ClaymoreEngine",
+           L"InitializeInteropExport",
+           L"ClaymoreEngine.NavigationInteropInitDelegate, ClaymoreEngine",
+           nullptr,
+           (void**)&initNavFn
+       );
+       if (rcNav == 0 && initNavFn) {
+           initNavFn(navArgs, 6);
+       }
+   }
+
+   // IK interop bootstrap
+   {
+       void* ikArgs[5];
+       ikArgs[0] = (void*)Get_IK_SetWeight_Ptr();
+       ikArgs[1] = (void*)Get_IK_SetTarget_Ptr();
+       ikArgs[2] = (void*)Get_IK_SetPole_Ptr();
+       ikArgs[3] = (void*)Get_IK_SetChain_Ptr();
+       ikArgs[4] = (void*)Get_IK_GetErrorMeters_Ptr();
+
+       using IKInteropInitFn = void(*)(void**, int);
+       IKInteropInitFn initIkFn = nullptr;
+       int rcIk = load_assembly_and_get_function_pointer(
+           fullPath.c_str(),
+           L"ClaymoreEngine.IKInterop, ClaymoreEngine",
+           L"InitializeInteropExport",
+           L"ClaymoreEngine.IKInteropInitDelegate, ClaymoreEngine",
+           nullptr,
+           (void**)&initIkFn
+       );
+       if (rcIk == 0 && initIkFn) {
+           initIkFn(ikArgs, 5);
+       }
+   }
 
    return true;
    }

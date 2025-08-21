@@ -37,6 +37,7 @@
 #include "jobs/JobSystem.h"
 #include "jobs/ParallelFor.h"
 #include <vector>
+#include "navigation/NavSerialization.h"
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -197,6 +198,22 @@ void AssetPipeline::ImportAsset(const std::string& path) {
         ImportShader(path);
         meta.type = "shader";
     }
+    else if (ext == ".navbin") {
+        // Register navbin as asset; no CPU import, but ensure library entry exists
+        meta.type = "navmesh";
+        std::string name = fs::path(path).stem().string();
+        meta.sourcePath = path;
+        meta.processedPath = path;
+        meta.hash = hash;
+        if (meta.guid.high == 0 && meta.guid.low == 0) meta.guid = ClaymoreGUID::Generate();
+        meta.reference = AssetReference(meta.guid, 0, static_cast<int32_t>(AssetType::NavMesh));
+        AssetRegistry::Instance().SetMetadata(path, meta);
+        AssetLibrary::Instance().RegisterAsset(meta.reference, AssetType::NavMesh, path, name);
+        // Save meta and early out
+        std::ofstream out(metaPath);
+        if (out) { json j = meta; out << j.dump(2); }
+        return;
+    }
     else if (ext == ".mat") {
         ImportMaterial(path);
         meta.type = "material";
@@ -227,9 +244,9 @@ void AssetPipeline::ImportAsset(const std::string& path) {
     AssetRegistry::Instance().SetMetadata(path, meta);
     
     // Register asset in AssetLibrary
-    AssetLibrary::Instance().RegisterAsset(meta.reference, 
-        static_cast<AssetType>(meta.reference.type), 
-        path, 
+    AssetLibrary::Instance().RegisterAsset(meta.reference,
+        static_cast<AssetType>(meta.reference.type),
+        path,
         fs::path(path).filename().string());
 
     std::cout << "[AssetPipeline] Imported: " << path << " (GUID: " << meta.guid.ToString() << ")" << std::endl;
@@ -584,7 +601,8 @@ bool AssetPipeline::IsSupportedAsset(const std::string& ext) const {
         ".png", ".jpg", ".jpeg", ".tga", // Textures
         ".sc", ".shader", ".glsl",         // Shaders
         ".mat",                                // Materials
-        ".cs"
+        ".cs",
+        ".navbin"
     };
     return supported.find(ext) != supported.end();
 }
@@ -595,6 +613,7 @@ std::string AssetPipeline::DetermineType(const std::string& ext) {
     if (ext == ".sc" || ext == ".shader" || ext == ".glsl") return "shader";
     if (ext == ".mat") return "material";
     if (ext == ".cs") return "script";
+    if (ext == ".navbin") return "navmesh";
 
     return "unknown";
 }

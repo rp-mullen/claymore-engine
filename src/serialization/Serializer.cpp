@@ -52,6 +52,87 @@ static bool IsImportedModelRoot(Scene& scene, EntityID id, std::string& outModel
 json Serializer::SerializeVec3(const glm::vec3& vec) {
     return json{{"x", vec.x}, {"y", vec.y}, {"z", vec.z}};
 }
+// ---------------- Navigation ----------------
+json Serializer::SerializeNavMesh(const nav::NavMeshComponent& n) {
+    json j;
+    j["enabled"] = n.Enabled;
+    j["bakedAsset"] = n.BakedAsset;
+    j["hash"] = n.BakeHash;
+    j["boundsMin"] = SerializeVec3(n.AABB.min);
+    j["boundsMax"] = SerializeVec3(n.AABB.max);
+    j["bake"] = {
+        {"cellSize", n.Bake.cellSize},
+        {"cellHeight", n.Bake.cellHeight},
+        {"agentRadius", n.Bake.agentRadius},
+        {"agentHeight", n.Bake.agentHeight},
+        {"agentMaxClimb", n.Bake.agentMaxClimb},
+        {"agentMaxSlopeDeg", n.Bake.agentMaxSlopeDeg}
+    };
+    if (!n.SourceMeshes.empty()) {
+        j["sources"] = json::array();
+        for (auto e : n.SourceMeshes) j["sources"].push_back(e);
+    }
+    return j;
+}
+
+void Serializer::DeserializeNavMesh(const json& j, nav::NavMeshComponent& n) {
+    n.Enabled = j.value("enabled", true);
+    try { if (j.contains("bakedAsset")) j.at("bakedAsset").get_to(n.BakedAsset); } catch(...) {}
+    n.BakeHash = j.value<uint64_t>("hash", 0);
+    if (j.contains("boundsMin")) n.AABB.min = DeserializeVec3(j["boundsMin"]);
+    if (j.contains("boundsMax")) n.AABB.max = DeserializeVec3(j["boundsMax"]);
+    if (j.contains("bake")) {
+        const auto& b = j["bake"];
+        n.Bake.cellSize = b.value("cellSize", n.Bake.cellSize);
+        n.Bake.cellHeight = b.value("cellHeight", n.Bake.cellHeight);
+        n.Bake.agentRadius = b.value("agentRadius", n.Bake.agentRadius);
+        n.Bake.agentHeight = b.value("agentHeight", n.Bake.agentHeight);
+        n.Bake.agentMaxClimb = b.value("agentMaxClimb", n.Bake.agentMaxClimb);
+        n.Bake.agentMaxSlopeDeg = b.value("agentMaxSlopeDeg", n.Bake.agentMaxSlopeDeg);
+    }
+    n.SourceMeshes.clear();
+    if (j.contains("sources") && j["sources"].is_array()) {
+        for (auto& v : j["sources"]) n.SourceMeshes.push_back(v.get<EntityID>());
+    }
+}
+
+json Serializer::SerializeNavAgent(const nav::NavAgentComponent& a) {
+    json j;
+    j["enabled"] = a.Enabled;
+    j["navMeshEntity"] = a.NavMeshEntity;
+    j["arriveThreshold"] = a.ArriveThreshold;
+    j["repathInterval"] = a.RepathInterval;
+    j["autoRepath"] = a.AutoRepath;
+    j["avoidanceRadiusMul"] = a.AvoidanceRadiusMul;
+    j["params"] = {
+        {"radius", a.Params.radius},
+        {"height", a.Params.height},
+        {"maxSlopeDeg", a.Params.maxSlopeDeg},
+        {"maxStep", a.Params.maxStep},
+        {"maxSpeed", a.Params.maxSpeed},
+        {"maxAccel", a.Params.maxAccel}
+    };
+    return j;
+}
+
+void Serializer::DeserializeNavAgent(const json& j, nav::NavAgentComponent& a) {
+    a.Enabled = j.value("enabled", true);
+    a.NavMeshEntity = j.value("navMeshEntity", (EntityID)0);
+    a.ArriveThreshold = j.value("arriveThreshold", a.ArriveThreshold);
+    a.RepathInterval = j.value("repathInterval", a.RepathInterval);
+    a.AutoRepath = j.value("autoRepath", a.AutoRepath);
+    a.AvoidanceRadiusMul = j.value("avoidanceRadiusMul", a.AvoidanceRadiusMul);
+    if (j.contains("params")) {
+        const auto& p = j["params"];
+        a.Params.radius = p.value("radius", a.Params.radius);
+        a.Params.height = p.value("height", a.Params.height);
+        a.Params.maxSlopeDeg = p.value("maxSlopeDeg", a.Params.maxSlopeDeg);
+        a.Params.maxStep = p.value("maxStep", a.Params.maxStep);
+        a.Params.maxSpeed = p.value("maxSpeed", a.Params.maxSpeed);
+        a.Params.maxAccel = p.value("maxAccel", a.Params.maxAccel);
+    }
+}
+
 
 glm::vec3 Serializer::DeserializeVec3(const json& data) {
     return glm::vec3{data["x"], data["y"], data["z"]};
@@ -795,6 +876,37 @@ json Serializer::SerializeEntity(EntityID id, Scene& scene) {
        data["button"] = SerializeButton(*entityData->Button);
    }
 
+   // Emit IK authored blocks if present (as Extra["ik"]) to keep stable names across reimports
+   if (!entityData->IKs.empty()) {
+       nlohmann::json jIk = nlohmann::json::array();
+       for (const auto& k : entityData->IKs) {
+           nlohmann::json e;
+           e["enabled"] = k.Enabled;
+           e["target"] = k.TargetEntity;
+           e["pole"] = k.PoleEntity;
+           e["weight"] = k.Weight;
+           e["maxIterations"] = k.MaxIterations;
+           e["tolerance"] = k.Tolerance;
+           e["damping"] = k.Damping;
+           e["useTwoBone"] = k.UseTwoBone;
+           e["visualize"] = k.Visualize;
+           e["chain"] = nlohmann::json::array();
+           for (auto b : k.Chain) e["chain"].push_back((int)b);
+           if (!k.Constraints.empty()) {
+               e["constraints"] = nlohmann::json::array();
+               for (const auto& c : k.Constraints) {
+                   nlohmann::json cj;
+                   cj["useTwist"] = c.useTwist; cj["useHinge"] = c.useHinge;
+                   cj["twistMinDeg"] = c.twistMinDeg; cj["twistMaxDeg"] = c.twistMaxDeg;
+                   cj["hingeMinDeg"] = c.hingeMinDeg; cj["hingeMaxDeg"] = c.hingeMaxDeg;
+                   e["constraints"].push_back(std::move(cj));
+               }
+           }
+           jIk.push_back(std::move(e));
+       }
+       data["ik"] = std::move(jIk);
+   }
+
    // Merge unknown/extra fields to preserve forward-compatibility
    if (entityData->Extra.is_object()) {
        for (auto it = entityData->Extra.begin(); it != entityData->Extra.end(); ++it) {
@@ -836,7 +948,6 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
         try { entityData->PrefabSource = FileSystem::Normalize(data.at("prefabSource").get<std::string>()); } catch(...) {}
     }
 
-
     // Deserialize transform
     if (data.contains("transform")) {
         DeserializeTransform(data["transform"], entityData->Transform);
@@ -871,6 +982,15 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
     if (data.contains("camera")) {
         entityData->Camera = std::make_unique<CameraComponent>();
         DeserializeCamera(data["camera"], *entityData->Camera);
+    }
+    // Navigation components
+    if (data.contains("navmesh")) {
+        entityData->Navigation = std::make_unique<nav::NavMeshComponent>();
+        DeserializeNavMesh(data["navmesh"], *entityData->Navigation);
+    }
+    if (data.contains("navagent")) {
+        entityData->NavAgent = std::make_unique<nav::NavAgentComponent>();
+        DeserializeNavAgent(data["navagent"], *entityData->NavAgent);
     }
     // Animation-related
     if (data.contains("skeleton")) {
@@ -920,13 +1040,42 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
         if (!entityData->AnimationPlayer) entityData->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>();
         DeserializeAnimator(data["animator"], *entityData->AnimationPlayer);
     }
+    // IK authored blocks
+    if (data.contains("ik") && data["ik"].is_array()) {
+        entityData->IKs.clear();
+        for (const auto& j : data["ik"]) {
+            cm::animation::ik::IKComponent c;
+            c.Enabled = j.value("enabled", true);
+            c.TargetEntity = j.value("target", (EntityID)0);
+            c.PoleEntity = j.value("pole", (EntityID)0);
+            c.Weight = j.value("weight", 1.0f);
+            c.MaxIterations = j.value("maxIterations", 12.0f);
+            c.Tolerance = j.value("tolerance", 0.001f);
+            c.Damping = j.value("damping", 0.2f);
+            c.UseTwoBone = j.value("useTwoBone", true);
+            c.Visualize = j.value("visualize", false);
+            if (j.contains("chain") && j["chain"].is_array()) {
+                for (auto& b : j["chain"]) c.Chain.push_back((int)b.get<int>());
+            }
+            if (j.contains("constraints") && j["constraints"].is_array()) {
+                for (auto& cj : j["constraints"]) {
+                    cm::animation::ik::IKComponent::Constraint cc;
+                    cc.useHinge=cj.value("useHinge",false); cc.useTwist=cj.value("useTwist",false);
+                    cc.hingeMinDeg=cj.value("hingeMinDeg",0.0f); cc.hingeMaxDeg=cj.value("hingeMaxDeg",0.0f);
+                    cc.twistMinDeg=cj.value("twistMinDeg",0.0f); cc.twistMaxDeg=cj.value("twistMaxDeg",0.0f);
+                    c.Constraints.push_back(cc);
+                }
+            }
+            entityData->IKs.push_back(std::move(c));
+        }
+    }
     // Preserve unknown fields not recognized by this serializer
     try {
         static const std::unordered_set<std::string> kKnown = {
             "id","name","layer","tag","parent","children","guid","prefabSource",
             "transform","mesh","light","collider","rigidbody","staticbody","camera",
             "terrain","emitter","canvas","panel","button","scripts","animator","asset",
-            "skeleton","skinning"
+            "skeleton","skinning","ik","navmesh","navagent"
         };
         entityData->Extra = nlohmann::json::object();
         for (auto it = data.begin(); it != data.end(); ++it) {
@@ -1076,7 +1225,7 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
             "id","name","layer","tag","parent","children","guid","prefabSource",
             "transform","mesh","light","collider","rigidbody","staticbody","camera",
             "terrain","emitter","canvas","panel","button","scripts","animator","asset",
-            "skeleton","skinning"
+            "skeleton","skinning","ik"
         };
         std::unordered_set<std::string> guidSeen;
         size_t guidMissing = 0, guidDup = 0;
@@ -1869,6 +2018,10 @@ json Serializer::SerializePrefab(const EntityData& entityData, Scene& scene) {
         entityJson["skinning"] = SerializeSkinning(*entityData.Skinning);
     }
 
+    // Navigation components in prefabs
+    if (entityData.Navigation) entityJson["navmesh"] = SerializeNavMesh(*entityData.Navigation);
+    if (entityData.NavAgent)   entityJson["navagent"] = SerializeNavAgent(*entityData.NavAgent);
+
     prefabData["entity"] = entityJson;
     return prefabData;
 }
@@ -1922,6 +2075,16 @@ bool Serializer::DeserializePrefab(const json& data, EntityData& entityData, Sce
     if (entityJson.contains("skinning")) {
         entityData.Skinning = std::make_unique<SkinningComponent>();
         DeserializeSkinning(entityJson["skinning"], *entityData.Skinning);
+    }
+
+    // Navigation components in prefabs
+    if (entityJson.contains("navmesh")) {
+        entityData.Navigation = std::make_unique<nav::NavMeshComponent>();
+        DeserializeNavMesh(entityJson["navmesh"], *entityData.Navigation);
+    }
+    if (entityJson.contains("navagent")) {
+        entityData.NavAgent = std::make_unique<nav::NavAgentComponent>();
+        DeserializeNavAgent(entityJson["navagent"], *entityData.NavAgent);
     }
 
     return true;

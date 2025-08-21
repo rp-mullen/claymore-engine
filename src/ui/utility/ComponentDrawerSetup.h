@@ -20,6 +20,10 @@
 #include <cstring>
 #include <editor/Project.h>
 #include "pipeline/AssetLibrary.h"
+#include "navigation/NavMesh.h"
+#include "navigation/NavAgent.h"
+#include "navigation/Navigation.h"
+#include "ecs/Scene.h"
 
 inline void RegisterComponentDrawers() {
     auto& registry = ComponentDrawerRegistry::Instance();
@@ -151,7 +155,42 @@ inline void RegisterComponentDrawers() {
             ImGui::EndDragDropTarget();
         }
     });
+
+    // (disabled legacy block)
 #endif
+
+    // Navigation: NavMeshComponent inspector (enabled)
+    registry.Register<nav::NavMeshComponent>("Nav Mesh", [](nav::NavMeshComponent& n) {
+        ImGui::Checkbox("Enabled", &n.Enabled);
+        ImGui::Text("Sources: %d", (int)n.SourceMeshes.size());
+        ImGui::DragFloat("Cell Size", &n.Bake.cellSize, 0.01f, 0.05f, 1.0f);
+        ImGui::DragFloat("Cell Height", &n.Bake.cellHeight, 0.01f, 0.05f, 1.0f);
+        ImGui::DragFloat("Agent Radius", &n.Bake.agentRadius, 0.01f, 0.1f, 2.0f);
+        ImGui::DragFloat("Agent Height", &n.Bake.agentHeight, 0.01f, 0.5f, 3.0f);
+        ImGui::DragFloat("Max Climb", &n.Bake.agentMaxClimb, 0.01f, 0.0f, 2.0f);
+        ImGui::DragFloat("Max Slope", &n.Bake.agentMaxSlopeDeg, 0.1f, 0.0f, 89.0f);
+        if (!n.IsBaking()) {
+            if (ImGui::Button("Bake")) {
+                // Bake and enable debug view in editor by default
+                n.RequestBake(Scene::Get());
+                nav::Navigation::Get().SetDebugMask(nav::NavDrawMask::TriMesh | nav::NavDrawMask::Polys);
+            }
+        } else {
+            if (ImGui::Button("Cancel")) n.CancelBake();
+            ImGui::ProgressBar(n.BakeProgress(), ImVec2(-1, 0));
+        }
+        ImGui::Text("Hash: %llu", (unsigned long long)n.BakeHash);
+    });
+
+    // Navigation: NavAgent inspector (enabled)
+    registry.Register<nav::NavAgentComponent>("Nav Agent", [](nav::NavAgentComponent& a) {
+        ImGui::Checkbox("Enabled", &a.Enabled);
+        ImGui::DragFloat("Radius", &a.Params.radius, 0.01f, 0.1f, 2.0f);
+        ImGui::DragFloat("Height", &a.Params.height, 0.01f, 0.5f, 3.0f);
+        ImGui::DragFloat("Max Speed", &a.Params.maxSpeed, 0.1f, 0.1f, 20.0f);
+        ImGui::DragFloat("Max Accel", &a.Params.maxAccel, 0.1f, 0.1f, 50.0f);
+        if (ImGui::Button("Stop")) a.Stop();
+    });
 
     // New ParticleEmitter drawer
     registry.Register<ParticleEmitterComponent>("ParticleEmitter", [](ParticleEmitterComponent& e) {

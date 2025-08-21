@@ -218,3 +218,13 @@ glm::mat4 Physics::GetBodyTransform(JPH::BodyID bodyID) {
     return glmTransform;
 }
 
+void Physics::SetBodyTransform(JPH::BodyID bodyID, const glm::vec3& position, const glm::vec3& eulerDegrees) {
+    if (bodyID.IsInvalid() || !s_PhysicsSystem) return;
+    JPH::BodyInterface& bi = s_PhysicsSystem->GetBodyInterface();
+    // Convert Euler degrees to quaternion
+    glm::quat rot = glm::quat(glm::radians(eulerDegrees));
+    JPH::RVec3 pos(position.x, position.y, position.z);
+    JPH::Quat q(rot.x, rot.y, rot.z, rot.w);
+    bi.SetPositionAndRotation(bodyID, pos, q, JPH::EActivation::Activate);
+}
+

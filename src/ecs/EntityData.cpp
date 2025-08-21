@@ -97,5 +97,13 @@ EntityData EntityData::DeepCopy(EntityID ID, Scene* newScene) const {
          }
       }
 
+   // IK components: shallow copy authoring, reset runtime
+   copy.IKs = IKs;
+   for (auto& k : copy.IKs) {
+      k.WasValidLastFrame = false;
+      k.Skeleton = nullptr;
+      k.ManagedHandle = 0;
+   }
+
    return copy;
 } 

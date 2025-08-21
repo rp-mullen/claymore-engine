@@ -40,6 +40,7 @@ public:
     // Body control methods
     static void SetBodyLinearVelocity(JPH::BodyID bodyID, const glm::vec3& velocity);
     static void SetBodyAngularVelocity(JPH::BodyID bodyID, const glm::vec3& velocity);
+    static void SetBodyTransform(JPH::BodyID bodyID, const glm::vec3& position, const glm::vec3& eulerDegrees);
     static glm::mat4 GetBodyTransform(JPH::BodyID bodyID);
     static glm::vec3 GetGravity();
 

@@ -1071,7 +1071,17 @@ void Renderer::DrawGrid(uint16_t viewId) {
 
 
 void Renderer::DrawDebugRay(const glm::vec3 & origin, const glm::vec3 & dir, float length) {
-   // TODO: Implement line vertex buffer for debug rendering
+   if (!bgfx::isValid(m_DebugLineProgram)) return;
+   glm::vec3 a = origin;
+   glm::vec3 b = origin + (glm::length(dir) > 1e-6f ? glm::normalize(dir) : dir) * length;
+   GridVertex line[2] = { {a.x,a.y,a.z}, {b.x,b.y,b.z} };
+   const bgfx::Memory* mem = bgfx::copy(line, (uint32_t)sizeof(line));
+   bgfx::VertexBufferHandle vbh = bgfx::createVertexBuffer(mem, GridVertex::layout);
+   float identity[16]; bx::mtxIdentity(identity); bgfx::setTransform(identity);
+   bgfx::setVertexBuffer(0, vbh);
+   bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_PT_LINES);
+   bgfx::submit(0, m_DebugLineProgram);
+   bgfx::destroy(vbh);
    }
 
 void Renderer::DrawCollider(const ColliderComponent & collider, const TransformComponent & transform) {
