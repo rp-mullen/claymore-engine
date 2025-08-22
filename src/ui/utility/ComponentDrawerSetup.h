@@ -162,7 +162,11 @@ inline void RegisterComponentDrawers() {
     // Navigation: NavMeshComponent inspector (enabled)
     registry.Register<nav::NavMeshComponent>("Nav Mesh", [](nav::NavMeshComponent& n) {
         ImGui::Checkbox("Enabled", &n.Enabled);
-        ImGui::Text("Sources: %d", (int)n.SourceMeshes.size());
+        // Show effective source count (explicit list or owner+children meshes)
+        {
+            std::vector<EntityID> tmp; n.GetEffectiveSources(Scene::Get(), tmp);
+            ImGui::Text("Sources: %d", (int)tmp.size());
+        }
         ImGui::DragFloat("Cell Size", &n.Bake.cellSize, 0.01f, 0.05f, 1.0f);
         ImGui::DragFloat("Cell Height", &n.Bake.cellHeight, 0.01f, 0.05f, 1.0f);
         ImGui::DragFloat("Agent Radius", &n.Bake.agentRadius, 0.01f, 0.1f, 2.0f);

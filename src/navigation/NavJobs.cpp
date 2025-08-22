@@ -16,7 +16,8 @@ static void GatherSourceTriangles(Scene& scene, const NavMeshComponent& comp, st
 {
     outVerts.clear(); outTris.clear();
     outBounds.min = glm::vec3(FLT_MAX); outBounds.max = glm::vec3(-FLT_MAX);
-    for (EntityID id : comp.SourceMeshes) {
+    std::vector<EntityID> sources; comp.GetEffectiveSources(scene, sources);
+    for (EntityID id : sources) {
         auto* d = scene.GetEntityData(id);
         if (!d || !d->Mesh || !d->Mesh->mesh) continue;
         const Mesh& m = *d->Mesh->mesh;
@@ -95,8 +96,8 @@ void nav::jobs::SubmitBake(NavMeshComponent* comp, Scene* scene)
         comp->BakingProgress.store(0.85f);
 
         // Register as asset and update component
-        AssetReference ref; ref.guid = ClaymoreGUID::Generate(); ref.fileID = 0;
-        AssetLibrary::Instance().RegisterAsset(ref, (AssetType)999 /*NavMesh*/, outPath.string(), "NavMesh");
+        AssetReference ref; ref.guid = ClaymoreGUID::Generate(); ref.fileID = 0; ref.type = (int32_t)AssetType::NavMesh;
+        AssetLibrary::Instance().RegisterAsset(ref, AssetType::NavMesh, outPath.string(), "NavMesh");
         comp->BakedAsset = ref;
         comp->BakeHash = bakeHash;
 

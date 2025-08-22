@@ -46,6 +46,8 @@ namespace nav
         std::atomic<bool> BakingCancel{false};
 
         uint64_t ComputeBakeHash(Scene& scene) const;
+        // If no explicit SourceMeshes are set, returns owning entity plus all descendants with meshes
+        void GetEffectiveSources(Scene& scene, std::vector<EntityID>& out) const;
         void RequestBake(Scene& scene);
         void CancelBake();
         bool IsBaking() const { return Baking.load(); }

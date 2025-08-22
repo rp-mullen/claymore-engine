@@ -1,0 +1,449 @@
+{
+    "assetMap": [
+        {
+            "guid": "431811f2ca6d410aa7e66a9d6db38b57",
+            "path": "assets/animations/BoxOpen.fbx"
+        },
+        {
+            "guid": "96b163a78d6fabc2767dba57381d049b",
+            "path": "assets/face01.png"
+        },
+        {
+            "guid": "ab517240bfdeca902dc08a633a7a2ce4",
+            "path": "assets/animations/Idle.fbx"
+        },
+        {
+            "guid": "c6739ebbc7fd6d1d68a16e34bdcbc116",
+            "path": "assets/models/CubseSphere.fbx"
+        },
+        {
+            "guid": "44b2b13c4eea62ef3d726ae69e2844b0",
+            "path": "assets/models/char_01.fbx"
+        },
+        {
+            "guid": "cfd044cceea64029186677408c6dc015",
+            "path": "assets/models/X Bot.fbx"
+        },
+        {
+            "guid": "7f527797e3e651a717e3ab2726b38679",
+            "path": "assets/animations/Punching (3).fbx"
+        },
+        {
+            "guid": "1a50d74528d8eec93540dbcc0c7c9d75",
+            "path": "scripts/navigationtest.cs"
+        },
+        {
+            "guid": "8a7b015d72ec678df59453ca48374cbf",
+            "path": "assets/models/building_01.fbx"
+        },
+        {
+            "guid": "31900b5336484090718ec280e0e0bf4f",
+            "path": "assets/animations/Walking.fbx"
+        },
+        {
+            "guid": "fb8e2631a671a04df1c5c21e15e1483a",
+            "path": "assets/models/Idle.fbx"
+        },
+        {
+            "guid": "f1d34d89e496638dcb311c91152126d8",
+            "path": "assets/models/level_01.fbx"
+        },
+        {
+            "guid": "e34c710fc5f60b9d3e31b1c564afb8cd",
+            "path": "assets/models/Tree01.fbx"
+        },
+        {
+            "guid": "eadd4f9a22b5ab320cfcf0d00ee1e8ad",
+            "path": "assets/textures/char_01/face01.png"
+        },
+        {
+            "guid": "6d9d0a8817835ce19c0351835ac4f16d",
+            "path": "scripts/ButtonTest.cs"
+        },
+        {
+            "guid": "f70d9381e86dd15b9d84369500b1e6b3",
+            "path": "assets/textures/char_01/hair_01.png"
+        },
+        {
+            "guid": "4fa9a2f79c1587c1c94aa9abe41592c5",
+            "path": "assets/textures/debug_grid.png"
+        },
+        {
+            "guid": "beb91bebdc1daf94036af18423a523a5",
+            "path": "assets/textures/level_01/imgp5511.jpg"
+        },
+        {
+            "guid": "02d2dc0dfa916f1ab97ff2d0afd2b42d",
+            "path": "assets/textures/level_01/trak_panel_lrg6.jpg"
+        },
+        {
+            "guid": "debfaa1fc3a99b1e88e9eec90920a4f6",
+            "path": "assets/textures/ui_panel.png"
+        },
+        {
+            "guid": "906f9515a54648de6e17f8562e62b87e",
+            "path": "scripts/AnimTrigger.cs"
+        },
+        {
+            "guid": "a068e35363d2e0b9440b803400a9d421",
+            "path": "scripts/MyTestScript.cs"
+        },
+        {
+            "guid": "4c9a2d44a6dc8f2dc4b5104cace1f59d",
+            "path": "scripts/TestScript.cs"
+        },
+        {
+            "guid": "87dbe2732d997d28d44575675cdb70e2",
+            "path": "scripts/AnimTrigger.cs"
+        },
+        {
+            "guid": "d5b3cc407cdacfa7b943e4adf579c4c7",
+            "path": "scripts/ButtonTest.cs"
+        },
+        {
+            "guid": "387b18a06eeaf30e004eb3854ed583c6",
+            "path": "C:/Users/rpmul/projects/claymore/out/build/x64-Debug/assets/Nav/2790899130224.navbin"
+        },
+        {
+            "guid": "664543a7780f69385b94fb8fe01fdb07",
+            "path": "scripts/MyTestScript.cs"
+        },
+        {
+            "guid": "a04528e40d2f3f2c27975f4f4e7e1af9",
+            "path": "scripts/TestScript.cs"
+        },
+        {
+            "guid": "1059cdaf35756bbcd29856fa709ad22d",
+            "path": "C:/Users/rpmul/projects/claymore/out/build/x64-Debug/assets/Nav/2790899130224.navbin"
+        },
+        {
+            "guid": "b1bbe5093f1c4c4bd17bf66f6573430e",
+            "path": "C:/Users/rpmul/projects/claymore/out/build/x64-Debug/assets/Nav/1842316857952.navbin"
+        },
+        {
+            "guid": "c6999016fe6a912316f9b09436e258ff",
+            "path": "C:/Users/rpmul/projects/claymore/out/build/x64-Debug/assets/Nav/2950251354112.navbin"
+        }
+    ],
+    "entities": [
+        {
+            "children": [],
+            "guid": "b25a5532e66c8b2d26d5d1c8e912038d",
+            "id": 3,
+            "layer": 0,
+            "mesh": {
+                "materialName": "DefaultPBR",
+                "materialType": "PBR",
+                "meshName": "DebugCube",
+                "meshReference": {
+                    "fileID": 0,
+                    "guid": "00000000000000000000000000000000",
+                    "type": 0
+                },
+                "uniqueMaterial": false
+            },
+            "name": "Debug Cube",
+            "navmesh": {
+                "bake": {
+                    "agentHeight": 1.7999999523162842,
+                    "agentMaxClimb": 0.4000000059604645,
+                    "agentMaxSlopeDeg": 45.0,
+                    "agentRadius": 0.4000000059604645,
+                    "cellHeight": 0.20000000298023224,
+                    "cellSize": 0.20000000298023224
+                },
+                "bakedAsset": {
+                    "fileID": 0,
+                    "guid": "c6999016fe6a912316f9b09436e258ff",
+                    "type": 310
+                },
+                "boundsMax": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "boundsMin": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "enabled": true,
+                "hash": 14190728702435862698
+            },
+            "parent": 4294967295,
+            "tag": "",
+            "transform": {
+                "localMatrix": [
+                    10.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.10000000149011612,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    10.0,
+                    0.0,
+                    -0.004948139190673828,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "position": {
+                    "x": -0.004948139190673828,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "rotationQ": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": {
+                    "x": 10.0,
+                    "y": 0.10000000149011612,
+                    "z": 10.0
+                },
+                "transformDirty": false,
+                "useQuatRotation": false,
+                "worldMatrix": [
+                    10.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.10000000149011612,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    10.0,
+                    0.0,
+                    -0.004948139190673828,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "children": [],
+            "guid": "1e1dba5ce5da6b00e521711130025a77",
+            "id": 4,
+            "layer": 0,
+            "light": {
+                "color": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "intensity": 1.0,
+                "type": 0
+            },
+            "name": "Default Light",
+            "parent": 4294967295,
+            "tag": "",
+            "transform": {
+                "localMatrix": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                "position": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotationQ": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "transformDirty": false,
+                "useQuatRotation": false,
+                "worldMatrix": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            }
+        },
+        {
+            "children": [],
+            "guid": "d2e1d9c2f46254261117de7ddb00dd70",
+            "id": 5,
+            "layer": 0,
+            "mesh": {
+                "materialName": "DefaultPBR",
+                "materialType": "PBR",
+                "meshName": "Cube",
+                "meshReference": {
+                    "fileID": 0,
+                    "guid": "00000000000000000000000000000000",
+                    "type": 0
+                },
+                "uniqueMaterial": false
+            },
+            "name": "Cube",
+            "navagent": {
+                "arriveThreshold": 0.15000000596046448,
+                "autoRepath": true,
+                "avoidanceRadiusMul": 1.2000000476837158,
+                "enabled": true,
+                "navMeshEntity": 3,
+                "params": {
+                    "height": 1.7999999523162842,
+                    "maxAccel": 8.0,
+                    "maxSlopeDeg": 45.0,
+                    "maxSpeed": 3.0,
+                    "maxStep": 0.4000000059604645,
+                    "radius": 0.4000000059604645
+                },
+                "repathInterval": 0.5
+            },
+            "parent": 4294967295,
+            "scripts": [
+                {
+                    "className": "NavigationTest"
+                }
+            ],
+            "tag": "",
+            "transform": {
+                "localMatrix": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    1.2039812803268433,
+                    0.0,
+                    1.0
+                ],
+                "position": {
+                    "x": 0.0,
+                    "y": 1.2039812803268433,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "rotationQ": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "transformDirty": true,
+                "useQuatRotation": false,
+                "worldMatrix": [
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    1.2039812803268433,
+                    0.0,
+                    1.0
+                ]
+            }
+        }
+    ],
+    "environment": {
+        "ambientColor": {
+            "x": 0.20000000298023224,
+            "y": 0.20000000298023224,
+            "z": 0.20000000298023224
+        },
+        "ambientIntensity": 1.0,
+        "ambientMode": "FlatColor",
+        "exposure": 1.0,
+        "fogColor": {
+            "x": 0.5,
+            "y": 0.6000000238418579,
+            "z": 0.699999988079071
+        },
+        "fogDensity": 0.019999999552965164,
+        "fogEnabled": false,
+        "proceduralSky": false,
+        "skyHorizonColor": {
+            "x": 0.699999988079071,
+            "y": 0.8500000238418579,
+            "z": 1.0
+        },
+        "skyZenithColor": {
+            "x": 0.20000000298023224,
+            "y": 0.3499999940395355,
+            "z": 0.6000000238418579
+        },
+        "useSkybox": false
+    },
+    "version": "1.0"
+}

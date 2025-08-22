@@ -13,7 +13,7 @@ public class MyTestScript : ScriptComponent
 
    // smoothed animator parameter (not just 0 or 5)
    private float speedParam = 0f;
-
+    private bool running = false;
    [SerializeField]
    public Entity refEntity;
 
@@ -68,15 +68,25 @@ public class MyTestScript : ScriptComponent
             }
          }
 
+      if (Input.GetKey(KeyCode.F))
+        {
+            running = true;
+
+        }
+      else
+        {
+            running = false;
+        }
+
       // Update orbit angles from mouse when captured
       if (mouseCaptured)
-         {
-         var md = Input.GetMouseDelta();
-         yawDegrees += md.X * mouseSensitivity;
-         pitchDegrees -= md.Y * mouseSensitivity;
-         if (pitchDegrees < orbitMinPitch) pitchDegrees = orbitMinPitch;
-         if (pitchDegrees > orbitMaxPitch) pitchDegrees = orbitMaxPitch;
-         }
+        {
+            var md = Input.GetMouseDelta();
+            yawDegrees += md.X * mouseSensitivity;
+            pitchDegrees -= md.Y * mouseSensitivity;
+            if (pitchDegrees < orbitMinPitch) pitchDegrees = orbitMinPitch;
+            if (pitchDegrees > orbitMaxPitch) pitchDegrees = orbitMaxPitch;
+        }
 
       // --- Gather input into a single move direction ---
       Vector3 moveDir = Vector3.Zero;
@@ -105,8 +115,13 @@ public class MyTestScript : ScriptComponent
             worldMove = new Vector3(x, 0f, z);
             }
 
+            float factor = 1.0f;
+            if (running)
+            {
+                factor = 3f;
+            }
          // Move
-         transform.position += worldMove * moveSpeed * dt;
+         transform.position += worldMove * moveSpeed * factor * dt;
 
          // --- Smoothly rotate around Y toward the move direction in world space ---
          float targetYaw = MathF.Atan2(worldMove.X, worldMove.Z); // +Z forward, +X right
@@ -123,7 +138,11 @@ public class MyTestScript : ScriptComponent
       if (animator != null)
          {
          // scale to what your controller expects; using 0..5 like before
-         float targetSpeed = moving ? 1f : 0f;
+         float targetSpeed = moving ? 0.5f : 0f;
+            if (running && moving)
+            {
+                targetSpeed = 1f;
+            }
          float x = 1f;
          // exponential smoothing (frame-rate independent)
          float lerpT = 1f - MathF.Exp(-6f * dt); // 8 = snappiness; try 6�12

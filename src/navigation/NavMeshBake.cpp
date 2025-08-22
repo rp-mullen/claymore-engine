@@ -9,7 +9,8 @@ using namespace nav;
 bool nav::bake::BuildFromScene(Scene& scene, const NavMeshComponent& comp, NavMeshBinary& out)
 {
     out.vertices.clear(); out.indices.clear(); out.bounds.min = glm::vec3(FLT_MAX); out.bounds.max = glm::vec3(-FLT_MAX);
-    for (EntityID id : comp.SourceMeshes) {
+    std::vector<EntityID> sources; comp.GetEffectiveSources(scene, sources);
+    for (EntityID id : sources) {
         auto* d = scene.GetEntityData(id);
         if (!d || !d->Mesh || !d->Mesh->mesh) continue;
         const Mesh& m = *d->Mesh->mesh; const glm::mat4& M = d->Transform.WorldMatrix;

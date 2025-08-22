@@ -221,10 +221,14 @@ Model ModelLoader::LoadModel(const std::string& filepath)
     result.Materials.reserve(scene->mNumMeshes);
     result.BlendShapes.reserve(scene->mNumMeshes);
 
+    // Import option: flip Y coordinate to convert between up-axis conventions (non-skinned meshes only)
+    constexpr bool kFlipYOnImport = true;
+
     for (unsigned mi = 0; mi < scene->mNumMeshes; ++mi)
     {
         aiMesh* aMesh = scene->mMeshes[mi];
         const bool hasSkin = (aMesh->mNumBones > 0);
+        const bool flipThisMesh = (kFlipYOnImport && !hasSkin);
 
         // ---- Material (create first so we can attach textures later)
         std::shared_ptr<Material> mat;
@@ -276,6 +280,11 @@ Model ModelLoader::LoadModel(const std::string& filepath)
                 normal = glm::vec3(0.0f, 1.0f, 0.0f);
             else
                 normal = glm::normalize(normal);
+
+            if (flipThisMesh) {
+                pos.y = -pos.y;
+                normal.y = -normal.y;
+            }
 
             if (!hasSkin)
             {
@@ -351,6 +360,11 @@ Model ModelLoader::LoadModel(const std::string& filepath)
                 else
                     normal = glm::normalize(normal);
 
+                if (flipThisMesh) {
+                    pos.y = -pos.y;
+                    normal.y = -normal.y;
+                }
+
                 const glm::ivec4& bi = vertIndices[i];
                 const glm::vec4& bw = vertWeights[i];
 
@@ -371,9 +385,16 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         {
             const aiFace& face = aMesh->mFaces[f];
             if (face.mNumIndices != 3) continue;
-            indices32.push_back((uint32_t)face.mIndices[0]);
-            indices32.push_back((uint32_t)face.mIndices[1]);
-            indices32.push_back((uint32_t)face.mIndices[2]);
+            if (flipThisMesh) {
+                // Preserve front-face after axis flip by reversing winding
+                indices32.push_back((uint32_t)face.mIndices[0]);
+                indices32.push_back((uint32_t)face.mIndices[2]);
+                indices32.push_back((uint32_t)face.mIndices[1]);
+            } else {
+                indices32.push_back((uint32_t)face.mIndices[0]);
+                indices32.push_back((uint32_t)face.mIndices[1]);
+                indices32.push_back((uint32_t)face.mIndices[2]);
+            }
         }
 
         // ---- Create GPU buffers (use predefined layouts from VertexTypes.h)
@@ -444,9 +465,11 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         for (unsigned i = 0; i < aMesh->mNumVertices; ++i)
         {
             aiVector3D p = aMesh->mVertices[i];
+            if (flipThisMesh) p.y = -p.y;
             mesh->Vertices.emplace_back(p.x , p.y , p.z );
 
             aiVector3D n = aMesh->mNormals ? aMesh->mNormals[i] : aiVector3D(0, 0, 1);
+            if (flipThisMesh) n.y = -n.y;
             mesh->Normals.emplace_back(n.x, n.y, n.z);
         }
         mesh->Indices = indices32;
@@ -481,10 +504,12 @@ Model ModelLoader::LoadModel(const std::string& filepath)
                 for (unsigned v = 0; v < aMesh->mNumVertices; ++v)
                 {
                     aiVector3D dp = anim->mVertices[v];
-                    // scale deltas to match import scale
+                    // scale/flip deltas to match import settings
+                    if (flipThisMesh) dp.y = -dp.y;
                     bs.DeltaPos.emplace_back(dp.x , dp.y , dp.z );
 
                     aiVector3D dn = anim->mNormals ? anim->mNormals[v] : aiVector3D(0, 0, 0);
+                    if (flipThisMesh) dn.y = -dn.y;
                     bs.DeltaNormal.emplace_back(dn.x, dn.y, dn.z);
                 }
                 blendComp.Shapes.push_back(std::move(bs));

@@ -18,6 +18,33 @@ static uint64_t fnv1a64(const void* data, size_t len, uint64_t seed)
 }
 static uint64_t HashCombine(uint64_t h, uint64_t k) { h ^= k + 0x9e3779b97f4a7c15ULL + (h<<6) + (h>>2); return h; }
 
+// Helper: find the owning EntityID for a given NavMeshComponent pointer
+static EntityID FindOwnerEntity(Scene& scene, const NavMeshComponent* comp)
+{
+    for (const auto& e : scene.GetEntities()) {
+        auto* d = scene.GetEntityData(e.GetID());
+        if (d && d->Navigation && d->Navigation.get() == comp) return e.GetID();
+    }
+    return INVALID_ENTITY_ID;
+}
+
+// Helper: collect all entities starting at root that have a MeshComponent with a valid mesh
+static void CollectMeshEntitiesRecursive(Scene& scene, EntityID root, std::vector<EntityID>& out)
+{
+    auto* d = scene.GetEntityData(root);
+    if (!d) return;
+    if (d->Mesh && d->Mesh->mesh) out.push_back(root);
+    for (EntityID c : d->Children) CollectMeshEntitiesRecursive(scene, c, out);
+}
+
+void NavMeshComponent::GetEffectiveSources(Scene& scene, std::vector<EntityID>& out) const
+{
+    out.clear();
+    if (!SourceMeshes.empty()) { out = SourceMeshes; return; }
+    EntityID owner = FindOwnerEntity(scene, this);
+    if (owner != INVALID_ENTITY_ID) CollectMeshEntitiesRecursive(scene, owner, out);
+}
+
 uint64_t NavMeshComponent::ComputeBakeHash(Scene& scene) const
 {
     uint64_t h = 0xcbf29ce484222325ULL;
@@ -25,13 +52,24 @@ uint64_t NavMeshComponent::ComputeBakeHash(Scene& scene) const
     const uint64_t bakeHash = fnv1a64(&Bake, sizeof(Bake), 0x1234);
     h = HashCombine(h, bakeHash);
 
+    // Determine effective sources: explicit list or (owner + children) if none specified
+    std::vector<EntityID> effectiveSources;
+    if (!SourceMeshes.empty()) {
+        effectiveSources = SourceMeshes;
+    } else {
+        EntityID owner = FindOwnerEntity(scene, this);
+        if (owner != INVALID_ENTITY_ID) {
+            CollectMeshEntitiesRecursive(scene, owner, effectiveSources);
+        }
+    }
+
     // Include source meshes CPU vertex/index + world transform hash
-    for (EntityID id : SourceMeshes) {
+    for (EntityID id : effectiveSources) {
         auto* d = scene.GetEntityData(id);
         if (!d || !d->Mesh || !d->Mesh->mesh) continue;
         const Mesh& m = *d->Mesh->mesh;
         uint64_t vhash = fnv1a64(m.Vertices.data(), m.Vertices.size() * sizeof(glm::vec3), 0x1111);
-        uint64_t ihash = fnv1a64(m.Indices.data(), m.Indices.size() * sizeof(uint16_t), 0x2222);
+        uint64_t ihash = fnv1a64(m.Indices.data(), m.Indices.size() * sizeof(uint32_t), 0x2222);
         uint64_t thash = fnv1a64(&d->Transform.WorldMatrix, sizeof(glm::mat4), 0x3333);
         h = HashCombine(h, vhash);
         h = HashCombine(h, ihash);

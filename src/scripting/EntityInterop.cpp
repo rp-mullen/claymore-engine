@@ -94,6 +94,9 @@ extern "C"
         auto* data = Scene::Get().GetEntityData(entityID);
         if(!data) return;
         data->Transform.Rotation = glm::vec3(x, y, z);
+        // Keep quaternion in sync for runtime consumers
+        glm::mat4 m = glm::yawPitchRoll(glm::radians(y), glm::radians(x), glm::radians(z));
+        data->Transform.RotationQ = glm::normalize(glm::quat_cast(m));
         data->Transform.UseQuatRotation = false;
         Scene::Get().MarkTransformDirty(entityID);
     }
@@ -110,7 +113,11 @@ extern "C"
     {
         auto* data = Scene::Get().GetEntityData(entityID);
         if(!data) return;
-        data->Transform.RotationQ = glm::normalize(glm::quat(w, x, y, z));
+        glm::quat q = glm::normalize(glm::quat(w, x, y, z));
+        data->Transform.RotationQ = q;
+        // Also update Euler for inspector display so UI reflects runtime changes
+        glm::vec3 eulerRad = glm::eulerAngles(q); // returns radians (XYZ order)
+        data->Transform.Rotation = glm::degrees(eulerRad);
         data->Transform.UseQuatRotation = true;
         Scene::Get().MarkTransformDirty(entityID);
     }

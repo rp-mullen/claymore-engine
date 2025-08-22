@@ -17,13 +17,18 @@
       "clip": "",
       "entries": [
         {
-          "asset": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
-          "clip": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
+          "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
+          "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Idle_mixamo.com.anim",
           "key": 0.0
         },
         {
-          "asset": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
-          "clip": "C:\\Projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+          "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+          "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\animations\\Walking_mixamo.com.anim",
+          "key": 0.5
+        },
+        {
+          "asset": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\models\\Fast Run (1)_mixamo.com.anim",
+          "clip": "C:\\Users\\rpmul\\projects\\claymore\\ClayProject\\assets\\models\\Fast Run (1)_mixamo.com.anim",
           "key": 1.0
         }
       ],

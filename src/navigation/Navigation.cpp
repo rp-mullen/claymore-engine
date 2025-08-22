@@ -55,6 +55,23 @@ void Navigation::Update(Scene& scene, float dt)
         NavAgentComponent& agent = *d->NavAgent;
         ::TransformComponent& tr = d->Transform;
 
+        // Auto-bind to nearest/only NavMesh if none set
+        if (agent.NavMeshEntity == 0) {
+            float bestDist2 = FLT_MAX; EntityID best = 0; int count = 0;
+            glm::vec3 p = glm::vec3(tr.WorldMatrix[3]);
+            for (const auto& e2 : scene.GetEntities()) {
+                auto* d2 = scene.GetEntityData(e2.GetID()); if (!d2 || !d2->Navigation) continue;
+                count++;
+                // Prefer the first if only one exists
+                if (count == 1) best = e2.GetID();
+                // If runtime bounds available, pick nearest by AABB center
+                glm::vec3 c = (d2->Navigation->AABB.min + d2->Navigation->AABB.max) * 0.5f;
+                float dsq = glm::distance2(p, c);
+                if (dsq < bestDist2) { bestDist2 = dsq; best = e2.GetID(); }
+            }
+            if (best != 0) agent.NavMeshEntity = best;
+        }
+
         glm::vec3 position = glm::vec3(tr.WorldMatrix[3]);
 
         if (agent.HasDestination && !agent.HasPath()) {

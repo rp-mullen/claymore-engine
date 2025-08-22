@@ -876,6 +876,14 @@ json Serializer::SerializeEntity(EntityID id, Scene& scene) {
        data["button"] = SerializeButton(*entityData->Button);
    }
 
+   // Navigation components
+   if (entityData->Navigation) {
+       data["navmesh"] = SerializeNavMesh(*entityData->Navigation);
+   }
+   if (entityData->NavAgent) {
+       data["navagent"] = SerializeNavAgent(*entityData->NavAgent);
+   }
+
    // Emit IK authored blocks if present (as Extra["ik"]) to keep stable names across reimports
    if (!entityData->IKs.empty()) {
        nlohmann::json jIk = nlohmann::json::array();
@@ -1225,7 +1233,7 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
             "id","name","layer","tag","parent","children","guid","prefabSource",
             "transform","mesh","light","collider","rigidbody","staticbody","camera",
             "terrain","emitter","canvas","panel","button","scripts","animator","asset",
-            "skeleton","skinning","ik"
+            "skeleton","skinning","ik","navmesh","navagent"
         };
         std::unordered_set<std::string> guidSeen;
         size_t guidMissing = 0, guidDup = 0;
@@ -1572,6 +1580,9 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
                     if (entityData.contains("canvas")) { if (!ed->Canvas) ed->Canvas = std::make_unique<CanvasComponent>(); DeserializeCanvas(entityData["canvas"], *ed->Canvas); }
                     if (entityData.contains("panel")) { if (!ed->Panel) ed->Panel = std::make_unique<PanelComponent>(); DeserializePanel(entityData["panel"], *ed->Panel); }
                     if (entityData.contains("button")) { if (!ed->Button) ed->Button = std::make_unique<ButtonComponent>(); DeserializeButton(entityData["button"], *ed->Button); }
+                    // Navigation components
+                    if (entityData.contains("navmesh")) { if (!ed->Navigation) ed->Navigation = std::make_unique<nav::NavMeshComponent>(); DeserializeNavMesh(entityData["navmesh"], *ed->Navigation); }
+                    if (entityData.contains("navagent")) { if (!ed->NavAgent) ed->NavAgent = std::make_unique<nav::NavAgentComponent>(); DeserializeNavAgent(entityData["navagent"], *ed->NavAgent); }
                     if (entityData.contains("scripts")) { DeserializeScripts(entityData["scripts"], ed->Scripts); }
                     if (entityData.contains("animator")) { if (!ed->AnimationPlayer) ed->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(); DeserializeAnimator(entityData["animator"], *ed->AnimationPlayer); }
                     if (entityData.contains("skeleton")) { if (!ed->Skeleton) ed->Skeleton = std::make_unique<SkeletonComponent>(); DeserializeSkeleton(entityData["skeleton"], *ed->Skeleton); }

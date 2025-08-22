@@ -378,7 +378,7 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     EntityID rootID = rootEntity.GetID();
     auto* rootData = GetEntityData(rootID);
     if (!rootData) return -1;
-    // Decompose FBX root node transform to preserve authored placement
+    // Decompose FBX root node transform to preserve authored placement and unit scale
     glm::vec3 rootT, rootS, rootSkew; glm::vec4 rootPersp; glm::quat rootR;
     glm::mat4 rootLocal   = glm::mat4(1.0f); // will be set below prior to traversal
     glm::mat4 invRoot     = glm::mat4(1.0f);
@@ -403,12 +403,9 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     };
 
     rootLocal   = AiToGlm(aScene->mRootNode->mTransformation);
-    // Normalize away authoring unit scaling on the root if present (FBX UnitScaleFactor)
-    float unitScale = 1.0f;
-    if (aScene->mMetaData) {
-        double s = 1.0;
-        if (aScene->mMetaData->Get("UnitScaleFactor", s)) unitScale = static_cast<float>(s);
-    }
+    // Orient skinned, bind-pose-only imports to +Y-up based on FBX metadata up-axis
+    
+    // Preserve authoring unit scaling; do not normalize away UnitScaleFactor so imported size matches DCC
     invRoot     = glm::inverse(rootLocal);
 
     // Set root entity transform from FBX root transform, add requested spawn offset
@@ -418,9 +415,6 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     rootData->Transform.UseQuatRotation = true;
     // Keep Euler for inspector display
     rootData->Transform.Rotation = glm::degrees(glm::eulerAngles(rootR));
-    // Clamp unreasonable global scaling from FBX (e.g., 100)
-    if (rootS.x > 50.0f || rootS.y > 50.0f || rootS.z > 50.0f)
-        rootS = glm::vec3(1.0f);
     rootData->Transform.Scale    = rootS;
     rootData->Transform.TransformDirty = true;
 
@@ -545,6 +539,8 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
 
         skelData->Skeleton->BoneEntities = boneEntities;
 
+        // (Removed attempted scale compensation; relying solely on Assimp's GlobalScale)
+
         // Try to load a prebuilt .avatar next to the model if present; otherwise, build via heuristics
         skelData->Skeleton->Avatar = std::make_unique<cm::animation::AvatarDefinition>();
         {
@@ -611,16 +607,8 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     //--------------------------------------------------------------------
     // Create one entity per mesh as child of the root entity
     //--------------------------------------------------------------------
-    // If this FBX has no skeleton, apply an axis correction so the model isn't upside down.
-    // Many DCC tools export FBX with an orientation that ends up inverted in our +Y up world.
-    // A 180-degree rotation around X fixes this while preserving winding order.
-    glm::mat4 nonSkinnedAxisFix = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    bool applyAxisFix = model.BoneNames.empty();
-    if (applyAxisFix) {
-        for (auto& mt : meshTransforms) {
-            mt = nonSkinnedAxisFix * mt;
-        }
-    }
+    // Axis correction disabled: geometry import now flips Y at vertex level (ModelLoader),
+    // so applying an additional 180-degree X rotation here would negate the effect.
 
     for (size_t i = 0; i < model.Meshes.size(); ++i) {
         const auto& meshPtr = model.Meshes[i];

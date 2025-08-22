@@ -66,6 +66,9 @@ const std::unordered_map<HumanoidBone, std::vector<std::string>>& avatar_builder
         { HumanoidBone::UpperChest, {"UpperChest","Spine3","upper_spine"} },
         { HumanoidBone::Neck, {"Neck","neck"} },
         { HumanoidBone::Head, {"Head","head"} },
+        // Eyes
+        { HumanoidBone::LeftEye, {"LeftEye","Eye_L","Eye.L","eye_l","lefteye"} },
+        { HumanoidBone::RightEye, {"RightEye","Eye_R","Eye.R","eye_r","righteye"} },
         { HumanoidBone::LeftShoulder, {"LeftShoulder","L_Shoulder","clavicle_l","shoulder_l"} },
         { HumanoidBone::LeftUpperArm, {"LeftArm","LeftUpperArm","upperarm_l","arm_l"} },
         { HumanoidBone::LeftLowerArm, {"LeftForeArm","LeftLowerArm","lowerarm_l","forearm_l"} },
@@ -82,6 +85,58 @@ const std::unordered_map<HumanoidBone, std::vector<std::string>>& avatar_builder
         { HumanoidBone::RightLowerLeg, {"RightLeg","RightCalf","calf_r","leg_r"} },
         { HumanoidBone::RightFoot, {"RightFoot","foot_r"} },
         { HumanoidBone::RightToes, {"RightToeBase","toe_r","toes_r"} },
+
+        // Left fingers (Mixamo style: LeftHand{Thumb/Index/Middle/Ring/Pinky}{1,2,3})
+        { HumanoidBone::LeftThumbProx, {"LeftHandThumb1","Thumb1_L","LThumb1","thumb_01_l"} },
+        { HumanoidBone::LeftThumbInter, {"LeftHandThumb2","Thumb2_L","LThumb2","thumb_02_l"} },
+        { HumanoidBone::LeftThumbDist, {"LeftHandThumb3","Thumb3_L","LThumb3","thumb_03_l"} },
+
+        { HumanoidBone::LeftIndexProx, {"LeftHandIndex1","Index1_L","LIndex1","index_01_l"} },
+        { HumanoidBone::LeftIndexInter, {"LeftHandIndex2","Index2_L","LIndex2","index_02_l"} },
+        { HumanoidBone::LeftIndexDist, {"LeftHandIndex3","Index3_L","LIndex3","index_03_l"} },
+
+        { HumanoidBone::LeftMiddleProx, {"LeftHandMiddle1","Middle1_L","LMiddle1","middle_01_l"} },
+        { HumanoidBone::LeftMiddleInter, {"LeftHandMiddle2","Middle2_L","LMiddle2","middle_02_l"} },
+        { HumanoidBone::LeftMiddleDist, {"LeftHandMiddle3","Middle3_L","LMiddle3","middle_03_l"} },
+
+        { HumanoidBone::LeftRingProx, {"LeftHandRing1","Ring1_L","LRing1","ring_01_l"} },
+        { HumanoidBone::LeftRingInter, {"LeftHandRing2","Ring2_L","LRing2","ring_02_l"} },
+        { HumanoidBone::LeftRingDist, {"LeftHandRing3","Ring3_L","LRing3","ring_03_l"} },
+
+        { HumanoidBone::LeftLittleProx, {"LeftHandPinky1","Pinky1_L","LLittle1","pinky_01_l","little_01_l"} },
+        { HumanoidBone::LeftLittleInter, {"LeftHandPinky2","Pinky2_L","LLittle2","pinky_02_l","little_02_l"} },
+        { HumanoidBone::LeftLittleDist, {"LeftHandPinky3","Pinky3_L","LLittle3","pinky_03_l","little_03_l"} },
+
+        // Right fingers
+        { HumanoidBone::RightThumbProx, {"RightHandThumb1","Thumb1_R","RThumb1","thumb_01_r"} },
+        { HumanoidBone::RightThumbInter, {"RightHandThumb2","Thumb2_R","RThumb2","thumb_02_r"} },
+        { HumanoidBone::RightThumbDist, {"RightHandThumb3","Thumb3_R","RThumb3","thumb_03_r"} },
+
+        { HumanoidBone::RightIndexProx, {"RightHandIndex1","Index1_R","RIndex1","index_01_r"} },
+        { HumanoidBone::RightIndexInter, {"RightHandIndex2","Index2_R","RIndex2","index_02_r"} },
+        { HumanoidBone::RightIndexDist, {"RightHandIndex3","Index3_R","RIndex3","index_03_r"} },
+
+        { HumanoidBone::RightMiddleProx, {"RightHandMiddle1","Middle1_R","RMiddle1","middle_01_r"} },
+        { HumanoidBone::RightMiddleInter, {"RightHandMiddle2","Middle2_R","RMiddle2","middle_02_r"} },
+        { HumanoidBone::RightMiddleDist, {"RightHandMiddle3","Middle3_R","RMiddle3","middle_03_r"} },
+
+        { HumanoidBone::RightRingProx, {"RightHandRing1","Ring1_R","RRing1","ring_01_r"} },
+        { HumanoidBone::RightRingInter, {"RightHandRing2","Ring2_R","RRing2","ring_02_r"} },
+        { HumanoidBone::RightRingDist, {"RightHandRing3","Ring3_R","RRing3","ring_03_r"} },
+
+        { HumanoidBone::RightLittleProx, {"RightHandPinky1","Pinky1_R","RLittle1","pinky_01_r","little_01_r"} },
+        { HumanoidBone::RightLittleInter, {"RightHandPinky2","Pinky2_R","RLittle2","pinky_02_r","little_02_r"} },
+        { HumanoidBone::RightLittleDist, {"RightHandPinky3","Pinky3_R","RLittle3","pinky_03_r","little_03_r"} },
+
+        // Common twist naming seen across rigs (include Mixamo-style and Roll variants)
+        { HumanoidBone::LeftUpperArmTwist, {"LeftUpperArmTwist","LeftArmTwist","UpperArmTwist_L","upperarm_twist_l","arm_twist_01_l","LeftArmRoll"} },
+        { HumanoidBone::LeftLowerArmTwist, {"LeftLowerArmTwist","LeftForeArmTwist","ForeArmTwist_L","forearm_twist_l","arm_twist_02_l","LeftForeArmRoll"} },
+        { HumanoidBone::RightUpperArmTwist, {"RightUpperArmTwist","RightArmTwist","UpperArmTwist_R","upperarm_twist_r","arm_twist_01_r","RightArmRoll"} },
+        { HumanoidBone::RightLowerArmTwist, {"RightLowerArmTwist","RightForeArmTwist","ForeArmTwist_R","forearm_twist_r","arm_twist_02_r","RightForeArmRoll"} },
+        { HumanoidBone::LeftUpperLegTwist, {"LeftUpperLegTwist","LeftUpLegTwist","ThighTwist_L","thigh_twist_01_l","LeftUpLegRoll"} },
+        { HumanoidBone::LeftLowerLegTwist, {"LeftLowerLegTwist","LeftLegTwist","CalfTwist_L","calf_twist_01_l","LeftLegRoll"} },
+        { HumanoidBone::RightUpperLegTwist, {"RightUpperLegTwist","RightUpLegTwist","ThighTwist_R","thigh_twist_01_r","RightUpLegRoll"} },
+        { HumanoidBone::RightLowerLegTwist, {"RightLowerLegTwist","RightLegTwist","CalfTwist_R","calf_twist_01_r","RightLegRoll"} },
     };
     return map;
 }

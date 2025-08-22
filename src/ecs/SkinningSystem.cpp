@@ -281,7 +281,7 @@ void SkinningSystem::Update(Scene& scene)
          w.bs->Dirty = false;                                            // :contentReference[oaicite:24]{index=24}
          }
       }
-
+        
    // 4) Non-skinned meshes: apply blendshapes separately
    for (auto& w : nonSkinned) {
       if (!w.needsBlend || !w.meshPtr || !w.bs) continue;

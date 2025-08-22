@@ -80,6 +80,40 @@ EntityData EntityData::DeepCopy(EntityID ID, Scene* newScene) const {
       copy.AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(*AnimationPlayer);
    }
 
+   // Deep copy Navigation components (authoring + runtime refs)
+   if (Navigation) {
+      copy.Navigation = std::make_unique<nav::NavMeshComponent>();
+      copy.Navigation->Enabled = Navigation->Enabled;
+      copy.Navigation->Bake = Navigation->Bake;
+      copy.Navigation->SourceMeshes = Navigation->SourceMeshes;
+      copy.Navigation->BakedAsset = Navigation->BakedAsset;
+      copy.Navigation->AABB = Navigation->AABB;
+      copy.Navigation->BakeHash = Navigation->BakeHash;
+      // Reset baking job state for runtime; share loaded runtime if present
+      copy.Navigation->Baking.store(false);
+      copy.Navigation->BakingProgress.store(0.0f);
+      copy.Navigation->BakingCancel.store(false);
+      copy.Navigation->Runtime = Navigation->Runtime;
+   }
+
+   if (NavAgent) {
+      copy.NavAgent = std::make_unique<nav::NavAgentComponent>();
+      copy.NavAgent->Enabled = NavAgent->Enabled;
+      copy.NavAgent->NavMeshEntity = NavAgent->NavMeshEntity;
+      copy.NavAgent->Params = NavAgent->Params;
+      copy.NavAgent->ArriveThreshold = NavAgent->ArriveThreshold;
+      copy.NavAgent->RepathInterval = NavAgent->RepathInterval;
+      copy.NavAgent->AutoRepath = NavAgent->AutoRepath;
+      copy.NavAgent->AvoidanceRadiusMul = NavAgent->AvoidanceRadiusMul;
+      // Reset runtime pathing state
+      copy.NavAgent->CurrentPath = {};
+      copy.NavAgent->PathCursor = 0;
+      copy.NavAgent->RepathTimer = 0.0f;
+      copy.NavAgent->HasDestination = false;
+      copy.NavAgent->PathRequested = false;
+      copy.NavAgent->ManagedHandle = 0;
+   }
+
    // Scripts: clone and rebind context
    copy.Scripts.clear();
    for (const auto& script : Scripts) {
