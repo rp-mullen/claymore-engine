@@ -56,6 +56,10 @@ void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
         if (ImGui::MenuItem("UI Rects", nullptr, uiRects)) {
             Renderer::Get().SetShowUIRects(!uiRects);
         }
+        bool showUI = true;
+        if (ImGui::MenuItem("Show UI Overlay", nullptr, &showUI)) {
+            Renderer::Get().SetShowUIOverlay(showUI);
+        }
         // Forward to existing nav debug mask window (shown in UILayer); provide quick toggles here too
         uint32_t mask = (uint32_t)nav::debug::GetMask();
         auto toggle = [&](const char* label, nav::NavDrawMask bit){ bool v = (mask & (uint32_t)bit)!=0; if(ImGui::MenuItem(label, nullptr, v)){ if(v) mask &= ~(uint32_t)bit; else mask |= (uint32_t)bit; }};

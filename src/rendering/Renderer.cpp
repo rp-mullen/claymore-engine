@@ -818,6 +818,10 @@ void Renderer::RenderScene(Scene& scene) {
                sy += it.text->AnchorOffset.y;
             }
             if (m_TextRenderer) {
+               // Switch font on demand if a custom font is specified
+               if (!it.text->FontPath.empty()) {
+                  m_TextRenderer->SetFont(it.text->FontPath, it.text->PixelSize);
+               }
                std::vector<std::pair<const TextRendererComponent*, glm::vec2>> one = { { it.text, glm::vec2{sx, sy} } };
                m_TextRenderer->RenderScreenTexts(one, it.canvasOpacity, m_Width, m_Height, 2);
             }

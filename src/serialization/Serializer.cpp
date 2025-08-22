@@ -721,6 +721,7 @@ json Serializer::SerializeText(const TextRendererComponent& t) {
     j["opacity"] = t.Opacity;
     j["rectSize"] = { t.RectSize.x, t.RectSize.y };
     j["wordWrap"] = t.WordWrap;
+    if (!t.FontPath.empty()) j["fontPath"] = t.FontPath;
     return j;
 }
 
@@ -743,6 +744,7 @@ void Serializer::DeserializeText(const json& j, TextRendererComponent& t) {
         t.RectSize.y = j["rectSize"][1];
     }
     if (j.contains("wordWrap")) t.WordWrap = j["wordWrap"];
+    if (j.contains("fontPath")) t.FontPath = j["fontPath"];
 }
 
 void Serializer::DeserializeButton(const json& data, ButtonComponent& button) {

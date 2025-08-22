@@ -6,6 +6,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <imstb_truetype.h>
 #include "io/FileSystem.h"
+#include <filesystem>
+#include <editor/Project.h>
 
 bgfx::VertexLayout TextRenderer::Vertex::Layout;
 void TextRenderer::Vertex::InitLayout() {
@@ -27,13 +29,28 @@ TextRenderer::~TextRenderer() {
 bool TextRenderer::BakeFont(const std::string& ttfPath, uint16_t w, uint16_t h, float pixelSize) {
     std::vector<uint8_t> ttf;
     if (!FileSystem::Instance().ReadFile(ttfPath, ttf)) {
-        // Fallback to stdio if not in pak
-        FILE* f = fopen(ttfPath.c_str(), "rb");
-        if (!f) return false;
-        fseek(f, 0, SEEK_END);
-        long size = ftell(f); rewind(f);
-        ttf.resize(static_cast<size_t>(size));
-        fread(ttf.data(), 1, size, f); fclose(f);
+        // Fallbacks: try direct, project-relative, then repo-root-relative
+        auto tryOpen = [&](const std::filesystem::path& p)->bool{
+            FILE* f = fopen(p.string().c_str(), "rb");
+            if (!f) return false;
+            fseek(f, 0, SEEK_END);
+            long size = ftell(f); rewind(f);
+            ttf.resize(static_cast<size_t>(size));
+            fread(ttf.data(), 1, size, f); fclose(f);
+            return true;
+        };
+        if (!tryOpen(std::filesystem::path(ttfPath))) {
+            std::filesystem::path proj = Project::GetProjectDirectory();
+            if (!proj.empty() && tryOpen(proj / ttfPath)) {
+                // ok
+            } else {
+                // Try repo root: parent of project dir
+                std::filesystem::path root = proj.parent_path();
+                if (!tryOpen(root / ttfPath)) {
+                    return false;
+                }
+            }
+        }
     }
 
     m_Baked.chars.resize(96);
@@ -64,6 +81,15 @@ bool TextRenderer::Init(const std::string& ttfPath, bgfx::ProgramHandle program,
     if (!bgfx::isValid(m_Sampler)) m_Sampler = bgfx::createUniform("s_text", bgfx::UniformType::Sampler);
     m_Ready = BakeFont(ttfPath, atlasWidth, atlasHeight, basePixelSize);
     return m_Ready;
+}
+
+bool TextRenderer::SetFont(const std::string& ttfPath, float basePixelSize) {
+    if (ttfPath.empty()) return false;
+    // Re-bake into current atlas size
+    uint16_t w = m_Baked.width ? m_Baked.width : 512;
+    uint16_t h = m_Baked.height ? m_Baked.height : 512;
+    bool ok = BakeFont(ttfPath, w, h, basePixelSize);
+    return ok;
 }
 
 void TextRenderer::SubmitStringWorld(const TextRendererComponent& tc, const glm::mat4& world, bgfx::ViewId viewId) {
@@ -348,6 +374,10 @@ void TextRenderer::RenderTexts(Scene& scene,
 
         // Draw world-space texts here; screen-space texts are handled in the UI pass
         if (tc.WorldSpace) {
+            // Switch font on demand if a custom font is specified
+            if (!tc.FontPath.empty()) {
+                SetFont(tc.FontPath, tc.PixelSize);
+            }
             SubmitStringWorld(tc, data->Transform.WorldMatrix, worldViewId);
         } else {
             // Defer screen-space rendering to UI pass for correct z-ordering

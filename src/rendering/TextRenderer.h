@@ -19,6 +19,8 @@ public:
 
     // Initialize with default font path and shader program
     bool Init(const std::string& ttfPath, bgfx::ProgramHandle program, uint16_t atlasWidth = 512, uint16_t atlasHeight = 512, float basePixelSize = 48.0f);
+    // Load/switch font at runtime; returns true if atlas re-baked
+    bool SetFont(const std::string& ttfPath, float basePixelSize = 48.0f);
 
     // Render all TextRendererComponent instances in the scene
     void RenderTexts(Scene& scene,

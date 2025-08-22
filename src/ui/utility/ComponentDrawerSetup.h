@@ -557,6 +557,33 @@ inline void RegisterComponentDrawers() {
         ImGui::Checkbox("Word Wrap", &t.WordWrap);
         ImGui::DragFloat2("Rect Size", &t.RectSize.x, 1.0f, 0.0f, 4096.0f);
 
+        // Font selection from Asset Library (registered TTFs)
+        {
+            auto assets = AssetLibrary::Instance().GetAllAssets();
+            std::vector<std::string> fontPaths; fontPaths.reserve(assets.size());
+            for (auto& tup : assets) {
+                const std::string& path = std::get<0>(tup);
+                AssetType type = std::get<2>(tup);
+                if (type == AssetType::Font) { fontPaths.push_back(path); continue; }
+                // Back-compat: also pick up .ttf/.otf if registered before Font type existed
+                std::string lower = path; std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+                if (lower.size() >= 4 && (lower.rfind(".ttf") == lower.size()-4 || lower.rfind(".otf") == lower.size()-4)) fontPaths.push_back(path);
+            }
+            int cur = 0;
+            if (!t.FontPath.empty()) {
+                for (int i=0;i<(int)fontPaths.size();++i) if (fontPaths[i] == t.FontPath) { cur = i; break; }
+            }
+            if (!fontPaths.empty()) {
+                std::vector<const char*> cstr; cstr.reserve(fontPaths.size());
+                for (auto& s : fontPaths) cstr.push_back(s.c_str());
+                if (ImGui::Combo("Font", &cur, cstr.data(), (int)cstr.size())) {
+                    t.FontPath = fontPaths[cur];
+                }
+            } else {
+                ImGui::TextDisabled("No fonts registered (.ttf)");
+            }
+        }
+
         ImGui::Checkbox("World Space", &t.WorldSpace);
         if (!t.WorldSpace) {
             ImGui::Separator();
@@ -624,13 +651,15 @@ inline void RegisterComponentDrawers() {
                             if (guid.high == 0 && guid.low == 0) {
                                 guid = ClaymoreGUID::Generate();
                             }
-                            AssetLibrary::Instance().RegisterAsset(AssetReference(guid, 0, (int)AssetType::Texture), AssetType::Texture, path, std::filesystem::path(path).filename().string());
+                            AssetReference aref(guid, 0, (int)AssetType::Texture);
+                            AssetLibrary::Instance().RegisterAsset(aref, AssetType::Texture, path, std::filesystem::path(path).filename().string());
                             entry = AssetLibrary::Instance().GetAsset(path);
                         }
                         if (entry) {
                             p.Texture = entry->reference;
                             // Preload so renderer can use immediately and preview shows correctly
-                            AssetLibrary::Instance().LoadTexture(p.Texture);
+                            auto tex = AssetLibrary::Instance().LoadTexture(p.Texture);
+                            (void)tex; // ensure strong ref exists
                         }
                     }
                 }

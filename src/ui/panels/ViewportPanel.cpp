@@ -118,8 +118,8 @@ void ViewportPanel::OnImGuiRenderEmbedded(bgfx::TextureHandle sceneTexture, cons
 
     DrawGizmo();
     DrawUIGizmo();
-    // Draw all UI rect overlays if enabled
-    if (Renderer::Get().GetShowUIRects()) {
+    // Draw all UI rect overlays if enabled (editor only)
+    if (!m_Context->m_IsPlaying && Renderer::Get().GetShowUIRects()) {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         DrawUIRectOverlay(dl, m_ViewportPos, m_ViewportSize, m_Context);
     }
@@ -499,16 +499,24 @@ void ViewportPanel::DrawUIGizmo() {
 
     // Determine viewport image top-left to convert screen coords to overlay coords
     ImVec2 viewportTL = m_ViewportPos;
+    // Convert stored backbuffer-space values to overlay coordinates using viewport scale
+    float sx = (m_ViewportSize.x > 0.0f) ? (Renderer::Get().GetWidth() / m_ViewportSize.x) : 1.0f;
+    float sy = (m_ViewportSize.y > 0.0f) ? (Renderer::Get().GetHeight() / m_ViewportSize.y) : 1.0f;
     // Map element position to viewport overlay space: use Panel.Position or Text Transform.Position
     ImVec2 p = viewportTL;
     if (ed->Panel) {
-        p.x += ed->Panel->AnchorEnabled ? ed->Panel->AnchorOffset.x : ed->Panel->Position.x;
-        p.y += ed->Panel->AnchorEnabled ? ed->Panel->AnchorOffset.y : ed->Panel->Position.y;
+        if (ed->Panel->AnchorEnabled) {
+            p.x += ed->Panel->AnchorOffset.x / sx;
+            p.y += ed->Panel->AnchorOffset.y / sy;
+        } else {
+            p.x += ed->Panel->Position.x / sx;
+            p.y += ed->Panel->Position.y / sy;
+        }
     } else if (ed->Text && !ed->Text->WorldSpace) {
-        p.x += ed->Transform.Position.x;
-        p.y += ed->Transform.Position.y;
+        p.x += ed->Transform.Position.x / sx;
+        p.y += ed->Transform.Position.y / sy;
     } else if (ed->Canvas) {
-        p.x += 0.0f; p.y += 0.0f;
+        // Canvas origin at (0,0) in backbuffer space
     } else return;
 
     // Draw handle
@@ -528,10 +536,10 @@ void ViewportPanel::DrawUIGizmo() {
     if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
         m_UIHandleActive = true;
         ImVec2 delta = ImGui::GetIO().MouseDelta;
-        // Convert overlay pixel delta to framebuffer pixel delta so it matches renderer's UI space
-        float sx = (m_ViewportSize.x > 0.0f) ? (Renderer::Get().GetWidth() / m_ViewportSize.x) : 1.0f;
-        float sy = (m_ViewportSize.y > 0.0f) ? (Renderer::Get().GetHeight() / m_ViewportSize.y) : 1.0f;
-        delta.x *= sx; delta.y *= sy;
+        // Convert overlay pixel delta to framebuffer pixel delta (normalize by letterboxed viewport)
+        float sx2 = (m_ViewportSize.x > 0.0f) ? (Renderer::Get().GetWidth() / m_ViewportSize.x) : 1.0f;
+        float sy2 = (m_ViewportSize.y > 0.0f) ? (Renderer::Get().GetHeight() / m_ViewportSize.y) : 1.0f;
+        delta.x *= sx2; delta.y *= sy2;
         if (ed->Panel) {
             if (ed->Panel->AnchorEnabled) {
                 ed->Panel->AnchorOffset.x += delta.x;

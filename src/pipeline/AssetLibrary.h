@@ -19,6 +19,7 @@ class Scene;
 enum class AssetType {
     Mesh = 3,
     Texture = 2,
+    Font = 4,
     Material = 21,
     Shader = 48,
     Script = 115,

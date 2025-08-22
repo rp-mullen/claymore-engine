@@ -129,8 +129,8 @@ void Navigation::Update(Scene& scene, float dt)
         debug::DrawAgent(agent, position, vel, 0);
     }
 
-    // Draw navmesh runtime when debug is enabled
-    if ((uint32_t)m_DebugMask != 0) {
+    // Draw navmesh runtime when debug is enabled (editor only)
+    if (!scene.m_IsPlaying && (uint32_t)m_DebugMask != 0) {
         for (const auto& e : scene.GetEntities()) {
             auto* d = scene.GetEntityData(e.GetID()); if (!d || !d->Navigation) continue;
             auto& comp = *d->Navigation;

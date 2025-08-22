@@ -337,4 +337,7 @@ struct TextRendererComponent
     // Optional wrapping rectangle in screen pixels. When x or y <= 0, wrapping is disabled.
     glm::vec2 RectSize = { 0.0f, 0.0f };
     bool WordWrap = false;
+
+    // Optional font path (TTF) from asset registry; when empty, use default baked font
+    std::string FontPath;
 };

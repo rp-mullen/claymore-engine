@@ -222,6 +222,22 @@ void AssetPipeline::ImportAsset(const std::string& path) {
        ImportScript(path);
        meta.type = "script";
        }
+    else if (ext == ".ttf" || ext == ".otf") {
+        // Fonts: just register asset and write meta; no GPU work here
+        meta.type = "font";
+        std::string name = fs::path(path).stem().string();
+        meta.sourcePath = path;
+        meta.processedPath = path;
+        meta.hash = hash;
+        if (meta.guid.high == 0 && meta.guid.low == 0) meta.guid = ClaymoreGUID::Generate();
+        meta.reference = AssetReference(meta.guid, 0, static_cast<int32_t>(AssetType::Font));
+        AssetRegistry::Instance().SetMetadata(path, meta);
+        AssetLibrary::Instance().RegisterAsset(meta.reference, AssetType::Font, path, name);
+        // Save meta and early out
+        std::ofstream out(metaPath);
+        if (out) { json j = meta; out << j.dump(2); }
+        return;
+    }
     else {
         return;
     }
@@ -602,7 +618,8 @@ bool AssetPipeline::IsSupportedAsset(const std::string& ext) const {
         ".sc", ".shader", ".glsl",         // Shaders
         ".mat",                                // Materials
         ".cs",
-        ".navbin"
+        ".navbin",
+        ".ttf", ".otf"                        // Fonts
     };
     return supported.find(ext) != supported.end();
 }
@@ -614,6 +631,7 @@ std::string AssetPipeline::DetermineType(const std::string& ext) {
     if (ext == ".mat") return "material";
     if (ext == ".cs") return "script";
     if (ext == ".navbin") return "navmesh";
+    if (ext == ".ttf" || ext == ".otf") return "font";
 
     return "unknown";
 }

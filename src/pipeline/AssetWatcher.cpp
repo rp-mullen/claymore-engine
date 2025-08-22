@@ -78,6 +78,7 @@ void AssetWatcher::WatchLoop() {
                             if (lowerExt == ".fbx" || lowerExt == ".gltf" || lowerExt == ".glb" || lowerExt == ".obj") at = AssetType::Mesh;
                             else if (lowerExt == ".png" || lowerExt == ".jpg" || lowerExt == ".jpeg" || lowerExt == ".tga") at = AssetType::Texture;
                             else if (lowerExt == ".prefab") at = AssetType::Prefab;
+                            else if (lowerExt == ".ttf" || lowerExt == ".otf") at = AssetType::Font;
                             // Register mapping and alias (RegisterAsset now dedupes silently)
                             AssetLibrary::Instance().RegisterAsset(AssetReference(meta.guid, 0, static_cast<int32_t>(at)), at, vpath, entry.path().filename().string());
                             AssetLibrary::Instance().RegisterPathAlias(meta.guid, filePath);

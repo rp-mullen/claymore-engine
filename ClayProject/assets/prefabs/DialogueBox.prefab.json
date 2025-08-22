@@ -1,0 +1,282 @@
+{
+    "entities": [
+        {
+            "children": [
+                "3a414340383298c7428aa5a67c8ea2c4"
+            ],
+            "components": {
+                "canvas": {
+                    "blockSceneInput": true,
+                    "dpiScale": 1.0,
+                    "height": 0,
+                    "opacity": 1.0,
+                    "sortOrder": 0,
+                    "space": 0,
+                    "width": 0
+                },
+                "transform": {
+                    "localMatrix": [
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0
+                    ],
+                    "position": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    "rotation": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    "rotationQ": [
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "scale": {
+                        "x": 1.0,
+                        "y": 1.0,
+                        "z": 1.0
+                    },
+                    "transformDirty": false,
+                    "useQuatRotation": false,
+                    "worldMatrix": [
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0
+                    ]
+                }
+            },
+            "guid": "d29be01bab34c4ce04f0750ec641f01b",
+            "name": "DialogueBox"
+        },
+        {
+            "children": [
+                "5eab74e4efab2df106b3e7b4d2470ad6"
+            ],
+            "components": {
+                "panel": {
+                    "anchor": 0,
+                    "anchorEnabled": false,
+                    "anchorOffset": [
+                        0.0,
+                        0.0
+                    ],
+                    "fillMode": 0,
+                    "opacity": 1.0,
+                    "pivot": [
+                        0.5,
+                        0.5
+                    ],
+                    "position": [
+                        586.12451171875,
+                        753.3080444335938
+                    ],
+                    "rotation": 0.0,
+                    "scale": [
+                        1.0,
+                        1.0
+                    ],
+                    "size": [
+                        800.0,
+                        200.0
+                    ],
+                    "sliceUV": [
+                        0.10000000149011612,
+                        0.10000000149011612,
+                        0.10000000149011612,
+                        0.10000000149011612
+                    ],
+                    "texture": {
+                        "fileID": 0,
+                        "guid": "00000000000000000000000000000000",
+                        "type": 0
+                    },
+                    "tileRepeat": [
+                        1.0,
+                        1.0
+                    ],
+                    "tintColor": [
+                        0.13752466440200806,
+                        0.15904350578784943,
+                        0.19471949338912964,
+                        1.0
+                    ],
+                    "uvRect": [
+                        0.0,
+                        0.0,
+                        1.0,
+                        1.0
+                    ],
+                    "visible": true,
+                    "zOrder": -1
+                },
+                "transform": {
+                    "localMatrix": [
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0
+                    ],
+                    "position": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    "rotation": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    "rotationQ": [
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "scale": {
+                        "x": 1.0,
+                        "y": 1.0,
+                        "z": 1.0
+                    },
+                    "transformDirty": false,
+                    "useQuatRotation": false,
+                    "worldMatrix": [
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0
+                    ]
+                }
+            },
+            "guid": "3a414340383298c7428aa5a67c8ea2c4",
+            "name": "Panel",
+            "parent": "d29be01bab34c4ce04f0750ec641f01b"
+        },
+        {
+            "children": [],
+            "components": {
+                "transform": {
+                    "localMatrix": [
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0
+                    ],
+                    "position": {
+                        "x": 597.9258422851563,
+                        "y": 765.1088256835938,
+                        "z": 0.0
+                    },
+                    "rotation": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    "rotationQ": [
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0
+                    ],
+                    "scale": {
+                        "x": 1.0,
+                        "y": 1.0,
+                        "z": 1.0
+                    },
+                    "transformDirty": false,
+                    "useQuatRotation": false,
+                    "worldMatrix": [
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0
+                    ]
+                }
+            },
+            "guid": "5eab74e4efab2df106b3e7b4d2470ad6",
+            "name": "Text",
+            "parent": "3a414340383298c7428aa5a67c8ea2c4"
+        }
+    ],
+    "guid": "d29be01bab34c4ce04f0750ec641f01b",
+    "name": "DialogueBox",
+    "root": "d29be01bab34c4ce04f0750ec641f01b"
+}

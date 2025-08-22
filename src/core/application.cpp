@@ -97,6 +97,7 @@ Application::Application(int width, int height, const std::string& title)
                 if (ext == ".fbx" || ext == ".gltf" || ext == ".glb" || ext == ".obj") at = AssetType::Mesh;
                 else if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga") at = AssetType::Texture;
                 else if (ext == ".prefab") at = AssetType::Prefab;
+                else if (ext == ".ttf" || ext == ".otf") at = AssetType::Font;
                 AssetLibrary::Instance().RegisterAsset(AssetReference(meta->guid, 0, static_cast<int32_t>(at)), at, vpath, entry.path().filename().string());
                 // Also map absolute path so serializers that wrote absolute paths can resolve
                 AssetLibrary::Instance().RegisterPathAlias(meta->guid, abs);
