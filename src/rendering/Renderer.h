@@ -179,6 +179,7 @@ private:
     bgfx::TextureHandle m_UIWhiteTex = BGFX_INVALID_HANDLE;
     bool m_ShowUIOverlay = true;
     bool m_UIInputConsumed = false;
+    bool m_ShowUIRects = false;
     // Viewport-reported mouse position in scene framebuffer space (pixels)
     float m_UIMouseX = 0.0f;
     float m_UIMouseY = 0.0f;
@@ -197,6 +198,8 @@ public:
     bool WasUIInputConsumedThisFrame() const { return m_UIInputConsumed; }
     void SetUIMode(bool enabled){ m_ShowUIOverlay = enabled; }
     void SetUIMousePosition(float x, float y, bool valid){ m_UIMouseX = x; m_UIMouseY = y; m_UIMouseValid = valid; }
+    void SetShowUIRects(bool v){ m_ShowUIRects = v; }
+    bool GetShowUIRects() const { return m_ShowUIRects; }
     void SetOutlineThickness(float px){ m_OutlineThicknessPx = px; }
     void SetOutlineColor(const glm::vec4& color){ m_OutlineColor = color; }
  

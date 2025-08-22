@@ -4,7 +4,8 @@
 #include "pipeline/AssetPipeline.h"
 #include "ui/Logger.h"
 #include "rendering/TextureLoader.h"
-
+#include "rendering/Renderer.h"
+#include <navigation/NavDebugDraw.h>
 // Renders the main toolbar panel
 void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
     ImGui::Begin("Toolbar", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize);
@@ -46,6 +47,24 @@ void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
     if (ImGui::ImageButton("##rotate", m_RotateIcon, iconSize)) SetOperation(GizmoOperation::Rotate);
     ImGui::SameLine();
     if (ImGui::ImageButton("##scale", m_ScaleIcon, iconSize)) SetOperation(GizmoOperation::Scale);
+
+    ImGui::SameLine();
+
+    // Debug draw dropdown
+    if (ImGui::BeginMenu("Debug")) {
+        bool uiRects = m_UILayer ? Renderer::Get().GetShowUIRects() : false;
+        if (ImGui::MenuItem("UI Rects", nullptr, uiRects)) {
+            Renderer::Get().SetShowUIRects(!uiRects);
+        }
+        // Forward to existing nav debug mask window (shown in UILayer); provide quick toggles here too
+        uint32_t mask = (uint32_t)nav::debug::GetMask();
+        auto toggle = [&](const char* label, nav::NavDrawMask bit){ bool v = (mask & (uint32_t)bit)!=0; if(ImGui::MenuItem(label, nullptr, v)){ if(v) mask &= ~(uint32_t)bit; else mask |= (uint32_t)bit; }};
+        toggle("Nav Triangles", nav::NavDrawMask::TriMesh);
+        toggle("Nav Polys",     nav::NavDrawMask::Polys);
+        toggle("Nav Agents",    nav::NavDrawMask::Agents);
+        nav::Navigation::Get().SetDebugMask((nav::NavDrawMask)mask);
+        ImGui::EndMenu();
+    }
 
     ImGui::PopStyleVar();
     ImGui::End();

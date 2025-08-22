@@ -354,6 +354,26 @@ void Application::Run() {
         // Scene reference must be determined AFTER UI may toggle play/stop
         // Do not bind a reference to *Scene::CurrentScene here.
         // --------------------------------------
+        // Fullscreen toggle (game/exported mode only)
+        // --------------------------------------
+        if (!m_RunEditorUI) {
+            // VK_F11 == 0x7A; our Input maps ASCII and VK_DELETE, so check raw VK state via GetAsyncKeyState
+            static bool prevF11 = false;
+            bool f11Down = (GetAsyncKeyState(VK_F11) & 0x8000) != 0;
+            if (f11Down && !prevF11) {
+                if (m_Win32Window) m_Win32Window->ToggleFullscreen();
+                // Trigger a resize for bgfx
+                int w = m_Win32Window ? m_Win32Window->GetWidth() : m_width;
+                int h = m_Win32Window ? m_Win32Window->GetHeight() : m_height;
+                if (w > 0 && h > 0) {
+                    bgfx::reset((uint32_t)w, (uint32_t)h, BGFX_RESET_VSYNC);
+                    Renderer::Get().Resize((uint32_t)w, (uint32_t)h);
+                }
+            }
+            prevF11 = f11Down;
+        }
+
+        // --------------------------------------
         // ASSET PIPELINE PROCESSING
         // --------------------------------------
         // Handles:

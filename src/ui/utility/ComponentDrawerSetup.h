@@ -549,6 +549,14 @@ inline void RegisterComponentDrawers() {
             t.ColorAbgr = ImGui::ColorConvertFloat4ToU32(col);
         }
 
+        ImGui::Checkbox("Visible", &t.Visible);
+        ImGui::DragInt("Z Order", &t.ZOrder, 1, -1000, 1000);
+        ImGui::SliderFloat("Opacity", &t.Opacity, 0.0f, 1.0f);
+        ImGui::Separator();
+        ImGui::TextDisabled("Wrapping");
+        ImGui::Checkbox("Word Wrap", &t.WordWrap);
+        ImGui::DragFloat2("Rect Size", &t.RectSize.x, 1.0f, 0.0f, 4096.0f);
+
         ImGui::Checkbox("World Space", &t.WorldSpace);
         if (!t.WorldSpace) {
             ImGui::Separator();
@@ -573,6 +581,7 @@ inline void RegisterComponentDrawers() {
         ImGui::DragInt("Height", &c.Height, 1, 0, 16384);
         ImGui::DragFloat("DPI Scale", &c.DPIScale, 0.01f, 0.25f, 4.0f);
         ImGui::DragInt("Sort Order", &c.SortOrder, 1, -1000, 1000);
+        ImGui::SliderFloat("Opacity", &c.Opacity, 0.0f, 1.0f);
         ImGui::Checkbox("Block Scene Input", &c.BlockSceneInput);
     });
 
@@ -641,6 +650,7 @@ inline void RegisterComponentDrawers() {
             ImGui::DragFloat2("Pivot", &p.Pivot.x, 0.01f, 0.0f, 1.0f);
         }
         ImGui::ColorEdit4("Tint", &p.TintColor.x);
+        ImGui::SliderFloat("Opacity", &p.Opacity, 0.0f, 1.0f);
         ImGui::DragFloat4("UV Rect", &p.UVRect.x, 0.001f, 0.0f, 1.0f);
         // Fill mode & theming
         const char* modes[] = { "Stretch", "Tile", "NineSlice" };

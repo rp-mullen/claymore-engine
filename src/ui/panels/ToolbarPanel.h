@@ -35,6 +35,10 @@ public:
     void TogglePause() { m_Paused = !m_Paused; }
     bool IsPaused() const { return m_Paused; }
 
+    // Debug toggles (exposed in toolbar)
+    void SetShowUIRects(bool v);
+    bool GetShowUIRects() const;
+
 private:
     void EnsureIconsLoaded();
 

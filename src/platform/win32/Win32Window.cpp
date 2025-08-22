@@ -12,7 +12,7 @@ static Win32Window* g_WindowInstance = nullptr;
 float Win32Window::GetDPIScale() const {
 	if (!m_HighDPI || m_hWnd == nullptr) return 1.0f;
 	UINT dpi = 96;
-	// GetDpiForWindow is Win10+
+	// GetDpiForWindow is Win10+ 
 	HMODULE hUser32 = GetModuleHandleW(L"user32.dll");
 	if (hUser32) {
 		auto pGetDpiForWindow = reinterpret_cast<UINT(WINAPI*)(HWND)>(GetProcAddress(hUser32, "GetDpiForWindow"));
@@ -196,6 +196,65 @@ LRESULT CALLBACK Win32Window::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 		}
 	}
 	return DefWindowProcW(hWnd, msg, wParam, lParam);
+}
+
+
+void Win32Window::EnterFullscreen() {
+	if (m_Fullscreen || m_hWnd == nullptr) return;
+
+	// Save current window state
+	m_SavedMaximized = !!IsZoomed(m_hWnd);
+	if (m_SavedMaximized) {
+		SendMessage(m_hWnd, WM_SYSCOMMAND, SC_RESTORE, 0);
+	}
+	m_SavedStyle = GetWindowLong(m_hWnd, GWL_STYLE);
+	m_SavedExStyle = GetWindowLong(m_hWnd, GWL_EXSTYLE);
+	GetWindowRect(m_hWnd, &m_SavedWindowRect);
+
+	// Remove window decorations
+	DWORD newStyle = m_SavedStyle & ~(WS_CAPTION | WS_THICKFRAME);
+	DWORD newExStyle = m_SavedExStyle & ~(WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
+	SetWindowLong(m_hWnd, GWL_STYLE, newStyle);
+	SetWindowLong(m_hWnd, GWL_EXSTYLE, newExStyle);
+
+	// Resize to monitor bounds
+	HMONITOR hmon = MonitorFromWindow(m_hWnd, MONITOR_DEFAULTTONEAREST);
+	MONITORINFO mi{ sizeof(mi) };
+	if (GetMonitorInfo(hmon, &mi)) {
+		SetWindowPos(m_hWnd, nullptr,
+			mi.rcMonitor.left, mi.rcMonitor.top,
+			mi.rcMonitor.right - mi.rcMonitor.left,
+			mi.rcMonitor.bottom - mi.rcMonitor.top,
+			SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+	}
+
+	m_Fullscreen = true;
+}
+
+void Win32Window::ExitFullscreen() {
+	if (!m_Fullscreen || m_hWnd == nullptr) return;
+
+	// Restore styles
+	SetWindowLong(m_hWnd, GWL_STYLE, m_SavedStyle);
+	SetWindowLong(m_hWnd, GWL_EXSTYLE, m_SavedExStyle);
+
+	// Restore window size/pos
+	SetWindowPos(m_hWnd, nullptr,
+		m_SavedWindowRect.left, m_SavedWindowRect.top,
+		m_SavedWindowRect.right - m_SavedWindowRect.left,
+		m_SavedWindowRect.bottom - m_SavedWindowRect.top,
+		SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
+	if (m_SavedMaximized) {
+		SendMessage(m_hWnd, WM_SYSCOMMAND, SC_MAXIMIZE, 0);
+	}
+
+	m_Fullscreen = false;
+}
+
+void Win32Window::ToggleFullscreen() {
+	if (m_Fullscreen) ExitFullscreen();
+	else EnterFullscreen();
 }
 
 

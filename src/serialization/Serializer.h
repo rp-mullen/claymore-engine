@@ -78,6 +78,10 @@ public:
      static json SerializeButton(const ButtonComponent& button);
      static void DeserializeButton(const json& data, ButtonComponent& button);
 
+     // TextRenderer
+     static json SerializeText(const TextRendererComponent& text);
+     static void DeserializeText(const json& data, TextRendererComponent& text);
+
       // Animator / AnimationPlayerComponent
       static json SerializeAnimator(const cm::animation::AnimationPlayerComponent& animator);
       static void DeserializeAnimator(const json& data, cm::animation::AnimationPlayerComponent& animator);

@@ -548,6 +548,15 @@ void UILayer::BeginDockspace() {
         if (ImGui::Checkbox("Picking AABBs", &aabbs)) Renderer::Get().SetShowAABBs(aabbs);
         bool colliders = Renderer::Get().GetShowColliders();
         if (ImGui::Checkbox("Colliders", &colliders)) Renderer::Get().SetShowColliders(colliders);
+        bool uirects = Renderer::Get().GetShowUIRects();
+        if (ImGui::Checkbox("UI Rects", &uirects)) Renderer::Get().SetShowUIRects(uirects);
+        // Nav toggles
+        uint32_t mask = (uint32_t)nav::debug::GetMask();
+        auto toggle = [&](const char* label, nav::NavDrawMask bit){ bool v = (mask & (uint32_t)bit)!=0; if(ImGui::Checkbox(label, &v)){ if(v) mask |= (uint32_t)bit; else mask &= ~(uint32_t)bit; }};
+        toggle("Nav Triangles", nav::NavDrawMask::TriMesh);
+        toggle("Nav Polys",     nav::NavDrawMask::Polys);
+        toggle("Nav Agents",    nav::NavDrawMask::Agents);
+        nav::Navigation::Get().SetDebugMask((nav::NavDrawMask)mask);
         ImGui::EndCombo();
     }
 
@@ -595,6 +604,14 @@ void UILayer::BeginDockspace() {
         if (ImGui::Checkbox("Picking AABBs", &aabbs2)) Renderer::Get().SetShowAABBs(aabbs2);
         bool colliders2 = Renderer::Get().GetShowColliders();
         if (ImGui::Checkbox("Colliders", &colliders2)) Renderer::Get().SetShowColliders(colliders2);
+        bool uirects2 = Renderer::Get().GetShowUIRects();
+        if (ImGui::Checkbox("UI Rects", &uirects2)) Renderer::Get().SetShowUIRects(uirects2);
+        uint32_t mask2 = (uint32_t)nav::debug::GetMask();
+        auto toggle2 = [&](const char* label, nav::NavDrawMask bit){ bool v = (mask2 & (uint32_t)bit)!=0; if(ImGui::Checkbox(label, &v)){ if(v) mask2 |= (uint32_t)bit; else mask2 &= ~(uint32_t)bit; }};
+        toggle2("Nav Triangles", nav::NavDrawMask::TriMesh);
+        toggle2("Nav Polys",     nav::NavDrawMask::Polys);
+        toggle2("Nav Agents",    nav::NavDrawMask::Agents);
+        nav::Navigation::Get().SetDebugMask((nav::NavDrawMask)mask2);
         ImGui::EndCombo();
     }
 

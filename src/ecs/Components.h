@@ -326,4 +326,15 @@ struct TextRendererComponent
     bool AnchorEnabled = false;
     UIAnchorPreset Anchor = UIAnchorPreset::TopLeft;
     glm::vec2 AnchorOffset = {0.0f, 0.0f};
+
+    // Visibility toggle
+    bool Visible = true;
+    // Sorting within a canvas (lower renders first)
+    int ZOrder = 0;
+    // Additional opacity multiplier (0..1), applied on top of ColorAbgr alpha
+    float Opacity = 1.0f;
+
+    // Optional wrapping rectangle in screen pixels. When x or y <= 0, wrapping is disabled.
+    glm::vec2 RectSize = { 0.0f, 0.0f };
+    bool WordWrap = false;
 };

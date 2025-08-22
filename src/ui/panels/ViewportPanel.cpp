@@ -118,6 +118,11 @@ void ViewportPanel::OnImGuiRenderEmbedded(bgfx::TextureHandle sceneTexture, cons
 
     DrawGizmo();
     DrawUIGizmo();
+    // Draw all UI rect overlays if enabled
+    if (Renderer::Get().GetShowUIRects()) {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        DrawUIRectOverlay(dl, m_ViewportPos, m_ViewportSize, m_Context);
+    }
 }
 
 // =============================================================
@@ -146,7 +151,7 @@ void ViewportPanel::HandleCameraControls() {
 
     // Handle Picking
     if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
-       (!ImGuizmo::IsOver() || ImGuizmo::IsUsing())) {
+       (!ImGuizmo::IsOver() || ImGuizmo::IsUsing()) && !m_UIHandleHovered && !m_UIHandleActive) {
        ImVec2 mousePos = ImGui::GetMousePos();
         // Convert to normalized coordinates inside the letterboxed image
        float nx = (mousePos.x - m_ViewportPos.x) / m_ViewportSize.x;
@@ -515,8 +520,18 @@ void ViewportPanel::DrawUIGizmo() {
     // Drag to move
     ImGui::SetCursorScreenPos(ImVec2(p.x - r, p.y - r));
     ImGui::InvisibleButton("ui_drag", ImVec2(r*2, r*2));
+    m_UIHandleHovered = ImGui::IsItemHovered();
+    if (m_UIHandleHovered) {
+        // Mark UI input as consumed to prevent scene picking
+        Renderer::Get().SetUIMousePosition(0,0,true); // keep valid flag
+    }
     if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        m_UIHandleActive = true;
         ImVec2 delta = ImGui::GetIO().MouseDelta;
+        // Convert overlay pixel delta to framebuffer pixel delta so it matches renderer's UI space
+        float sx = (m_ViewportSize.x > 0.0f) ? (Renderer::Get().GetWidth() / m_ViewportSize.x) : 1.0f;
+        float sy = (m_ViewportSize.y > 0.0f) ? (Renderer::Get().GetHeight() / m_ViewportSize.y) : 1.0f;
+        delta.x *= sx; delta.y *= sy;
         if (ed->Panel) {
             if (ed->Panel->AnchorEnabled) {
                 ed->Panel->AnchorOffset.x += delta.x;
@@ -528,6 +543,86 @@ void ViewportPanel::DrawUIGizmo() {
         } else if (ed->Text && !ed->Text->WorldSpace) {
             ed->Transform.Position.x += delta.x;
             ed->Transform.Position.y += delta.y;
+        }
+    } else {
+        m_UIHandleActive = false;
+    }
+}
+
+// Helper: draw all UI rects as an editor overlay
+void ViewportPanel::DrawUIRectOverlay(ImDrawList* dl, const ImVec2& viewportTL, const ImVec2& viewportSize, Scene* scene) {
+    if (!scene) return;
+    float sx = (viewportSize.x > 0.0f) ? (Renderer::Get().GetWidth() / viewportSize.x) : 1.0f;
+    float sy = (viewportSize.y > 0.0f) ? (Renderer::Get().GetHeight() / viewportSize.y) : 1.0f;
+    auto toOverlay = [&](float x, float y){ return ImVec2(viewportTL.x + x / sx, viewportTL.y + y / sy); };
+    for (auto& e : scene->GetEntities()) {
+        auto* d = scene->GetEntityData(e.GetID()); if (!d || !d->Visible) continue;
+        // Check if under a screen-space canvas
+        bool underScreen = false;
+        {
+            EntityID cur = e.GetID();
+            while (cur != -1) { auto* d2 = scene->GetEntityData(cur); if (!d2) break; if (d2->Canvas && d2->Canvas->Space == CanvasComponent::RenderSpace::ScreenSpace) { underScreen = true; break; } cur = d2->Parent; }
+        }
+        if (!underScreen) continue;
+        // Panel rect
+        if (d->Panel && d->Panel->Visible) {
+            float ax = d->Panel->AnchorEnabled ? 0.0f : d->Panel->Position.x;
+            float ay = d->Panel->AnchorEnabled ? 0.0f : d->Panel->Position.y;
+            if (d->Panel->AnchorEnabled) {
+                // Use renderer's backbuffer size for anchoring
+                float W = (float)Renderer::Get().GetWidth();
+                float H = (float)Renderer::Get().GetHeight();
+                switch (d->Panel->Anchor) {
+                    case UIAnchorPreset::TopLeft:    break;
+                    case UIAnchorPreset::Top:        ax = W * 0.5f; break;
+                    case UIAnchorPreset::TopRight:   ax = W; break;
+                    case UIAnchorPreset::Left:       ay = H * 0.5f; break;
+                    case UIAnchorPreset::Center:     ax = W * 0.5f; ay = H * 0.5f; break;
+                    case UIAnchorPreset::Right:      ax = W; ay = H * 0.5f; break;
+                    case UIAnchorPreset::BottomLeft: ay = H; break;
+                    case UIAnchorPreset::Bottom:     ax = W * 0.5f; ay = H; break;
+                    case UIAnchorPreset::BottomRight:ax = W; ay = H; break;
+                }
+                ax += d->Panel->AnchorOffset.x; ay += d->Panel->AnchorOffset.y;
+            }
+            float x0 = ax;
+            float y0 = ay;
+            float x1 = x0 + d->Panel->Size.x * d->Panel->Scale.x;
+            float y1 = y0 + d->Panel->Size.y * d->Panel->Scale.y;
+            ImU32 col = IM_COL32(255,136,0,160);
+            dl->AddRect(toOverlay(x0,y0), toOverlay(x1,y1), col, 0.0f, 0, 1.5f);
+        }
+        // Text rect: show wrapping rect if set; otherwise approximate baseline rect height using pixel size
+        if (d->Text && !d->Text->WorldSpace && d->Text->Visible) {
+            float sxp = d->Transform.Position.x; float syp = d->Transform.Position.y;
+            if (d->Text->AnchorEnabled) {
+                float W = (float)Renderer::Get().GetWidth();
+                float H = (float)Renderer::Get().GetHeight();
+                switch (d->Text->Anchor) {
+                    case UIAnchorPreset::TopLeft:    break;
+                    case UIAnchorPreset::Top:        sxp = W * 0.5f; break;
+                    case UIAnchorPreset::TopRight:   sxp = W; break;
+                    case UIAnchorPreset::Left:       syp = H * 0.5f; break;
+                    case UIAnchorPreset::Center:     sxp = W * 0.5f; syp = H * 0.5f; break;
+                    case UIAnchorPreset::Right:      sxp = W; syp = H * 0.5f; break;
+                    case UIAnchorPreset::BottomLeft: syp = H; break;
+                    case UIAnchorPreset::Bottom:     sxp = W * 0.5f; syp = H; break;
+                    case UIAnchorPreset::BottomRight:sxp = W; syp = H; break;
+                }
+                sxp += d->Text->AnchorOffset.x; syp += d->Text->AnchorOffset.y;
+            }
+            float rw = d->Text->RectSize.x;
+            float rh = d->Text->RectSize.y;
+            if (rw <= 0.0f || rh <= 0.0f) {
+                // Initialize to an approximate AABB for current text (one line height)
+                float lineH = d->Text->PixelSize; // approx
+                rh = lineH * 1.2f;
+                // crude width estimate: characters * 0.6 * pixelSize
+                float est = std::max<size_t>(1, d->Text->Text.size());
+                rw = std::min(600.0f, est * (d->Text->PixelSize * 0.6f));
+            }
+            ImU32 col = IM_COL32(0,200,255,160);
+            dl->AddRect(toOverlay(sxp, syp), toOverlay(sxp + rw, syp + rh), col, 0.0f, 0, 1.5f);
         }
     }
 }

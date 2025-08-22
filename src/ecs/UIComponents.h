@@ -22,6 +22,9 @@ struct CanvasComponent {
     // Sorting order relative to other canvases (lower renders first)
     int SortOrder = 0;
 
+    // Overall opacity for this canvas (multiplies child panels/text alpha)
+    float Opacity = 1.0f;
+
     // If true, UI interactions on this canvas can block scene input
     bool BlockSceneInput = true;
 };

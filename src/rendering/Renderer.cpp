@@ -25,6 +25,7 @@
 #include <core/application.h>
 #include "Terrain.h"
 #include <limits>
+#include <algorithm>
 
 
 // ---------------- Initialization ----------------
@@ -560,6 +561,8 @@ void Renderer::RenderScene(Scene& scene) {
       float viewIdMat[16]; bx::mtxIdentity(viewIdMat);
       bgfx::setViewTransform(2, viewIdMat, ortho);
       bgfx::setViewRect(2, 0, 0, (uint16_t)m_Width, (uint16_t)m_Height);
+      // Ensure painter's order for UI/text: honor submission order (z-sorted by us)
+      bgfx::setViewMode(2, bgfx::ViewMode::Sequential);
 
       // Mouse for hit-testing (prefer viewport-reported framebuffer coords)
       float mx = 0.0f, my = 0.0f;
@@ -573,6 +576,256 @@ void Renderer::RenderScene(Scene& scene) {
          }
       bool mouseDown = Input::IsMouseButtonPressed(0);
       m_UIInputConsumed = false;
+
+      // Sorted UI draw: collect panels and screen-space texts, sort by canvas order then z
+      enum class UIItemType { Panel, Text };
+      struct UIDrawItem {
+         int canvasOrder;
+         int z;
+         float canvasOpacity;
+         UIItemType type;
+         PanelComponent* panel;
+         TextRendererComponent* text;
+         EntityData* data;
+      };
+      std::vector<UIDrawItem> items;
+      items.reserve(scene.GetEntities().size());
+
+      for (auto& e : scene.GetEntities()) {
+         auto* d = scene.GetEntityData(e.GetID());
+         if (!d || !d->Visible) continue;
+         // Find nearest ancestor screen-space canvas
+         CanvasComponent* canvas = nullptr;
+         {
+            EntityID cur = e.GetID();
+            while (cur != INVALID_ENTITY_ID) {
+               auto* d2 = scene.GetEntityData(cur);
+               if (!d2) break;
+               if (d2->Canvas && d2->Canvas->Space == CanvasComponent::RenderSpace::ScreenSpace) { canvas = d2->Canvas.get(); break; }
+               cur = d2->Parent;
+            }
+         }
+         int corder = canvas ? canvas->SortOrder : 0;
+         float copacity = canvas ? canvas->Opacity : 1.0f;
+         if (d->Panel && d->Panel->Visible) items.push_back({ corder, d->Panel->ZOrder, copacity, UIItemType::Panel, d->Panel.get(), nullptr, d });
+         if (d->Text && !d->Text->WorldSpace && d->Text->Visible) items.push_back({ corder, d->Text->ZOrder, copacity, UIItemType::Text, nullptr, d->Text.get(), d });
+      }
+
+      std::sort(items.begin(), items.end(), [](const UIDrawItem& a, const UIDrawItem& b){
+         if (a.canvasOrder != b.canvasOrder) return a.canvasOrder < b.canvasOrder;
+         return a.z < b.z;
+      });
+
+      for (const UIDrawItem& it : items) {
+         if (it.type == UIItemType::Panel) {
+            EntityData* d = it.data;
+            PanelComponent& p = *it.panel;
+            // Compute anchor-based top-left position
+            float ax = 0.0f, ay = 0.0f;
+            if (p.AnchorEnabled) {
+               switch (p.Anchor) {
+                     case UIAnchorPreset::TopLeft:    ax = 0;              ay = 0;               break;
+                     case UIAnchorPreset::Top:        ax = m_Width * 0.5f;   ay = 0;               break;
+                     case UIAnchorPreset::TopRight:   ax = (float)m_Width;  ay = 0;               break;
+                     case UIAnchorPreset::Left:       ax = 0;              ay = m_Height * 0.5f;  break;
+                     case UIAnchorPreset::Center:     ax = m_Width * 0.5f;   ay = m_Height * 0.5f;  break;
+                     case UIAnchorPreset::Right:      ax = (float)m_Width; ay = m_Height * 0.5f;  break;
+                     case UIAnchorPreset::BottomLeft: ax = 0;              ay = (float)m_Height; break;
+                     case UIAnchorPreset::Bottom:     ax = m_Width * 0.5f;   ay = (float)m_Height; break;
+                     case UIAnchorPreset::BottomRight:ax = (float)m_Width; ay = (float)m_Height; break;
+                  }
+               ax += p.AnchorOffset.x;
+               ay += p.AnchorOffset.y;
+               }
+            else {
+               ax = p.Position.x;
+               ay = p.Position.y;
+               }
+            float x0 = ax;
+            float y0 = ay;
+            float x1 = x0 + p.Size.x * p.Scale.x;
+            float y1 = y0 + p.Size.y * p.Scale.y;
+
+            // Base tint: panel tint
+            uint32_t abgr = 0xffffffffu;
+            auto clamp01 = [](float v) { return std::max(0.0f, std::min(1.0f, v)); };
+            glm::vec4 tint = p.TintColor;
+            if (d->Button) {
+               if (d->Button->Pressed)      tint *= d->Button->PressedTint;
+               else if (d->Button->Hovered) tint *= d->Button->HoverTint;
+               else                          tint *= d->Button->NormalTint;
+               }
+            uint8_t r = (uint8_t)(clamp01(tint.r) * 255.0f);
+            uint8_t g = (uint8_t)(clamp01(tint.g) * 255.0f);
+            uint8_t b = (uint8_t)(clamp01(tint.b) * 255.0f);
+            uint8_t a = (uint8_t)(clamp01(tint.a * p.Opacity * it.canvasOpacity) * 255.0f);
+            abgr = (a << 24) | (b << 16) | (g << 8) | (r);
+
+            UIVertex verts[4];
+            uint16_t idx[6] = { 0,1,2, 0,2,3 };
+            if (p.Mode == PanelComponent::FillMode::NineSlice && p.Texture.IsValid()) {
+               float L = x0, T = y0, R = x1, B = y1;
+               float w = (x1 - x0), h = (y1 - y0);
+               float uL = p.UVRect.x, vT = p.UVRect.y, uR = p.UVRect.z, vB = p.UVRect.w;
+               float du = (uR - uL);
+               float dv = (vB - vT);
+               float lFrac = (du != 0.0f) ? (p.SliceUV.x / du) : 0.0f;
+               float rFrac = (du != 0.0f) ? (p.SliceUV.z / du) : 0.0f;
+               float tFrac = (dv != 0.0f) ? (p.SliceUV.y / dv) : 0.0f;
+               float bFrac = (dv != 0.0f) ? (p.SliceUV.w / dv) : 0.0f;
+
+               float lpx = w * lFrac;
+               float rpx = w * rFrac;
+               float tpx = h * tFrac;
+               float bpx = h * bFrac;
+
+               float xL = L;
+               float xM = L + lpx;
+               float xR = R - rpx;
+               float yT = T;
+               float yM = T + tpx;
+               float yB = B - bpx;
+
+               float uL2 = uL + p.SliceUV.x;
+               float uR2 = uR - p.SliceUV.z;
+               float vT2 = vT + p.SliceUV.y;
+               float vB2 = vB - p.SliceUV.w;
+
+               auto submitQuad = [&](float xa, float ya, float xb, float yb, float ua, float va, float ub, float vb) {
+                  UIVertex vv[4] = {
+                      { xa, ya, 0.0f, ua, va, abgr },
+                      { xb, ya, 0.0f, ub, va, abgr },
+                      { xb, yb, 0.0f, ub, vb, abgr },
+                      { xa, yb, 0.0f, ua, vb, abgr }
+                     };
+                  uint16_t ii[6] = { 0,1,2, 0,2,3 };
+                  const bgfx::Memory* vmem2 = bgfx::copy(vv, sizeof(vv));
+                  const bgfx::Memory* imem2 = bgfx::copy(ii, sizeof(ii));
+                  bgfx::VertexBufferHandle vbh2 = bgfx::createVertexBuffer(vmem2, UIVertex::layout);
+                  bgfx::IndexBufferHandle  ibh2 = bgfx::createIndexBuffer(imem2);
+                  float id2[16]; bx::mtxIdentity(id2); bgfx::setTransform(id2);
+                  bgfx::setVertexBuffer(0, vbh2);
+                  bgfx::setIndexBuffer(ibh2);
+                  bgfx::TextureHandle th2 = m_UIWhiteTex;
+                  if (p.Texture.IsValid()) {
+                     if (auto* entry = AssetLibrary::Instance().GetAsset(p.Texture)) {
+                        if (!entry->texture || !bgfx::isValid(*entry->texture)) {
+                           auto tex = AssetLibrary::Instance().LoadTexture(p.Texture);
+                           (void)tex;
+                           }
+                        if (entry->texture && bgfx::isValid(*entry->texture)) th2 = *entry->texture;
+                        }
+                     }
+                  bgfx::setTexture(0, m_UISampler, th2);
+                  bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_BLEND_ALPHA);
+                  bgfx::submit(2, m_UIProgram);
+                  bgfx::destroy(vbh2);
+                  bgfx::destroy(ibh2);
+                  };
+
+               submitQuad(xL, yT, xM, yM, uL, vT, uL2, vT2);
+               submitQuad(xM, yT, xR, yM, uL2, vT, uR2, vT2);
+               submitQuad(xR, yT, R, yM, uR2, vT, uR, vT2);
+               submitQuad(xL, yM, xM, yB, uL, vT2, uL2, vB2);
+               submitQuad(xM, yM, xR, yB, uL2, vT2, uR2, vB2);
+               submitQuad(xR, yM, R, yB, uR2, vT2, uR, vB2);
+               submitQuad(xL, yB, xM, B, uL, vB2, uL2, vB);
+               submitQuad(xM, yB, xR, B, uL2, vB2, uR2, vB);
+               submitQuad(xR, yB, R, B, uR2, vB2, uR, vB);
+               continue;
+            }
+            else if (p.Mode == PanelComponent::FillMode::Tile) {
+               float u0 = p.UVRect.x, v0 = p.UVRect.y;
+               float u1 = p.UVRect.z * p.TileRepeat.x, v1 = p.UVRect.w * p.TileRepeat.y;
+               verts[0] = { x0, y0, 0.0f, u0, v0, abgr };
+               verts[1] = { x1, y0, 0.0f, u1, v0, abgr };
+               verts[2] = { x1, y1, 0.0f, u1, v1, abgr };
+               verts[3] = { x0, y1, 0.0f, u0, v1, abgr };
+            }
+            else {
+               verts[0] = { x0, y0, 0.0f, p.UVRect.x, p.UVRect.y, abgr };
+               verts[1] = { x1, y0, 0.0f, p.UVRect.z, p.UVRect.y, abgr };
+               verts[2] = { x1, y1, 0.0f, p.UVRect.z, p.UVRect.w, abgr };
+               verts[3] = { x0, y1, 0.0f, p.UVRect.x, p.UVRect.w, abgr };
+            }
+            const bgfx::Memory* vmem = bgfx::copy(verts, sizeof(verts));
+            const bgfx::Memory* imem = bgfx::copy(idx, sizeof(idx));
+            bgfx::VertexBufferHandle vbh = bgfx::createVertexBuffer(vmem, UIVertex::layout);
+            bgfx::IndexBufferHandle ibh = bgfx::createIndexBuffer(imem);
+            float id[16]; bx::mtxIdentity(id); bgfx::setTransform(id);
+            bgfx::setVertexBuffer(0, vbh);
+            bgfx::setIndexBuffer(ibh);
+            bgfx::TextureHandle th = m_UIWhiteTex;
+            if (p.Texture.IsValid()) {
+               if (auto* entry = AssetLibrary::Instance().GetAsset(p.Texture)) {
+                  if (!entry->texture || !bgfx::isValid(*entry->texture)) {
+                     auto tex = AssetLibrary::Instance().LoadTexture(p.Texture);
+                     (void)tex;
+                  }
+                  if (entry->texture && bgfx::isValid(*entry->texture)) th = *entry->texture;
+               }
+            }
+            bgfx::setTexture(0, m_UISampler, th);
+            bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_BLEND_ALPHA);
+            bgfx::submit(2, m_UIProgram);
+            bgfx::destroy(vbh);
+            bgfx::destroy(ibh);
+
+            // Button hit-testing overlay
+            if (d->Button && d->Button->Interactable) {
+               bool inside = (mx >= x0 && mx <= x1 && my >= y0 && my <= y1);
+               d->Button->Hovered = inside;
+               if (inside) m_UIInputConsumed = true;
+               bool wasPressed = d->Button->Pressed;
+               d->Button->Pressed = inside && mouseDown;
+               d->Button->Clicked = (!mouseDown && wasPressed && inside);
+               if (d->Button->Toggle && d->Button->Clicked) d->Button->Toggled = !d->Button->Toggled;
+            }
+
+            // Optional: debug rect outline
+            if (m_ShowUIRects) {
+               ImU32 dbg = 0x66ff8800u;
+               // draw via bgfx line list: use a tiny transient buffer for the rectangle
+               struct L { float x,y,z; };
+               L v[8] = { {x0,y0,0},{x1,y0,0}, {x1,y0,0},{x1,y1,0}, {x1,y1,0},{x0,y1,0}, {x0,y1,0},{x0,y0,0} };
+               const bgfx::Memory* mem = bgfx::copy(v, sizeof(v));
+               bgfx::VertexLayout layout; layout.begin().add(bgfx::Attrib::Position,3,bgfx::AttribType::Float).end();
+               bgfx::VertexBufferHandle vbh = bgfx::createVertexBuffer(mem, layout);
+               float idm[16]; bx::mtxIdentity(idm); bgfx::setTransform(idm);
+               bgfx::setVertexBuffer(0, vbh);
+               auto debugMat = MaterialManager::Instance().CreateDefaultDebugMaterial(); debugMat->BindUniforms();
+               bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_PT_LINES | BGFX_STATE_BLEND_ALPHA);
+               bgfx::submit(2, debugMat->GetProgram());
+               bgfx::destroy(vbh);
+            }
+         } else if (it.type == UIItemType::Text) {
+            // Compute anchored screen position
+            float sx = it.data->Transform.Position.x;
+            float sy = it.data->Transform.Position.y;
+            if (it.text->AnchorEnabled) {
+               switch (it.text->Anchor) {
+                  case UIAnchorPreset::TopLeft: break;
+                  case UIAnchorPreset::Top:        sx = m_Width * 0.5f; break;
+                  case UIAnchorPreset::TopRight:   sx = (float)m_Width; break;
+                  case UIAnchorPreset::Left:       sy = m_Height * 0.5f; break;
+                  case UIAnchorPreset::Center:     sx = m_Width * 0.5f; sy = m_Height * 0.5f; break;
+                  case UIAnchorPreset::Right:      sx = (float)m_Width; sy = m_Height * 0.5f; break;
+                  case UIAnchorPreset::BottomLeft: sy = (float)m_Height; break;
+                  case UIAnchorPreset::Bottom:     sx = m_Width * 0.5f; sy = (float)m_Height; break;
+                  case UIAnchorPreset::BottomRight:sx = (float)m_Width; sy = (float)m_Height; break;
+               }
+               sx += it.text->AnchorOffset.x;
+               sy += it.text->AnchorOffset.y;
+            }
+            if (m_TextRenderer) {
+               std::vector<std::pair<const TextRendererComponent*, glm::vec2>> one = { { it.text, glm::vec2{sx, sy} } };
+               m_TextRenderer->RenderScreenTexts(one, it.canvasOpacity, m_Width, m_Height, 2);
+            }
+         }
+      }
+
+      // We fully handled UI drawing above; skip legacy per-entity path
+      return;
 
       // Simple per-entity pass: draw panels; drive buttons; text already handled by TextRenderer screen path
       for (auto& e : scene.GetEntities()) {
@@ -620,10 +873,21 @@ void Renderer::RenderScene(Scene& scene) {
                else if (d->Button->Hovered) tint *= d->Button->HoverTint;
                else                          tint *= d->Button->NormalTint;
                }
+            // Multiply by ancestor canvas opacity if under a screen-space canvas
+            float canvasOpacity = 1.0f;
+            {
+               EntityID cur = e.GetID();
+               while (cur != INVALID_ENTITY_ID) {
+                  auto* d2 = scene.GetEntityData(cur);
+                  if (!d2) break;
+                  if (d2->Canvas && d2->Canvas->Space == CanvasComponent::RenderSpace::ScreenSpace) { canvasOpacity = d2->Canvas->Opacity; break; }
+                  cur = d2->Parent;
+               }
+            }
             uint8_t r = (uint8_t)(clamp01(tint.r) * 255.0f);
             uint8_t g = (uint8_t)(clamp01(tint.g) * 255.0f);
             uint8_t b = (uint8_t)(clamp01(tint.b) * 255.0f);
-            uint8_t a = (uint8_t)(clamp01(tint.a * p.Opacity) * 255.0f);
+            uint8_t a = (uint8_t)(clamp01(tint.a * p.Opacity * canvasOpacity) * 255.0f);
             abgr = (a << 24) | (b << 16) | (g << 8) | (r);
 
             UIVertex verts[4];

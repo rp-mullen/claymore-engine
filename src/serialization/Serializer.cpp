@@ -604,6 +604,7 @@ json Serializer::SerializeCanvas(const CanvasComponent& canvas) {
     data["dpiScale"] = canvas.DPIScale;
     data["space"] = static_cast<int>(canvas.Space);
     data["sortOrder"] = canvas.SortOrder;
+    data["opacity"] = canvas.Opacity;
     data["blockSceneInput"] = canvas.BlockSceneInput;
     return data;
 }
@@ -614,6 +615,7 @@ void Serializer::DeserializeCanvas(const json& data, CanvasComponent& canvas) {
     if (data.contains("dpiScale")) canvas.DPIScale = data["dpiScale"];
     if (data.contains("space")) canvas.Space = static_cast<CanvasComponent::RenderSpace>(data["space"]);
     if (data.contains("sortOrder")) canvas.SortOrder = data["sortOrder"];
+    if (data.contains("opacity")) canvas.Opacity = data["opacity"];
     if (data.contains("blockSceneInput")) canvas.BlockSceneInput = data["blockSceneInput"];
 }
 
@@ -703,6 +705,44 @@ json Serializer::SerializeButton(const ButtonComponent& button) {
     data["hoverSound"] = button.HoverSound;
     data["clickSound"] = button.ClickSound;
     return data;
+}
+
+json Serializer::SerializeText(const TextRendererComponent& t) {
+    json j;
+    j["text"] = t.Text;
+    j["pixelSize"] = t.PixelSize;
+    j["colorAbgr"] = t.ColorAbgr;
+    j["worldSpace"] = t.WorldSpace;
+    j["anchorEnabled"] = t.AnchorEnabled;
+    j["anchor"] = (int)t.Anchor;
+    j["anchorOffset"] = { t.AnchorOffset.x, t.AnchorOffset.y };
+    j["visible"] = t.Visible;
+    j["zOrder"] = t.ZOrder;
+    j["opacity"] = t.Opacity;
+    j["rectSize"] = { t.RectSize.x, t.RectSize.y };
+    j["wordWrap"] = t.WordWrap;
+    return j;
+}
+
+void Serializer::DeserializeText(const json& j, TextRendererComponent& t) {
+    if (j.contains("text")) t.Text = j["text"];
+    if (j.contains("pixelSize")) t.PixelSize = j["pixelSize"];
+    if (j.contains("colorAbgr")) t.ColorAbgr = j["colorAbgr"];
+    if (j.contains("worldSpace")) t.WorldSpace = j["worldSpace"];
+    if (j.contains("anchorEnabled")) t.AnchorEnabled = j["anchorEnabled"];
+    if (j.contains("anchor")) t.Anchor = (UIAnchorPreset)(int)j["anchor"];
+    if (j.contains("anchorOffset") && j["anchorOffset"].is_array() && j["anchorOffset"].size() == 2) {
+        t.AnchorOffset.x = j["anchorOffset"][0];
+        t.AnchorOffset.y = j["anchorOffset"][1];
+    }
+    if (j.contains("visible")) t.Visible = j["visible"];
+    if (j.contains("zOrder")) t.ZOrder = j["zOrder"];
+    if (j.contains("opacity")) t.Opacity = j["opacity"];
+    if (j.contains("rectSize") && j["rectSize"].is_array() && j["rectSize"].size() == 2) {
+        t.RectSize.x = j["rectSize"][0];
+        t.RectSize.y = j["rectSize"][1];
+    }
+    if (j.contains("wordWrap")) t.WordWrap = j["wordWrap"];
 }
 
 void Serializer::DeserializeButton(const json& data, ButtonComponent& button) {
@@ -875,6 +915,9 @@ json Serializer::SerializeEntity(EntityID id, Scene& scene) {
    if (entityData->Button) {
        data["button"] = SerializeButton(*entityData->Button);
    }
+   if (entityData->Text) {
+       data["text"] = SerializeText(*entityData->Text);
+   }
 
    // Navigation components
    if (entityData->Navigation) {
@@ -969,9 +1012,9 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
 
     if (data.contains("light")) {
         entityData->Light = std::make_unique<LightComponent>();
-        DeserializeLight(data["light"], *entityData->Light);
+        DeserializeLight(data["light"], *entityData->Light); 
     }
-
+     
     if (data.contains("collider")) {
         entityData->Collider = std::make_unique<ColliderComponent>();
         DeserializeCollider(data["collider"], *entityData->Collider);
@@ -1036,6 +1079,14 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
     if (data.contains("button")) {
         entityData->Button = std::make_unique<ButtonComponent>();
         DeserializeButton(data["button"], *entityData->Button);
+    }
+    if (data.contains("text")) {
+        entityData->Text = std::make_unique<TextRendererComponent>();
+        DeserializeText(data["text"], *entityData->Text);
+    }
+    if (data.contains("text")) {
+        entityData->Text = std::make_unique<TextRendererComponent>();
+        DeserializeText(data["text"], *entityData->Text);
     }
 
     // Deserialize scripts
@@ -2029,6 +2080,12 @@ json Serializer::SerializePrefab(const EntityData& entityData, Scene& scene) {
         entityJson["skinning"] = SerializeSkinning(*entityData.Skinning);
     }
 
+    // UI components in prefabs
+    if (entityData.Canvas) entityJson["canvas"] = SerializeCanvas(*entityData.Canvas);
+    if (entityData.Panel)  entityJson["panel"]  = SerializePanel(*entityData.Panel);
+    if (entityData.Button) entityJson["button"] = SerializeButton(*entityData.Button);
+    if (entityData.Text)   entityJson["text"]   = SerializeText(*entityData.Text);
+
     // Navigation components in prefabs
     if (entityData.Navigation) entityJson["navmesh"] = SerializeNavMesh(*entityData.Navigation);
     if (entityData.NavAgent)   entityJson["navagent"] = SerializeNavAgent(*entityData.NavAgent);
@@ -2087,6 +2144,12 @@ bool Serializer::DeserializePrefab(const json& data, EntityData& entityData, Sce
         entityData.Skinning = std::make_unique<SkinningComponent>();
         DeserializeSkinning(entityJson["skinning"], *entityData.Skinning);
     }
+
+    // UI components in prefabs
+    if (entityJson.contains("canvas")) { entityData.Canvas = std::make_unique<CanvasComponent>(); DeserializeCanvas(entityJson["canvas"], *entityData.Canvas); }
+    if (entityJson.contains("panel"))  { entityData.Panel  = std::make_unique<PanelComponent>();  DeserializePanel(entityJson["panel"],  *entityData.Panel ); }
+    if (entityJson.contains("button")) { entityData.Button = std::make_unique<ButtonComponent>(); DeserializeButton(entityJson["button"], *entityData.Button); }
+    if (entityJson.contains("text"))   { entityData.Text   = std::make_unique<TextRendererComponent>(); DeserializeText(entityJson["text"], *entityData.Text); }
 
     // Navigation components in prefabs
     if (entityJson.contains("navmesh")) {
@@ -2322,7 +2385,9 @@ EntityID Serializer::LoadPrefabToScene(const std::string& filepath, Scene& scene
                         glm::vec3 pos(0.0f);
                         if (je.contains("transform")) { auto t = je["transform"]; if (t.contains("position")) pos = DeserializeVec3(t["position"]); }
                         // Prefer fast path via .meta next to model
-                        std::string metaTry = resolved; std::string ext = fs::path(resolved).extension().string(); std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                        std::string metaTry = resolved;
+                        std::string ext = fs::path(resolved).extension().string();
+                        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
                         if (ext != ".meta") { fs::path rp(resolved); fs::path mp = rp.parent_path() / (rp.stem().string() + ".meta"); if (fs::exists(mp)) metaTry = mp.string(); }
                         EntityID nid = (EntityID)-1;
                         if (!metaTry.empty() && fs::path(metaTry).extension() == ".meta") {

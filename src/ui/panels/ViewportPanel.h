@@ -52,6 +52,8 @@ public:
     }
     void ClearPickRequest() { m_ShouldPick = false; }
 
+    void DrawUIRectOverlay(ImDrawList* dl, const ImVec2& viewportTL, const ImVec2& viewportSize, Scene* scene);
+
 private:
     void HandleEntityPicking();
     void Draw2DGrid();
@@ -68,6 +70,9 @@ private:
     ImVec2 m_ViewportSize = { 0, 0 }; // actual drawn viewport image size (letterboxed)
     ImVec2 m_ViewportPos = { 0, 0 };  // screen-space top-left of the viewport image
     bool m_ShouldPick = false;
+    // Track UI handle state to prevent scene picking/deselection when dragging UI elements
+    bool m_UIHandleActive = false;
+    bool m_UIHandleHovered = false;
 
     // Mouse coords for picking (normalized)
     float m_NormalizedPickX = 0.0f;

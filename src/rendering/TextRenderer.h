@@ -29,6 +29,21 @@ public:
                      uint16_t worldViewId = 1,
                      uint16_t screenViewId = 0);
 
+    // Render only screen-space texts with given order (already sorted) and apply opacity multiplier
+    void RenderScreenTexts(const std::vector<std::pair<const TextRendererComponent*, glm::vec2>>& items,
+                           float opacityMultiplier,
+                           uint32_t backbufferWidth,
+                           uint32_t backbufferHeight,
+                           bgfx::ViewId screenViewId);
+
+    // Submit one screen-space text with extra opacity multiplier
+    void SubmitStringScreenWithOpacity(const TextRendererComponent& tc,
+                                       float x, float y,
+                                       uint32_t backbufferWidth,
+                                       uint32_t backbufferHeight,
+                                       float opacityMultiplier,
+                                       bgfx::ViewId viewId);
+
 private:
     struct Baked {
         std::vector<unsigned char> pixels; // R8 atlas
@@ -36,6 +51,10 @@ private:
         uint16_t width = 0;
         uint16_t height = 0;
         float basePixelSize = 48.0f;
+        // Font vertical metrics at basePixelSize (pixels)
+        float ascentPx = 0.0f;
+        float descentPx = 0.0f;
+        float lineGapPx = 0.0f;
     };
 
     struct Vertex {
@@ -57,6 +76,12 @@ private:
                             uint32_t backbufferWidth,
                             uint32_t backbufferHeight,
                             bgfx::ViewId viewId);
+
+    void SubmitStringScreenWrapped(const TextRendererComponent& tc,
+                                   float x, float y,
+                                   uint32_t backbufferWidth,
+                                   uint32_t backbufferHeight,
+                                   bgfx::ViewId viewId);
 
     bgfx::TextureHandle m_Atlas = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle m_Sampler = BGFX_INVALID_HANDLE;
