@@ -351,7 +351,7 @@ void ViewportPanel::Draw2DGrid() {
 void ViewportPanel::HandleAssetDragDrop(const ImVec2& viewportPos) {
     if (!m_Context) return;
     if (ImGui::BeginDragDropTarget()) {
-        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE", ImGuiDragDropFlags_AcceptNoDrawDefaultRect)) {
             m_IsDraggingAsset = true;
             m_DraggedAssetPath = (const char*)payload->Data;
 
@@ -363,6 +363,9 @@ void ViewportPanel::HandleAssetDragDrop(const ImVec2& viewportPos) {
             ImGui::BeginTooltip();
             ImGui::Text("Placing: %s", m_DraggedAssetPath.c_str());
             ImGui::EndTooltip();
+        }
+        if (ImGui::IsDragDropPayloadBeingAccepted()) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
         }
         ImGui::EndDragDropTarget();
     }

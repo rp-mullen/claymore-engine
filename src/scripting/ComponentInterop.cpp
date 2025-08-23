@@ -32,6 +32,15 @@ SetBlendShapeWeight_fn SetBlendShapeWeightPtr = &SetBlendShapeWeight;
 GetBlendShapeWeight_fn GetBlendShapeWeightPtr = &GetBlendShapeWeight;
 GetBlendShapeCount_fn GetBlendShapeCountPtr = &GetBlendShapeCount;
 GetBlendShapeName_fn GetBlendShapeNamePtr = &GetBlendShapeName;
+UnifiedMorph_GetCount_fn UnifiedMorph_GetCountPtr = &UnifiedMorph_GetCount;
+UnifiedMorph_GetName_fn UnifiedMorph_GetNamePtr = &UnifiedMorph_GetName;
+UnifiedMorph_GetWeight_fn UnifiedMorph_GetWeightPtr = &UnifiedMorph_GetWeight;
+UnifiedMorph_SetWeight_fn UnifiedMorph_SetWeightPtr = &UnifiedMorph_SetWeight;
+// Unified Morph pointers
+int UnifiedMorph_GetCount(int entityID);
+const char* UnifiedMorph_GetName(int entityID, int index);
+float UnifiedMorph_GetWeight(int entityID, int index);
+void UnifiedMorph_SetWeight(int entityID, int index, float weight);
 
 // Helper to get entity data, returns nullptr if not found
 static EntityData* GetEntityDataHelper(int entityID) {
@@ -50,6 +59,7 @@ bool HasComponent(int entityID, const char* componentName) {
     if (strcmp(componentName, "Animator") == 0 || strcmp(componentName, "AnimationPlayerComponent") == 0) return data->AnimationPlayer != nullptr;
     if (strcmp(componentName, "NavMeshComponent") == 0) return data->Navigation != nullptr;
     if (strcmp(componentName, "NavAgentComponent") == 0) return data->NavAgent != nullptr;
+    if (strcmp(componentName, "UnifiedMorphComponent") == 0 || strcmp(componentName, "Unified Morphs") == 0) return data->UnifiedMorph != nullptr;
     // UI components: accept both short and full names
     if (strcmp(componentName, "Canvas") == 0 || strcmp(componentName, "CanvasComponent") == 0) return data->Canvas != nullptr;
     if (strcmp(componentName, "Panel") == 0 || strcmp(componentName, "PanelComponent") == 0) return data->Panel != nullptr;
@@ -84,6 +94,8 @@ void AddComponent(int entityID, const char* componentName) {
         data->Navigation = std::make_unique<nav::NavMeshComponent>();
     } else if (strcmp(componentName, "NavAgentComponent") == 0 && !data->NavAgent) {
         data->NavAgent = std::make_unique<nav::NavAgentComponent>();
+    } else if ((strcmp(componentName, "UnifiedMorphComponent") == 0 || strcmp(componentName, "Unified Morphs") == 0) && !data->UnifiedMorph) {
+        data->UnifiedMorph = std::make_unique<UnifiedMorphComponent>();
     }
     // Add other components here...
 }
@@ -109,6 +121,8 @@ void RemoveComponent(int entityID, const char* componentName) {
         data->Navigation.reset();
     } else if (strcmp(componentName, "NavAgentComponent") == 0) {
         data->NavAgent.reset();
+    } else if (strcmp(componentName, "UnifiedMorphComponent") == 0 || strcmp(componentName, "Unified Morphs") == 0) {
+        data->UnifiedMorph.reset();
     }
     // Add other components here...
 }
@@ -242,6 +256,49 @@ void SetBlendShapeWeight(int entityID, const char* shapeName, float weight)
             shape.Weight = weight;
             data->BlendShapes->Dirty = true;
             break;
+        }
+    }
+}
+
+// --- UnifiedMorphComponent ---
+int UnifiedMorph_GetCount(int entityID)
+{
+    EntityData* data = GetEntityDataHelper(entityID);
+    return (data && data->UnifiedMorph) ? (int)data->UnifiedMorph->Names.size() : 0;
+}
+
+const char* UnifiedMorph_GetName(int entityID, int index)
+{
+    EntityData* data = GetEntityDataHelper(entityID);
+    if (!data || !data->UnifiedMorph) return nullptr;
+    if (index < 0 || index >= (int)data->UnifiedMorph->Names.size()) return nullptr;
+    return data->UnifiedMorph->Names[index].c_str();
+}
+
+float UnifiedMorph_GetWeight(int entityID, int index)
+{
+    EntityData* data = GetEntityDataHelper(entityID);
+    if (!data || !data->UnifiedMorph) return 0.0f;
+    if (index < 0 || index >= (int)data->UnifiedMorph->Weights.size()) return 0.0f;
+    return data->UnifiedMorph->Weights[index];
+}
+
+void UnifiedMorph_SetWeight(int entityID, int index, float weight)
+{
+    EntityData* data = GetEntityDataHelper(entityID);
+    if (!data || !data->UnifiedMorph) return;
+    if (index < 0 || index >= (int)data->UnifiedMorph->Names.size()) return;
+    if ((int)data->UnifiedMorph->Weights.size() != (int)data->UnifiedMorph->Names.size())
+        data->UnifiedMorph->Weights.resize(data->UnifiedMorph->Names.size(), 0.0f);
+    data->UnifiedMorph->Weights[index] = weight;
+
+    // Propagate to member meshes
+    for (auto meshId : data->UnifiedMorph->MemberMeshes) {
+        EntityData* md = GetEntityDataHelper((int)meshId);
+        if (!md || !md->BlendShapes) continue;
+        const std::string& targetName = data->UnifiedMorph->Names[index];
+        for (auto& sh : md->BlendShapes->Shapes) {
+            if (sh.Name == targetName) { sh.Weight = weight; md->BlendShapes->Dirty = true; }
         }
     }
 }

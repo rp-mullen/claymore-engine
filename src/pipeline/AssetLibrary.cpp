@@ -80,21 +80,25 @@ AssetEntry* AssetLibrary::GetAsset(const ClaymoreGUID& guid) {
 }
 
 AssetEntry* AssetLibrary::GetAsset(const std::string& path) {
-    std::lock_guard<std::mutex> lk(m_Mutex);
-    // Normalize slashes and resolve via GUID to be robust against absolute vs project-relative paths
+    // Normalize slashes first (no lock needed)
     std::string norm = path;
     std::replace(norm.begin(), norm.end(), '\\', '/');
 
-    // Prefer unified path→GUID resolution helper
+    // Use helper which handles locking internally
     ClaymoreGUID guid = GetGUIDForPath(norm);
     if (guid.high != 0 || guid.low != 0) {
+        // This overload also locks internally
         return GetAsset(guid);
     }
 
-    // Fallback: direct lookup on normalized string
-    auto it = m_PathToGUID.find(norm);
-    if (it != m_PathToGUID.end()) {
-        return GetAsset(it->second);
+    // Fallback: check direct map under lock
+    {
+        std::lock_guard<std::mutex> lk(m_Mutex);
+        auto it = m_PathToGUID.find(norm);
+        if (it != m_PathToGUID.end()) {
+            auto it2 = m_Assets.find(it->second);
+            return it2 != m_Assets.end() ? &it2->second : nullptr;
+        }
     }
     return nullptr;
 }

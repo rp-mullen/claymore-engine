@@ -31,6 +31,7 @@ struct EntityData {
    std::unique_ptr<MeshComponent> Mesh; // Optional Mesh
    std::unique_ptr<LightComponent> Light; // Optional Light
    std::unique_ptr<BlendShapeComponent> BlendShapes; // Optional BlendShapes
+   std::unique_ptr<UnifiedMorphComponent> UnifiedMorph; // Optional Unified Morphs (per-model)
    std::unique_ptr<SkeletonComponent> Skeleton; // Optional Skeleton
    std::unique_ptr<SkinningComponent> Skinning; // Optional Skinning
    std::unique_ptr<ColliderComponent> Collider; // Optional Collider

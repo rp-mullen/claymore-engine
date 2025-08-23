@@ -32,37 +32,83 @@ inline void RegisterComponentDrawers() {
         bool dirty = false;
         dirty |= ImGui::DragFloat3("Position", &t.Position.x, 0.1f);
         dirty |= ImGui::DragFloat3("Rotation", &t.Rotation.x, 0.1f);
-        dirty |= ImGui::DragFloat3("Scale", &t.Scale.x, 0.1f);
+        // Scale with link toggle
+        static bool linkScale = false;
+        ImGui::Columns(2);
+        ImGui::SetColumnWidth(0, 80.0f);
+        ImGui::Text("Scale");
+        ImGui::NextColumn();
+        ImGui::PushID("ScaleCtl");
+        float before[3] = { t.Scale.x, t.Scale.y, t.Scale.z };
+        bool changedX=false, changedY=false, changedZ=false;
+        changedX = ImGui::DragFloat("X", &t.Scale.x, 0.1f); ImGui::SameLine();
+        changedY = ImGui::DragFloat("Y", &t.Scale.y, 0.1f); ImGui::SameLine();
+        changedZ = ImGui::DragFloat("Z", &t.Scale.z, 0.1f); ImGui::SameLine();
+        if (ImGui::SmallButton(linkScale ? "Unlink" : "Link")) linkScale = !linkScale;
+        if (linkScale) {
+            // Keep proportions based on the component that changed
+            int changed = (changedX?0:(changedY?1:(changedZ?2:-1)));
+            if (changed != -1) {
+                float ratioX = (before[0] != 0.0f) ? (t.Scale.x / before[0]) : 1.0f;
+                float ratioY = (before[1] != 0.0f) ? (t.Scale.y / before[1]) : 1.0f;
+                float ratioZ = (before[2] != 0.0f) ? (t.Scale.z / before[2]) : 1.0f;
+                float r = (changed==0? ratioX : (changed==1? ratioY : ratioZ));
+                if (changed!=0) t.Scale.x = before[0] * r;
+                if (changed!=1) t.Scale.y = before[1] * r;
+                if (changed!=2) t.Scale.z = before[2] * r;
+            }
+        }
+        ImGui::PopID();
+        ImGui::Columns(1);
+        dirty |= (changedX || changedY || changedZ);
         if (dirty) t.TransformDirty = true;
         });
 
     registry.Register<MeshComponent>("Mesh", [](MeshComponent& m) {
         ImGui::Text("Mesh Name: %s", m.MeshName.c_str());
-        if (!m.material) return;
-        ImGui::Text("Material: %s", m.material->GetName().c_str());
+        if (!m.material && m.materials.empty()) return;
+        if (!m.materials.empty()) {
+            for (size_t i = 0; i < m.materials.size(); ++i) {
+                auto mat = m.materials[i];
+                ImGui::Text("Material %d: %s", (int)i, mat ? mat->GetName().c_str() : "<none>");
+            }
+        } else if (m.material) {
+            ImGui::Text("Material: %s", m.material->GetName().c_str());
+        }
 
-        // Attempt to cast to PBRMaterial to expose texture slots
-        if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(m.material)) {
+        // Attempt to cast to PBRMaterial on primary slot to expose texture slots
+        auto matForUI = (!m.materials.empty() ? m.materials[0] : m.material);
+        if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(matForUI)) {
             auto drawTexSlot = [&](const char* label, bgfx::TextureHandle& tex) {
+                ImGui::Separator();
                 ImGui::Text("%s", label);
-                ImGui::SameLine();
-
                 ImTextureID texId = (ImTextureID)(uintptr_t)(bgfx::isValid(tex) ? tex.idx : 0);
                 ImVec2 size(64, 64);
-                ImGui::Image(texId, size, ImVec2(0,0), ImVec2(1,1));
-
-                // Drag-drop target for texture assignment
+                // Bordered thumbnail box, even if empty
+                ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.35f,0.35f,0.38f,1));
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+                if (texId) {
+                    ImGui::Image(texId, size, ImVec2(0,0), ImVec2(1,1));
+                } else {
+                    ImGui::Button("##texslot", size);
+                }
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor();
+                // Drag-drop target for texture assignment (no yellow outline)
                 if (ImGui::BeginDragDropTarget()) {
-                    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+                    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE", ImGuiDragDropFlags_AcceptNoDrawDefaultRect)) {
                         const char* path = (const char*)payload->Data;
                         std::string ext = std::filesystem::path(path).extension().string();
                         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-                        if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga") {
+                        if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" || ext == ".bmp" || ext == ".hdr") {
                             bgfx::TextureHandle newTex = TextureLoader::Load2D(path);
                             if (bgfx::isValid(newTex)) {
                                 tex = newTex;
                             }
                         }
+                    }
+                    if (ImGui::IsDragDropPayloadBeingAccepted()) {
+                        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
                     }
                     ImGui::EndDragDropTarget();
                 }
@@ -82,7 +128,32 @@ inline void RegisterComponentDrawers() {
                 }
             }
         }
-        });
+    });
+
+    // Unified Morphs drawer
+    registry.Register<UnifiedMorphComponent>("Unified Morphs", [](UnifiedMorphComponent& u) {
+        if (u.Names.empty()) { ImGui::TextDisabled("No shared morphs detected."); return; }
+        bool anyChanged = false;
+        for (size_t i = 0; i < u.Names.size(); ++i) {
+            if (i >= u.Weights.size()) u.Weights.resize(u.Names.size(), 0.0f);
+            float w = u.Weights[i];
+            if (ImGui::SliderFloat(u.Names[i].c_str(), &w, 0.0f, 1.0f)) {
+                u.Weights[i] = w;
+                anyChanged = true;
+            }
+        }
+        if (anyChanged) {
+            auto& scene = Scene::Get();
+            for (auto meshId : u.MemberMeshes) {
+                auto* d = scene.GetEntityData(meshId); if (!d || !d->BlendShapes) continue;
+                for (auto& shape : d->BlendShapes->Shapes) {
+                    for (size_t i = 0; i < u.Names.size(); ++i) {
+                        if (shape.Name == u.Names[i]) { shape.Weight = u.Weights[i]; d->BlendShapes->Dirty = true; }
+                    }
+                }
+            }
+        }
+    });
 
     registry.Register<LightComponent>("Light", [](LightComponent& l) {
         int type = static_cast<int>(l.Type);

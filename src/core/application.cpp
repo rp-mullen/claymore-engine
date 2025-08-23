@@ -14,7 +14,7 @@
 #include "Application.h"
 #include "rendering/Renderer.h"
 #include "rendering/ShaderManager.h"
-#include "imgui_impl_bgfx_docking.h"
+#include "ui/imgui_backend/imgui_impl_bgfx_docking.h"
 #include "backends/imgui_impl_win32.h"
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -34,7 +34,7 @@
 // Application.cpp
 Application* Application::s_Instance = nullptr;
 
-
+ 
 // =============================================================
 // CONSTRUCTOR / INITIALIZATION
 // =============================================================

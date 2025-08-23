@@ -62,6 +62,11 @@ EntityData EntityData::DeepCopy(EntityID ID, Scene* newScene) const {
 
    if (BlendShapes)
       copy.BlendShapes = std::make_unique<BlendShapeComponent>(*BlendShapes);
+   if (UnifiedMorph)
+      copy.UnifiedMorph = std::make_unique<UnifiedMorphComponent>(*UnifiedMorph);
+   // Keep MeshComponent's raw pointer in sync with the copied BlendShapes so sliders work in Play Mode
+   if (copy.Mesh && copy.BlendShapes)
+      copy.Mesh->BlendShapes = copy.BlendShapes.get();
    if (Skeleton) {
       copy.Skeleton = std::make_unique<SkeletonComponent>();
       copy.Skeleton->InverseBindPoses = Skeleton->InverseBindPoses;

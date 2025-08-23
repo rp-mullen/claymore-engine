@@ -67,14 +67,22 @@ public:
     
 public:
     void FocusConsoleNextFrame() { m_FocusConsoleNextFrame = true; }
-
 	SceneHierarchyPanel& GetSceneHierarchyPanel() { return m_SceneHierarchyPanel; }
+
+    // Blocking overlay helpers
+    void BeginBlockingOverlay(const std::string& label);
+    void EndBlockingOverlay();
+
+    // Async Play start (non-blocking overlay)
+    void RequestBeginPlayAsync();
+    void ProcessBeginPlayAsync();
 
 private:
     void BeginDockspace();
     void CreateDebugCubeEntity();
 
     void CreateDefaultLight();
+    void RenderBlockingOverlay();
 
 public:
     ImGuiID GetMainDockspaceID() const { return m_MainDockspaceID; }
@@ -95,31 +103,32 @@ private:
     ScriptRegistryPanel m_ScriptPanel;
     AssetRegistryPanel m_AssetRegistryPanel;
     AnimationControllerPanel m_AnimCtrlPanel;
-    class AnimTimelinePanel m_AnimTimelinePanel{};
-    AvatarBuilderPanel m_AvatarBuilderPanel{ &m_Scene };
-    ProfilerPanel m_ProfilerPanel;
+    AnimTimelinePanel m_AnimTimelinePanel;
+	ProfilerPanel m_ProfilerPanel;
+    AvatarBuilderPanel m_AvatarBuilderPanel;
+    std::vector<std::unique_ptr<PrefabEditorPanel>> m_PrefabEditors;
 
-    bool m_PlayMode = false; // Simulation state
-    bool m_FocusConsoleNextFrame = false;
-    bool m_FocusViewportNextFrame = false;
+    // Overlay state
+    bool m_BlockingOverlayActive = false;
+    std::string m_BlockingOverlayLabel;
+    // Async play toggle state
+    bool m_BeginPlayRequested = false;
 
-    uint32_t m_LastViewportWidth = 0;
+    // Dockspace state
     ImGuiID m_MainDockspaceID = 0;
     bool m_LayoutInitialized = false;
     bool m_ResetLayoutRequested = false;
 
-    // Active prefab editors
-    std::vector<std::unique_ptr<PrefabEditorPanel>> m_PrefabEditors;
-    uint32_t m_LastViewportHeight = 0;
-    
-    // Deferred scene loading
-    std::string m_DeferredScenePath;
-    bool m_HasDeferredSceneLoad = false;
-
-    // Scene file path tracking for Ctrl+S
-    std::string m_CurrentScenePath;
-
-    // Sticky routing for shared hierarchy/inspector to the currently active editor source
+    // Sticky routing state
     Scene* m_ActiveEditorScene = nullptr;
     EntityID* m_ActiveSelectedEntityPtr = nullptr;
+
+    // Misc
+    bool m_FocusConsoleNextFrame = false;
+    bool m_PlayMode = false;
+
+    // Deferred load
+    bool m_HasDeferredSceneLoad = false;
+    std::string m_DeferredScenePath;
+    std::string m_CurrentScenePath;
 };

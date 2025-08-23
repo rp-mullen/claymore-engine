@@ -7,6 +7,7 @@
 #include "ecs/Scene.h"
 #include "EditorPanel.h"
 #include "serialization/Serializer.h"
+#include "pipeline/AssetLibrary.h"
 
 struct FileNode {
    std::string name;
@@ -45,12 +46,14 @@ private:
    void DrawSelectedInspector();
    void DrawScenePreviewInspector(const std::string& scenePath);
    FileNode BuildFileTree(const std::string& path);
+   void PasteInto(const std::string& destFolder);
    
    // Helper functions for file operations
    bool IsSceneFile(const std::string& filepath) const;
    bool IsPrefabFile(const std::string& filepath) const;
     ImTextureID GetFileIconForPath(const std::string& path) const;
     void EnsureExtraIconsLoaded() const;
+    static AssetType GuessAssetTypeFromPath(const std::string& path);
 
 private:
    std::string m_ProjectPath;
@@ -74,4 +77,9 @@ private:
     mutable ImTextureID m_IconAnimController{};
 
    UILayer* m_UILayer = nullptr; // Non-owning pointer back to UI layer
+   // Explorer clipboard and rename state
+   std::string m_PendingRenamePath;
+   std::string m_RenameBuffer;
+   std::string m_ClipboardPath;
+   bool m_ClipboardIsCut = false;
    };

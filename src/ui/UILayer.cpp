@@ -29,6 +29,7 @@
 #include "serialization/Serializer.h"
 #include <ImGuizmo.h>
 #include <navigation/NavDebugDraw.h>
+#include "panels/PrefabEditorPanel.h"
 
 // Forward-declare file dialog helper from MenuBarPanel.cpp
 extern std::string ShowSaveFileDialog(const std::string& defaultName);
@@ -43,7 +44,8 @@ UILayer::UILayer()
       m_ProjectPanel(&m_Scene, this),
       m_ViewportPanel(m_Scene, &m_SelectedEntity),
       m_SceneHierarchyPanel(&m_Scene, &m_SelectedEntity),
-      m_MenuBarPanel(&m_Scene, &m_SelectedEntity, &m_ProjectPanel, this)
+      m_MenuBarPanel(&m_Scene, &m_SelectedEntity, &m_ProjectPanel, this),
+      m_AvatarBuilderPanel(&m_Scene)
 {
     m_ToolbarPanel = ToolbarPanel(this);
     // Initialize global ImNodes context once
@@ -206,6 +208,12 @@ void UILayer::OnUIRender() {
     // Main viewport
     m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());
 
+    // If a blocking overlay is active (loading scene/play mode), render it now
+    RenderBlockingOverlay();
+
+    // Service async begin-play request after UI has a chance to paint the overlay
+    ProcessBeginPlayAsync();
+
     // Global shortcuts scoped to active 3D editing surface: main viewport or any prefab viewport
     {
         // Use focus only (not hover) to avoid flickering between contexts
@@ -237,26 +245,18 @@ void UILayer::OnUIRender() {
     bool madeStickyThisFrame = false;
     for (auto it = m_PrefabEditors.begin(); it != m_PrefabEditors.end(); ) {
         PrefabEditorPanel* panel = it->get();
-        // Query focus state before rendering the panel content to avoid 1-frame lag
-        bool wantsFocus = false;
-        // Render the panel and return whether it is open
         panel->OnImGuiRender();
-
-        // After rendering, check if its window is focused (not hovered) via a helper on the panel
-        wantsFocus = panel->IsWindowFocusedOrHovered();
+        bool wantsFocus = panel->IsWindowFocusedOrHovered();
         if (wantsFocus && !madeStickyThisFrame) {
             m_ActiveEditorScene = panel->GetScene();
             m_ActiveSelectedEntityPtr = panel->GetSelectedEntityPtr();
-            // Ensure panels point to the sticky source immediately
             m_SceneHierarchyPanel.SetContext(m_ActiveEditorScene);
             m_SceneHierarchyPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
             m_InspectorPanel.SetContext(m_ActiveEditorScene);
             m_InspectorPanel.SetSelectedEntityPtr(m_ActiveSelectedEntityPtr);
             madeStickyThisFrame = true;
         }
-
         if (!panel->IsOpen()) {
-            // If the closing panel was the sticky source, revert to main scene
             if (m_ActiveEditorScene == panel->GetScene() || m_ActiveSelectedEntityPtr == panel->GetSelectedEntityPtr()) {
                 m_ActiveEditorScene = activeScene;
                 m_ActiveSelectedEntityPtr = &m_SelectedEntity;
@@ -510,9 +510,7 @@ void UILayer::BeginDockspace() {
         // Apply to main viewport
         m_ViewportPanel.SetShowGizmos(showGizmos);
         // Apply to any prefab editor viewports
-        for (auto& ed : m_PrefabEditors) {
-            if (ed) ed->GetScene(); // ensure alive
-        }
+        for (auto& pe : m_PrefabEditors) { (void)pe; }
         // Persist in toolbar state
         m_ToolbarPanel.SetShowGizmosEnabled(showGizmos);
     }
@@ -572,9 +570,7 @@ void UILayer::BeginDockspace() {
     if (ImGui::Checkbox("Gizmos", &gizmos)) {
         m_ViewportPanel.SetShowGizmos(gizmos);
         m_ToolbarPanel.SetShowGizmosEnabled(gizmos);
-        for (auto& ed : m_PrefabEditors) {
-            if (ed) ed->GetScene();
-        }
+        for (auto& pe : m_PrefabEditors) { (void)pe; }
     }
     ImGui::SameLine();
 
@@ -712,6 +708,7 @@ void UILayer::OpenPrefabEditor(const std::string& prefabPath) {
 void UILayer::DeferSceneLoad(const std::string& filepath) {
     m_DeferredScenePath = filepath;
     m_HasDeferredSceneLoad = true;
+    BeginBlockingOverlay("Loading Scene...");
 }
 
 void UILayer::ProcessDeferredSceneLoad() {
@@ -727,4 +724,62 @@ void UILayer::ProcessDeferredSceneLoad() {
     }
     m_HasDeferredSceneLoad = false;
     m_DeferredScenePath.clear();
+    EndBlockingOverlay();
+}
+
+void UILayer::BeginBlockingOverlay(const std::string& label) {
+    m_BlockingOverlayActive = true;
+    m_BlockingOverlayLabel = label;
+}
+
+void UILayer::EndBlockingOverlay() {
+    m_BlockingOverlayActive = false;
+    m_BlockingOverlayLabel.clear();
+}
+
+void UILayer::RenderBlockingOverlay() {
+    if (!m_BlockingOverlayActive) return;
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->Pos);
+    ImGui::SetNextWindowSize(vp->Size);
+    ImGui::SetNextWindowViewport(vp->ID);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0,0,0,0.35f));
+    ImGui::Begin("##BlockingOverlay", nullptr, flags);
+    // Center box
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    ImVec2 box(360, 120);
+    ImVec2 cursor = ImGui::GetCursorPos();
+    ImGui::SetCursorPos(ImVec2(cursor.x + (avail.x - box.x)*0.5f, cursor.y + (avail.y - box.y)*0.5f));
+    ImGui::BeginChild("##LoadingBox", box, true, ImGuiWindowFlags_NoScrollbar);
+    ImGui::Text("%s", m_BlockingOverlayLabel.empty()? "Loading..." : m_BlockingOverlayLabel.c_str());
+    ImGui::Separator();
+    // Indeterminate bar alternative
+    static float t = 0.0f; t += 0.02f; if (t > 1.0f) t = 0.0f;
+    ImGui::ProgressBar(t, ImVec2(-1, 0));
+    ImGui::EndChild();
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
+}
+
+// Queue async play begin so overlay can draw before heavy work
+void UILayer::RequestBeginPlayAsync() {
+    BeginBlockingOverlay("Starting Play Mode...");
+    m_BeginPlayRequested = true;
+}
+
+void UILayer::ProcessBeginPlayAsync() {
+    if (!m_BeginPlayRequested) return;
+    // Perform the heavy work now that at least one UI frame has rendered the overlay
+    auto& scene = m_Scene;
+    scene.m_RuntimeScene = scene.RuntimeClone();
+    if (scene.m_RuntimeScene) {
+        scene.m_RuntimeScene->m_IsPlaying = true;
+        TogglePlayMode();
+    }
+    EndBlockingOverlay();
+    m_BeginPlayRequested = false;
 }

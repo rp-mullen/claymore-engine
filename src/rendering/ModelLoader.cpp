@@ -248,13 +248,53 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         {
             std::string albedo, mr, normal;
             ExtractPbrTextures(scene->mMaterials[aMesh->mMaterialIndex], albedo, mr, normal);
-            //ApplyTexturesToMaterial(mat.get(), baseDir, albedo, mr, normal);
+
+            // Attempt to map material textures to extracted assets under assets/textures/<modelName>
+            auto* pbr = dynamic_cast<PBRMaterial*>(mat.get());
+            if (pbr)
+            {
+                const std::string modelName = std::filesystem::path(filepath).stem().string();
+                const std::filesystem::path texDir = std::filesystem::path("assets") / "textures" / modelName;
+                auto mapToExtracted = [&](const std::string& src) -> std::string {
+                    if (src.empty()) return {};
+                    std::string fname = std::filesystem::path(src).filename().string();
+                    std::filesystem::path candidate = texDir / fname;
+                    std::error_code ec; // avoid exceptions on missing paths
+                    if (std::filesystem::exists(candidate, ec)) return candidate.string();
+                    return {};
+                };
+
+                auto trySet = [&](const std::string& mapped, void(PBRMaterial::*setTexPath)(const std::string&)) {
+                    if (!mapped.empty()) (pbr->*setTexPath)(mapped);
+                };
+
+                // Prefer mapped extracted textures; fall back to model-relative paths
+                std::string albedoMapped = mapToExtracted(albedo);
+                std::string mrMapped     = mapToExtracted(mr);
+                std::string normalMapped = mapToExtracted(normal);
+
+                if (!albedoMapped.empty() || !mrMapped.empty() || !normalMapped.empty())
+                {
+                    trySet(albedoMapped, &PBRMaterial::SetAlbedoTextureFromPath);
+                    trySet(mrMapped,     &PBRMaterial::SetMetallicRoughnessTextureFromPath);
+                    trySet(normalMapped, &PBRMaterial::SetNormalTextureFromPath);
+                }
+                else
+                {
+                    // No extracted match; use original relative references if present
+                    ApplyTexturesToMaterial(mat.get(), baseDir, albedo, mr, normal);
+                }
+            }
         }
 
         // ---- CPU vertex arrays (final packed types for GPU upload)
         std::vector<PBRVertex>           vertices;
         std::vector<SkinnedPBRVertex>    skVertices;
         std::vector<uint32_t>            indices32;
+        // CPU caches for morph blending (non-skinned meshes store base data here)
+        std::vector<glm::vec3>           meshVerticesCPU; meshVerticesCPU.reserve(aMesh->mNumVertices);
+        std::vector<glm::vec3>           meshNormalsCPU;  meshNormalsCPU.reserve(aMesh->mNumVertices);
+        std::vector<glm::vec2>           meshUVsCPU;      meshUVsCPU.reserve(aMesh->mNumVertices);
 
         vertices.reserve(hasSkin ? 0 : aMesh->mNumVertices);
         skVertices.reserve(hasSkin ? aMesh->mNumVertices : 0);
@@ -285,6 +325,11 @@ Model ModelLoader::LoadModel(const std::string& filepath)
                 pos.y = -pos.y;
                 normal.y = -normal.y;
             }
+
+            // Always keep a CPU copy of base data for morph blending (skinned and non-skinned)
+            meshVerticesCPU.push_back(glm::vec3(pos.x, pos.y, pos.z));
+            meshNormalsCPU.push_back(glm::vec3(normal.x, normal.y, normal.z));
+            meshUVsCPU.push_back(glm::vec2(u, v));
 
             if (!hasSkin)
             {
@@ -503,18 +548,27 @@ Model ModelLoader::LoadModel(const std::string& filepath)
 
                 for (unsigned v = 0; v < aMesh->mNumVertices; ++v)
                 {
-                    aiVector3D dp = anim->mVertices[v];
-                    // scale/flip deltas to match import settings
-                    if (flipThisMesh) dp.y = -dp.y;
-                    bs.DeltaPos.emplace_back(dp.x , dp.y , dp.z );
+                    // Assimp stores target positions; convert to deltas relative to base mesh
+                    const glm::vec3 baseP = (v < meshVerticesCPU.size()) ? meshVerticesCPU[v] : glm::vec3(0);
+                    aiVector3D ap = anim->mVertices[v];
+                    if (flipThisMesh) ap.y = -ap.y; // match axis flip applied to base
+                    const glm::vec3 tgtP(ap.x, ap.y, ap.z);
+                    bs.DeltaPos.emplace_back(tgtP - baseP);
 
-                    aiVector3D dn = anim->mNormals ? anim->mNormals[v] : aiVector3D(0, 0, 0);
-                    if (flipThisMesh) dn.y = -dn.y;
-                    bs.DeltaNormal.emplace_back(dn.x, dn.y, dn.z);
+                    const glm::vec3 baseN = (v < meshNormalsCPU.size()) ? meshNormalsCPU[v] : glm::vec3(0, 1, 0);
+                    aiVector3D an = anim->mNormals ? anim->mNormals[v] : aiVector3D(0, 0, 0);
+                    if (flipThisMesh) an.y = -an.y;
+                    const glm::vec3 tgtN(an.x, an.y, an.z);
+                    bs.DeltaNormal.emplace_back(tgtN - baseN);
                 }
                 blendComp.Shapes.push_back(std::move(bs));
             }
         }
+
+        // Fill CPU caches for morph blending (both skinned and non-skinned)
+        mesh->Vertices = std::move(meshVerticesCPU);
+        mesh->Normals  = std::move(meshNormalsCPU);
+        mesh->UVs      = std::move(meshUVsCPU);
 
         // ---- Append to result
         result.Meshes.push_back(mesh);

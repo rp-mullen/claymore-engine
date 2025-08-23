@@ -73,7 +73,10 @@ struct MeshComponent {
 	std::shared_ptr<Mesh> mesh;
 	std::string MeshName;  // Keep for backward compatibility
 	AssetReference meshReference;  // New asset reference system
-	    std::shared_ptr<Material> material;
+    // Primary material for backward compatibility
+    std::shared_ptr<Material> material;
+    // Optional: support multiple materials per mesh (slot 0..N-1)
+    std::vector<std::shared_ptr<Material>> materials;
     bool UniqueMaterial = false; // If true, this entity uses its own material instance
     MaterialPropertyBlock PropertyBlock;
     // Persistable file paths for texture overrides in PropertyBlock
@@ -83,6 +86,7 @@ struct MeshComponent {
 
 	MeshComponent(std::shared_ptr<Mesh> m, const std::string& name, std::shared_ptr<Material> mat)
 		: mesh(std::move(m)), MeshName(name), material(std::move(mat)) {
+        if (material) materials = { material };
 	}
 
 	MeshComponent() = default;

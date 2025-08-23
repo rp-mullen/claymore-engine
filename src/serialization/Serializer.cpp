@@ -1086,10 +1086,6 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
         entityData->Text = std::make_unique<TextRendererComponent>();
         DeserializeText(data["text"], *entityData->Text);
     }
-    if (data.contains("text")) {
-        entityData->Text = std::make_unique<TextRendererComponent>();
-        DeserializeText(data["text"], *entityData->Text);
-    }
 
     // Deserialize scripts
     if (data.contains("scripts")) {
@@ -1136,7 +1132,7 @@ EntityID Serializer::DeserializeEntity(const json& data, Scene& scene) {
             "id","name","layer","tag","parent","children","guid","prefabSource",
             "transform","mesh","light","collider","rigidbody","staticbody","camera",
             "terrain","emitter","canvas","panel","button","scripts","animator","asset",
-            "skeleton","skinning","ik","navmesh","navagent"
+            "skeleton","skinning","ik","navmesh","navagent","text"
         };
         entityData->Extra = nlohmann::json::object();
         for (auto it = data.begin(); it != data.end(); ++it) {
@@ -1801,6 +1797,7 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
                     if (childOverride.contains("canvas")) { if (!td->Canvas) td->Canvas = std::make_unique<CanvasComponent>(); DeserializeCanvas(childOverride["canvas"], *td->Canvas); }
                     if (childOverride.contains("panel")) { if (!td->Panel) td->Panel = std::make_unique<PanelComponent>(); DeserializePanel(childOverride["panel"], *td->Panel); }
                     if (childOverride.contains("button")) { if (!td->Button) td->Button = std::make_unique<ButtonComponent>(); DeserializeButton(childOverride["button"], *td->Button); }
+                    if (childOverride.contains("text")) { if (!td->Text) td->Text = std::make_unique<TextRendererComponent>(); DeserializeText(childOverride["text"], *td->Text); }
                     if (childOverride.contains("scripts")) { DeserializeScripts(childOverride["scripts"], td->Scripts); }
                     if (childOverride.contains("animator")) { if (!td->AnimationPlayer) td->AnimationPlayer = std::make_unique<cm::animation::AnimationPlayerComponent>(); DeserializeAnimator(childOverride["animator"], *td->AnimationPlayer); }
                     if (childOverride.contains("name")) { td->Name = childOverride["name"].get<std::string>(); }
@@ -1862,6 +1859,10 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
             if (childOverride.contains("button")) {
                 if (!td->Button) td->Button = std::make_unique<ButtonComponent>();
                 DeserializeButton(childOverride["button"], *td->Button);
+            }
+            if (childOverride.contains("text")) {
+                if (!td->Text) td->Text = std::make_unique<TextRendererComponent>();
+                DeserializeText(childOverride["text"], *td->Text);
             }
             if (childOverride.contains("scripts")) { DeserializeScripts(childOverride["scripts"], td->Scripts); }
             if (childOverride.contains("animator")) {

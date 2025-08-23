@@ -87,10 +87,8 @@ void ToolbarPanel::TogglePlayMode() {
    auto& scene = m_UILayer->GetScene();
 
    if (m_PlayMode) {
-      // Entering Play Mode
-      scene.m_RuntimeScene = scene.RuntimeClone();
-      scene.m_RuntimeScene->m_IsPlaying = true;
-      m_UILayer->TogglePlayMode();
+      // Entering Play Mode - request async so overlay can render immediately
+      if (m_UILayer) m_UILayer->RequestBeginPlayAsync();
       }
    else {
       // Exiting Play Mode

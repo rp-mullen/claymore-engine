@@ -15,6 +15,7 @@
 #include "pipeline/MaterialImporter.h"
 #include "pipeline/ShaderImporter.h"
 #include <glm/glm.hpp>
+#include <cstring>
 
 namespace fs = std::filesystem;
 
@@ -59,11 +60,11 @@ void ProjectPanel::LoadProject(const std::string& projectPath) {
    }
 
 void ProjectPanel::OnImGuiRender() {
-    ImGui::Begin("Project");
+    if (!ImGui::Begin("Project")) { ImGui::End(); return; }
 
     // Handle drag-drop anywhere on the Project panel window
     if (ImGui::BeginDragDropTarget()) {
-        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID", ImGuiDragDropFlags_AcceptNoDrawDefaultRect)) {
             EntityID draggedID = *(EntityID*)payload->Data;
 
             // Prefer filename based on root entity name
@@ -111,6 +112,7 @@ void ProjectPanel::OnImGuiRender() {
             }
             CreatePrefabFromEntity(draggedID, prefabPath);
         }
+        if (ImGui::GetDragDropPayload() != nullptr) { ImGui::SetMouseCursor(ImGuiMouseCursor_Hand); }
         ImGui::EndDragDropTarget();
     }
 
@@ -167,7 +169,7 @@ void ProjectPanel::OnImGuiRender() {
    
     // Grid-level prefab drop target (background)
     if (ImGui::BeginDragDropTarget()) {
-        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID", ImGuiDragDropFlags_AcceptNoDrawDefaultRect)) {
             EntityID draggedID = *(EntityID*)payload->Data;
 
             // Prefer filename based on root entity name
@@ -214,6 +216,7 @@ void ProjectPanel::OnImGuiRender() {
             }
             CreatePrefabFromEntity(draggedID, prefabPath);
         }
+        if (ImGui::GetDragDropPayload() != nullptr) { ImGui::SetMouseCursor(ImGuiMouseCursor_Hand); }
         ImGui::EndDragDropTarget();
     }
 
@@ -377,17 +380,94 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
               int c=1; while (fs::exists(outPath)) outPath = destFolder + "/" + base + "_" + std::to_string(c++) + ".mat";
               CreateMaterialAt(outPath, "");
           }
+          if (ImGui::MenuItem("Rename")) {
+              m_PendingRenamePath = entry.path().string();
+              m_RenameBuffer = fileName;
+              ImGui::OpenPopup("Rename Item");
+          }
+          if (!isDir && ImGui::MenuItem("Duplicate")) {
+              std::string src = entry.path().string();
+              std::string dst = src;
+              std::string stem = entry.path().stem().string();
+              std::string ext  = entry.path().extension().string();
+              int c=1; do { dst = (entry.path().parent_path() / (stem + "_copy" + (c>1? ("_"+std::to_string(c)) : std::string()) + ext)).string(); ++c; } while (fs::exists(dst));
+              try { fs::copy_file(src, dst); } catch(...) {}
+              try {
+                  fs::path metaSrc = fs::path(src).string() + ".meta";
+                  fs::path metaDst = fs::path(dst).string() + ".meta";
+                  if (fs::exists(metaSrc)) {
+                      AssetMetadata meta; { std::ifstream in(metaSrc.string()); if (in){ nlohmann::json j; in>>j; meta = j.get<AssetMetadata>(); } }
+                      meta.guid = ClaymoreGUID::Generate();
+                      nlohmann::json j = meta; std::ofstream out(metaDst.string()); out<<j.dump(4);
+                      std::string name = fs::path(dst).filename().string();
+                      std::error_code ec; fs::path rel = fs::relative(fs::path(dst), Project::GetProjectDirectory(), ec);
+                      std::string vpath = (ec ? dst : rel.string()); std::replace(vpath.begin(), vpath.end(), '\\', '/');
+                      size_t pos = vpath.find("assets/"); if (pos != std::string::npos) vpath = vpath.substr(pos);
+                      AssetReference aref(meta.guid, 0, (int)ProjectPanel::GuessAssetTypeFromPath(dst));
+                      AssetLibrary::Instance().RegisterAsset(aref, ProjectPanel::GuessAssetTypeFromPath(dst), vpath, name);
+                      AssetLibrary::Instance().RegisterPathAlias(meta.guid, dst);
+                  }
+              } catch(...) {}
+              m_ProjectRoot = BuildFileTree(m_ProjectPath);
+          }
+          if (ImGui::MenuItem("Copy")) { m_ClipboardPath = entry.path().string(); m_ClipboardIsCut = false; }
+          if (ImGui::MenuItem("Cut"))  { m_ClipboardPath = entry.path().string(); m_ClipboardIsCut = true; }
+          if (ImGui::MenuItem("Paste")) {
+              std::string destFolder = isDir ? entry.path().string() : fs::path(entry.path()).parent_path().string();
+              if (!m_ClipboardPath.empty()) PasteInto(destFolder);
+          }
           ImGui::EndPopup();
       }
+      // Balance style stack for ImageButton
       ImGui::PopStyleColor(3);
       ImGui::PopStyleVar();
+      if (ImGui::BeginPopup("Rename Item")) {
+          static char renameBuf[512];
+          if (renameBuf[0] == '\0' && !m_RenameBuffer.empty()) {
+              std::strncpy(renameBuf, m_RenameBuffer.c_str(), sizeof(renameBuf)-1);
+              renameBuf[sizeof(renameBuf)-1] = '\0';
+          }
+          ImGui::InputText("##rename", renameBuf, sizeof(renameBuf));
+          if (ImGui::Button("OK")) {
+              if (!m_PendingRenamePath.empty()) {
+                  fs::path src = m_PendingRenamePath;
+                  m_RenameBuffer = std::string(renameBuf);
+                  fs::path dst = src.parent_path() / m_RenameBuffer;
+                  try { fs::rename(src, dst); } catch(...) {}
+                  // Move sidecar meta and update registry path
+                  try {
+                      fs::path metaSrc = src.string() + ".meta";
+                      fs::path metaDst = dst.string() + ".meta";
+                      if (fs::exists(metaSrc)) {
+                          // Read GUID
+                          AssetMetadata meta; { std::ifstream in(metaSrc.string()); if (in) { nlohmann::json j; in>>j; meta = j.get<AssetMetadata>(); } }
+                          fs::rename(metaSrc, metaDst);
+                          std::string name = dst.filename().string();
+                          std::error_code ec; fs::path rel = fs::relative(dst, Project::GetProjectDirectory(), ec);
+                          std::string vpath = (ec ? dst.string() : rel.string()); std::replace(vpath.begin(), vpath.end(), '\\', '/');
+                          size_t pos = vpath.find("assets/"); if (pos != std::string::npos) vpath = vpath.substr(pos);
+                          AssetType t = ProjectPanel::GuessAssetTypeFromPath(dst.string());
+                          AssetReference aref(meta.guid, 0, (int)t);
+                          AssetLibrary::Instance().RegisterAsset(aref, t, vpath, name);
+                          AssetLibrary::Instance().RegisterPathAlias(meta.guid, dst.string());
+                      }
+                  } catch(...) {}
+                  m_PendingRenamePath.clear();
+                  m_RenameBuffer.clear();
+                  renameBuf[0] = '\0';
+                  m_ProjectRoot = BuildFileTree(m_ProjectPath);
+              }
+              ImGui::CloseCurrentPopup();
+          }
+          ImGui::SameLine();
+          if (ImGui::Button("Cancel")) { ImGui::CloseCurrentPopup(); }
+          ImGui::EndPopup();
+      }
 
       // Single-click: select item; if scene, show inspector info; double-click opens
       if (ImGui::IsItemClicked()) {
          m_SelectedItemName = fileName;
-         if (isDir) {
-            m_CurrentFolder = entry.path().string();
-         } else {
+         if (!isDir) {
             std::string fullPath = entry.path().string();
             m_SelectedItemPath = fullPath; // selection for inspector
             if (!IsSceneFile(fullPath)) {
@@ -396,23 +476,22 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
          }
       }
 
-      // Double-click handling for scene and prefab files
-      if (!isDir && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
-         std::string fullPath = entry.path().string();
-         if (IsSceneFile(fullPath)) {
-            LoadSceneFile(fullPath);
-         } else if (IsPrefabFile(fullPath)) {
-            if (m_UILayer) {
-               m_UILayer->OpenPrefabEditor(fullPath);
-            }
+      // Double-click: enter directory or open asset
+      if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
+         if (isDir) {
+            m_CurrentFolder = entry.path().string();
          } else {
-            // Treat .json under assets/prefabs as prefab files
-            std::string norm = fullPath; std::replace(norm.begin(), norm.end(), '\\', '/');
-            std::string extlc = fs::path(norm).extension().string();
-            std::transform(extlc.begin(), extlc.end(), extlc.begin(), ::tolower);
-            if (extlc == ".json" && norm.find("/assets/prefabs/") != std::string::npos) {
-                if (m_UILayer) {
-                    m_UILayer->OpenPrefabEditor(fullPath);
+            std::string fullPath = entry.path().string();
+            if (IsSceneFile(fullPath)) {
+                if (m_UILayer) m_UILayer->DeferSceneLoad(fullPath);
+            } else if (IsPrefabFile(fullPath)) {
+                if (m_UILayer) m_UILayer->OpenPrefabEditor(fullPath);
+            } else {
+                std::string norm = fullPath; std::replace(norm.begin(), norm.end(), '\\', '/');
+                std::string extlc = fs::path(norm).extension().string();
+                std::transform(extlc.begin(), extlc.end(), extlc.begin(), ::tolower);
+                if (extlc == ".json" && norm.find("/assets/prefabs/") != std::string::npos) {
+                    if (m_UILayer) m_UILayer->OpenPrefabEditor(fullPath);
                 }
             }
          }
@@ -428,7 +507,7 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
 
       // Accept ENTITY_ID or .shader drops on items too (alternate drop target)
       if (ImGui::BeginDragDropTarget()) {
-          if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID")) {
+          if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY_ID", ImGuiDragDropFlags_AcceptNoDrawDefaultRect)) {
               EntityID draggedID = *(EntityID*)payload->Data;
               // If dropping onto a file, prefer current folder; default if empty
               if (m_CurrentFolder.empty()) {
@@ -455,7 +534,7 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
               }
               CreatePrefabFromEntity(draggedID, prefabPath);
           }
-          if (const ImGuiPayload* payload2 = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
+          if (const ImGuiPayload* payload2 = ImGui::AcceptDragDropPayload("ASSET_FILE", ImGuiDragDropFlags_AcceptNoDrawDefaultRect)) {
               const char* dpath = (const char*)payload2->Data;
               if (dpath) {
                   std::string ext2 = fs::path(dpath).extension().string();
@@ -469,6 +548,7 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
                   }
               }
           }
+          if (ImGui::GetDragDropPayload() != nullptr) { ImGui::SetMouseCursor(ImGuiMouseCursor_Hand); }
           ImGui::EndDragDropTarget();
       }
 
@@ -684,7 +764,8 @@ void ProjectPanel::CreatePrefabFromEntity(EntityID entityId, const std::string& 
             meta.type = "prefab";
             nlohmann::json j = meta; std::ofstream out(metaPath.string()); out << j.dump(4); out.close();
          }
-         AssetLibrary::Instance().RegisterAsset(AssetReference(meta.guid, 0, (int)AssetType::Prefab), AssetType::Prefab, vpath, name);
+         AssetReference aref(meta.guid, 0, (int)AssetType::Prefab);
+         AssetLibrary::Instance().RegisterAsset(aref, AssetType::Prefab, vpath, name);
          AssetLibrary::Instance().RegisterPathAlias(meta.guid, prefabPath);
       } catch(...) {}
    } else {
@@ -706,5 +787,52 @@ bool ProjectPanel::IsPrefabFile(const std::string& filepath) const {
    if (ext == ".prefab") return true;
    if (ext == ".json" && norm.find("/assets/prefabs/") != std::string::npos) return true;
    return false;
+}
+
+// Guess asset type from path
+AssetType ProjectPanel::GuessAssetTypeFromPath(const std::string& path) {
+    std::string ext = fs::path(path).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" || ext == ".bmp" || ext == ".hdr") return AssetType::Texture;
+    if (ext == ".mat") return AssetType::Material;
+    if (ext == ".anim") return AssetType::Animation;
+    if (ext == ".prefab") return AssetType::Prefab;
+    if (ext == ".ttf" || ext == ".otf") return AssetType::Font;
+    if (ext == ".fbx" || ext == ".obj" || ext == ".gltf" || ext == ".glb") return AssetType::Mesh;
+    return AssetType::Shader;
+}
+
+void ProjectPanel::PasteInto(const std::string& destFolder) {
+    try {
+        if (m_ClipboardPath.empty() || destFolder.empty()) return;
+        fs::path src = m_ClipboardPath;
+        fs::path dst = fs::path(destFolder) / src.filename();
+        if (fs::exists(dst)) {
+            // disambiguate
+            std::string stem = dst.stem().string();
+            std::string ext = dst.extension().string();
+            int c=1; do { dst = fs::path(destFolder) / (stem + "_" + std::to_string(c++) + ext); } while (fs::exists(dst));
+        }
+        if (m_ClipboardIsCut) { fs::rename(src, dst); }
+        else { fs::copy_file(src, dst); }
+        // Move/copy .meta and update registry
+        fs::path metaSrc = src.string() + ".meta";
+        fs::path metaDst = dst.string() + ".meta";
+        if (fs::exists(metaSrc)) {
+            AssetMetadata meta; { std::ifstream in(metaSrc.string()); if (in) { nlohmann::json j; in>>j; meta = j.get<AssetMetadata>(); } }
+            if (m_ClipboardIsCut) { try { fs::rename(metaSrc, metaDst); } catch(...) {} }
+            else { try { fs::copy_file(metaSrc, metaDst); } catch(...) {} }
+            std::string name = dst.filename().string();
+            std::error_code ec; fs::path rel = fs::relative(dst, Project::GetProjectDirectory(), ec);
+            std::string vpath = (ec ? dst.string() : rel.string()); std::replace(vpath.begin(), vpath.end(), '\\', '/');
+            size_t pos = vpath.find("assets/"); if (pos != std::string::npos) vpath = vpath.substr(pos);
+            AssetType t = ProjectPanel::GuessAssetTypeFromPath(dst.string());
+            AssetReference aref(meta.guid, 0, (int)t);
+            AssetLibrary::Instance().RegisterAsset(aref, t, vpath, name);
+            AssetLibrary::Instance().RegisterPathAlias(meta.guid, dst.string());
+        }
+        if (m_ClipboardIsCut) { m_ClipboardPath.clear(); m_ClipboardIsCut = false; }
+        m_ProjectRoot = BuildFileTree(m_ProjectPath);
+    } catch(...) {}
 }
 

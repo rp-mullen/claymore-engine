@@ -32,18 +32,15 @@ struct MorphBlendArgs {
    const glm::vec3* basePos; const glm::vec3* baseNrm;
    const glm::vec3* accDP;   const glm::vec3* accDN; // weighted sums per vertex
    size_t           vCount;
-   // Skinned or non-skinned vertex views (just the fields we mutate)
-   float* x; float* y; float* z;
-   float* nx; float* ny; float* nz;
+   // Output contiguous arrays (avoid assuming interleaved vertex stride)
+   glm::vec3* outPos; glm::vec3* outNrm;
    int start, count;
    };
 static inline void MorphBlendKernel(const MorphBlendArgs& a) {
    const int end = a.start + a.count;
    for (int i = a.start; i < end; ++i) {
-      const glm::vec3 p = a.basePos[i] + a.accDP[i];
-      const glm::vec3 n = a.baseNrm[i] + a.accDN[i];
-      a.x[i] = p.x;  a.y[i] = p.y;  a.z[i] = p.z;
-      a.nx[i] = n.x;  a.ny[i] = n.y;  a.nz[i] = n.z;
+      a.outPos[i] = a.basePos[i] + a.accDP[i];
+      a.outNrm[i] = a.baseNrm[i] + a.accDN[i];
       }
    }
 
@@ -140,7 +137,8 @@ void SkinningSystem::Update(Scene& scene)
       w.meshPtr = meshPtr;
       w.bs = data->BlendShapes.get();
       w.needsBlend = bsDirty;
-      w.isSkinnedVB = (bool)std::dynamic_pointer_cast<SkinnedPBRMaterial>(data->Mesh->material); // :contentReference[oaicite:9]{index=9}
+      // Decide buffer vertex format by mesh data, not material type
+      w.isSkinnedVB = (w.meshPtr && w.meshPtr->HasSkinning()); // :contentReference[oaicite:9]{index=9}
 
       g.meshes.push_back(std::move(w));
       }
@@ -190,11 +188,15 @@ void SkinningSystem::Update(Scene& scene)
          }
       }
 
-      // 3) Blendshapes per mesh (only dynamic + dirty)
+      // 3) Blendshapes per mesh (dynamic; if dirty apply, else ensure base restored)
       for (auto& w : g.meshes) {
-         if (!w.needsBlend || !w.meshPtr) continue;
+         if (!w.meshPtr) continue;
+         const size_t vCountBase = w.meshPtr->Vertices.size();
+         if (vCountBase == 0) continue;
 
-         const size_t vCount = w.meshPtr->Vertices.size();               // :contentReference[oaicite:15]{index=15}
+         if (!w.needsBlend) { continue; }
+
+         const size_t vCount = vCountBase;               // :contentReference[oaicite:15]{index=15}
          if (vCount == 0) { w.bs->Dirty = false; continue; }             // :contentReference[oaicite:16]{index=16}
 
          // Base copy of output vertex buffer (keeps UVs/indices/weights as before)
@@ -208,7 +210,9 @@ void SkinningSystem::Update(Scene& scene)
                blended[i].nx = w.meshPtr->Normals[i].x;
                blended[i].ny = w.meshPtr->Normals[i].y;
                blended[i].nz = w.meshPtr->Normals[i].z;
-               // Preserve other attributes exactly as you do today (UVs, bone indices/weights) :contentReference[oaicite:18]{index=18}
+               // Preserve base UVs to avoid UV drift when morph targets are applied
+               if (i < w.meshPtr->UVs.size()) { blended[i].u = w.meshPtr->UVs[i].x; blended[i].v = w.meshPtr->UVs[i].y; }
+               else { blended[i].u = 0.0f; blended[i].v = 0.0f; }
                const glm::ivec4 bi = (i < w.meshPtr->BoneIndices.size()) ? w.meshPtr->BoneIndices[i] : glm::ivec4(0);
                blended[i].i0 = (uint8_t)bi.x; blended[i].i1 = (uint8_t)bi.y;
                blended[i].i2 = (uint8_t)bi.z; blended[i].i3 = (uint8_t)bi.w;
@@ -229,20 +233,25 @@ void SkinningSystem::Update(Scene& scene)
                   }
                }
 
-            // Kernel over vertices (parallelizable by chunks)
+            // Kernel over vertices -> contiguous outputs, then copy back
+            std::vector<glm::vec3> outPos(vCount), outNrm(vCount);
             MorphBlendArgs ba{
                 w.meshPtr->Vertices.data(), w.meshPtr->Normals.data(),
                 accDP.data(), accDN.data(), vCount,
-                &blended[0].x, &blended[0].y, &blended[0].z,
-                &blended[0].nx, &blended[0].ny, &blended[0].nz,
+                outPos.data(), outNrm.data(),
                 0, (int)vCount
                };
-            // parallel_for(0, vCount, 16384, [&](size_t s, size_t c){ auto args = ba; args.start=(int)s; args.count=(int)c; MorphBlendKernel(args); });
-            MorphBlendKernel(ba); // single-thread first; flip to parallel_for after you test
+            MorphBlendKernel(ba);
+            for (size_t i = 0; i < vCount; ++i) {
+               blended[i].x = outPos[i].x; blended[i].y = outPos[i].y; blended[i].z = outPos[i].z;
+               blended[i].nx = outNrm[i].x; blended[i].ny = outNrm[i].y; blended[i].nz = outNrm[i].z;
+            }
 
-            // Upload once on main thread (unchanged)
+            // Upload once on main thread
             const bgfx::Memory* mem = bgfx::copy(blended.data(), uint32_t(sizeof(SkinnedPBRVertex) * blended.size()));
-            bgfx::update(w.meshPtr->dvbh, 0, mem);                      // :contentReference[oaicite:20]{index=20}
+            if (bgfx::isValid(w.meshPtr->dvbh)) {
+               bgfx::update(w.meshPtr->dvbh, 0, mem);                   // :contentReference[oaicite:20]{index=20}
+            }
             }
          else {
             std::vector<PBRVertex> blended(vCount);
@@ -253,7 +262,9 @@ void SkinningSystem::Update(Scene& scene)
                blended[i].nx = w.meshPtr->Normals[i].x;
                blended[i].ny = w.meshPtr->Normals[i].y;
                blended[i].nz = w.meshPtr->Normals[i].z;
-               blended[i].u = 0.0f; blended[i].v = 0.0f;               // as before :contentReference[oaicite:21]{index=21}
+               // Preserve base UVs to avoid warping when morph targets apply
+               if (i < w.meshPtr->UVs.size()) { blended[i].u = w.meshPtr->UVs[i].x; blended[i].v = w.meshPtr->UVs[i].y; }
+               else { blended[i].u = 0.0f; blended[i].v = 0.0f; }
                }
             std::vector<glm::vec3> accDP(vCount, glm::vec3(0));
             std::vector<glm::vec3> accDN(vCount, glm::vec3(0));
@@ -266,16 +277,22 @@ void SkinningSystem::Update(Scene& scene)
                   accDN[i] += shape.DeltaNormal[i] * weight;
                   }
                }
+            std::vector<glm::vec3> outPos2(vCount), outNrm2(vCount);
             MorphBlendArgs ba{
                 w.meshPtr->Vertices.data(), w.meshPtr->Normals.data(),
                 accDP.data(), accDN.data(), vCount,
-                &blended[0].x, &blended[0].y, &blended[0].z,
-                &blended[0].nx, &blended[0].ny, &blended[0].nz,
+                outPos2.data(), outNrm2.data(),
                 0, (int)vCount
                };
             MorphBlendKernel(ba);
+            for (size_t i = 0; i < vCount; ++i) {
+               blended[i].x = outPos2[i].x; blended[i].y = outPos2[i].y; blended[i].z = outPos2[i].z;
+               blended[i].nx = outNrm2[i].x; blended[i].ny = outNrm2[i].y; blended[i].nz = outNrm2[i].z;
+            }
             const bgfx::Memory* mem = bgfx::copy(blended.data(), uint32_t(sizeof(PBRVertex) * blended.size()));
-            bgfx::update(w.meshPtr->dvbh, 0, mem);                      // :contentReference[oaicite:23]{index=23}
+            if (bgfx::isValid(w.meshPtr->dvbh)) {
+               bgfx::update(w.meshPtr->dvbh, 0, mem);                   // :contentReference[oaicite:23]{index=23}
+            }
             }
 
          w.bs->Dirty = false;                                            // :contentReference[oaicite:24]{index=24}
@@ -309,14 +326,18 @@ void SkinningSystem::Update(Scene& scene)
             accDN[i] += shape.DeltaNormal[i] * weight;
          }
       }
+      std::vector<glm::vec3> outPos(vCount), outNrm(vCount);
       MorphBlendArgs ba{
          w.meshPtr->Vertices.data(), w.meshPtr->Normals.data(),
          accDP.data(), accDN.data(), vCount,
-         &blended[0].x, &blended[0].y, &blended[0].z,
-         &blended[0].nx, &blended[0].ny, &blended[0].nz,
+         outPos.data(), outNrm.data(),
          0, (int)vCount
       };
       MorphBlendKernel(ba);
+      for (size_t i = 0; i < vCount; ++i) {
+         blended[i].x = outPos[i].x; blended[i].y = outPos[i].y; blended[i].z = outPos[i].z;
+         blended[i].nx = outNrm[i].x; blended[i].ny = outNrm[i].y; blended[i].nz = outNrm[i].z;
+      }
       const bgfx::Memory* mem = bgfx::copy(blended.data(), uint32_t(sizeof(PBRVertex) * blended.size()));
       if (bgfx::isValid(w.meshPtr->dvbh)) {
          bgfx::update(w.meshPtr->dvbh, 0, mem);

@@ -21,6 +21,20 @@ struct BlendShapeComponent {
     bool Dirty = false;
 };
 
+// ------------ Unified Morphs (per-model grouped blendshapes) ------------
+// At the skeleton root (or model root when no skeleton), we can aggregate
+// blendshapes that share the same Name across child meshes. This component
+// holds the names and a single weight per shared name; applying a change
+// should propagate to all child meshes that have a matching blendshape.
+struct UnifiedMorphComponent {
+    // Ordered list of unique shared morph names for this model
+    std::vector<std::string> Names;
+    // Current weight per name (0..1)
+    std::vector<float> Weights;
+    // Entities (meshes) that belong to this model; only these receive propagation
+    std::vector<EntityID> MemberMeshes;
+};
+
 // ------------ Skeleton & Skinning ------------
 struct SkeletonComponent {
     std::vector<glm::mat4> InverseBindPoses;  // inverse bind matrices per bone

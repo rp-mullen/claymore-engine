@@ -80,6 +80,11 @@ using SetBlendShapeWeight_fn = void(*)(int, const char*, float);
 using GetBlendShapeWeight_fn = float(*)(int, const char*);
 using GetBlendShapeCount_fn = int(*)(int);
 using GetBlendShapeName_fn = const char*(*)(int, int);
+// Unified Morph interop
+using UnifiedMorph_GetCount_fn = int(*)(int);
+using UnifiedMorph_GetName_fn = const char*(*)(int, int);
+using UnifiedMorph_GetWeight_fn = float(*)(int, int);
+using UnifiedMorph_SetWeight_fn = void(*)(int, int, float);
 using GetEntityByID_fn = int (*)(int);
 
 // SyncContext controls
@@ -128,6 +133,10 @@ extern SetBlendShapeWeight_fn SetBlendShapeWeightPtr;
 extern GetBlendShapeWeight_fn GetBlendShapeWeightPtr;
 extern GetBlendShapeCount_fn GetBlendShapeCountPtr;
 extern GetBlendShapeName_fn GetBlendShapeNamePtr;
+extern UnifiedMorph_GetCount_fn UnifiedMorph_GetCountPtr;
+extern UnifiedMorph_GetName_fn UnifiedMorph_GetNamePtr;
+extern UnifiedMorph_GetWeight_fn UnifiedMorph_GetWeightPtr;
+extern UnifiedMorph_SetWeight_fn UnifiedMorph_SetWeightPtr;
 
 extern FlushSyncContext_fn   FlushSyncContextPtr;
 extern ClearSyncContext_fn   ClearSyncContextPtr;

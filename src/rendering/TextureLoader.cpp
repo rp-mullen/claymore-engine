@@ -15,6 +15,7 @@
 #define NANOSVGRAST_IMPLEMENTATION
 #include "nanosvgrast.h"
 
+
 bgfx::TextureHandle TextureLoader::Load2D(const std::string& path, bool generateMips)
 {
     int width, height, channels;
@@ -67,13 +68,17 @@ bgfx::TextureHandle TextureLoader::Load2D(const std::string& path, bool generate
     }
 
     // Create an empty texture first – BGFX expects raw pixel uploads via updateTexture*.
+    // Use wrap sampling so UI Panel Tile mode can repeat UVs beyond 1.0
+    uint64_t kUITextureFlags = BGFX_TEXTURE_NONE;
+    // Add this near the top of the file, after other bgfx includes if BGFX_SAMPLER_UVW_WRAP is not defined
+
     bgfx::TextureHandle handle = bgfx::createTexture2D(
         static_cast<uint16_t>(width),
         static_cast<uint16_t>(height),
         generateMips,
         1,
         bgfx::TextureFormat::RGBA8,
-        BGFX_TEXTURE_NONE /* flags */,
+        kUITextureFlags,
         nullptr            /* no initial data */
     );
 

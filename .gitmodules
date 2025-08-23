@@ -34,3 +34,6 @@
 [submodule "external/SDL"]
 	path = external/SDL
 	url = https://github.com/libsdl-org/SDL
+[submodule "external/imgui_colortextedit"]
+	path = external/imgui_colortextedit
+	url = https://github.com/BalazsJako/ImGuiColorTextEdit

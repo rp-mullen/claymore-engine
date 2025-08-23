@@ -224,6 +224,9 @@ void Scene::RemoveEntity(EntityID id) {
     if (data->BlendShapes) {
         data->BlendShapes.reset();
     }
+    if (data->UnifiedMorph) {
+        data->UnifiedMorph.reset();
+    }
     if (data->Skeleton) {
         data->Skeleton.reset();
     }
@@ -610,6 +613,7 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
     // Axis correction disabled: geometry import now flips Y at vertex level (ModelLoader),
     // so applying an additional 180-degree X rotation here would negate the effect.
 
+    std::vector<EntityID> createdMeshEntities(model.Meshes.size(), INVALID_ENTITY_ID);
     for (size_t i = 0; i < model.Meshes.size(); ++i) {
         const auto& meshPtr = model.Meshes[i];
         if (!meshPtr) continue;
@@ -668,6 +672,37 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
                 meshData->Mesh->BlendShapes = bsPtr.get();
                 meshData->BlendShapes = std::move(bsPtr);
             }
+
+            createdMeshEntities[i] = meshID;
+    }
+
+    // Build UnifiedMorph on skeleton root (or model root) for shared morph names across meshes
+    {
+        std::unordered_map<std::string, int> nameCounts;
+        for (size_t i = 0; i < model.BlendShapes.size(); ++i) {
+            if (i >= model.BlendShapes.size()) break;
+            const auto& bsc = model.BlendShapes[i];
+            for (const auto& sh : bsc.Shapes) {
+                nameCounts[sh.Name]++;
+            }
+        }
+        std::vector<std::string> unifiedNames;
+        unifiedNames.reserve(nameCounts.size());
+        for (const auto& kv : nameCounts) {
+            if (kv.second >= 2) unifiedNames.push_back(kv.first);
+        }
+        if (!unifiedNames.empty()) {
+            EntityID targetRoot = (skeletonRootID != -1) ? skeletonRootID : rootID;
+            auto* targetData = GetEntityData(targetRoot);
+            if (targetData) {
+                targetData->UnifiedMorph = std::make_unique<UnifiedMorphComponent>();
+                targetData->UnifiedMorph->Names = unifiedNames;
+                targetData->UnifiedMorph->Weights.assign(unifiedNames.size(), 0.0f);
+                // Record member mesh entities for this model
+                targetData->UnifiedMorph->MemberMeshes.clear();
+                for (auto id : createdMeshEntities) if (id != INVALID_ENTITY_ID) targetData->UnifiedMorph->MemberMeshes.push_back(id);
+            }
+        }
     }
 
     std::cout << "[Scene] Imported model with " << model.Meshes.size() << " mesh entities under root " << rootID << std::endl;

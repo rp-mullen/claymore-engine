@@ -614,7 +614,13 @@ void SetupEntityInterop(std::filesystem::path fullPath)
             // UI Buttons (3)
             (void*)&UI_ButtonIsHovered,
             (void*)&UI_ButtonIsPressed,
-            (void*)&UI_ButtonWasClicked
+            (void*)&UI_ButtonWasClicked,
+
+            // Unified Morphs (4)
+            (void*)UnifiedMorph_GetCountPtr,
+            (void*)UnifiedMorph_GetNamePtr,
+            (void*)UnifiedMorph_GetWeightPtr,
+            (void*)UnifiedMorph_SetWeightPtr
         };
 
         using EntityInteropInitFn = void(*)(void**, int);

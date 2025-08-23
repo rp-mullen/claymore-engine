@@ -70,6 +70,12 @@ namespace ClaymoreEngine
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate IntPtr GetBlendShapeNameFn(int entityId, int index);
 
+    // UnifiedMorphComponent
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate int UnifiedMorph_GetCountFn(int entityId);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate IntPtr UnifiedMorph_GetNameFn(int entityId, int index);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate float UnifiedMorph_GetWeightFn(int entityId, int index);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void UnifiedMorph_SetWeightFn(int entityId, int index, float weight);
+
     // Animator parameter setters
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void Animator_SetBoolFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name, bool value);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate void Animator_SetIntFn(int entityId, [MarshalAs(UnmanagedType.LPStr)] string name, int value);
@@ -119,6 +125,12 @@ namespace ClaymoreEngine
         public static GetBlendShapeCountFn GetBlendShapeCount;
         public static GetBlendShapeNameFn GetBlendShapeNameInternal;
 
+        // UnifiedMorphs
+        public static UnifiedMorph_GetCountFn UnifiedMorph_GetCount;
+        public static UnifiedMorph_GetNameFn UnifiedMorph_GetNameInternal;
+        public static UnifiedMorph_GetWeightFn UnifiedMorph_GetWeight;
+        public static UnifiedMorph_SetWeightFn UnifiedMorph_SetWeight;
+
         // Animator
         public static Animator_SetBoolFn Animator_SetBool;
         public static Animator_SetIntFn Animator_SetInt;
@@ -141,11 +153,17 @@ namespace ClaymoreEngine
             return Marshal.PtrToStringAnsi(ptr);
         }
 
+        public static string UnifiedMorph_GetName(int entityId, int index)
+        {
+            IntPtr ptr = UnifiedMorph_GetNameInternal(entityId, index);
+            return Marshal.PtrToStringAnsi(ptr);
+        }
+
         public static void Initialize(void** ptrs, int count)
         {
-            if (count < 33) // Update count for added animator functions + UI button
+            if (count < 37) // Update expected to include UI buttons (3) + UnifiedMorph (4)
             {
-                Console.WriteLine($"[ComponentInterop] Expected at least 33 function pointers, but got {count}.");
+                Console.WriteLine($"[ComponentInterop] Expected at least 37 function pointers, but got {count}.");
                 return;
             }
 
@@ -189,6 +207,12 @@ namespace ClaymoreEngine
             UI_ButtonIsHovered = Marshal.GetDelegateForFunctionPointer<UI_ButtonIsHoveredFn>((IntPtr)ptrs[i++]);
             UI_ButtonIsPressed = Marshal.GetDelegateForFunctionPointer<UI_ButtonIsPressedFn>((IntPtr)ptrs[i++]);
             UI_ButtonWasClicked = Marshal.GetDelegateForFunctionPointer<UI_ButtonWasClickedFn>((IntPtr)ptrs[i++]);
+
+            // UnifiedMorphs
+            UnifiedMorph_GetCount = Marshal.GetDelegateForFunctionPointer<UnifiedMorph_GetCountFn>((IntPtr)ptrs[i++]);
+            UnifiedMorph_GetNameInternal = Marshal.GetDelegateForFunctionPointer<UnifiedMorph_GetNameFn>((IntPtr)ptrs[i++]);
+            UnifiedMorph_GetWeight = Marshal.GetDelegateForFunctionPointer<UnifiedMorph_GetWeightFn>((IntPtr)ptrs[i++]);
+            UnifiedMorph_SetWeight = Marshal.GetDelegateForFunctionPointer<UnifiedMorph_SetWeightFn>((IntPtr)ptrs[i++]);
         }
     }
 }

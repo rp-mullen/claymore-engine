@@ -34,6 +34,12 @@ extern "C" {
     __declspec(dllexport) int GetBlendShapeCount(int entityID);
     __declspec(dllexport) const char* GetBlendShapeName(int entityID, int index);
 
+    // --- UnifiedMorphComponent (attached to skeleton/model root) ---
+    __declspec(dllexport) int UnifiedMorph_GetCount(int entityID);
+    __declspec(dllexport) const char* UnifiedMorph_GetName(int entityID, int index);
+    __declspec(dllexport) float UnifiedMorph_GetWeight(int entityID, int index);
+    __declspec(dllexport) void UnifiedMorph_SetWeight(int entityID, int index, float weight);
+
     // --- Animator / AnimationPlayer ---
     __declspec(dllexport) void Animator_SetBool(int entityID, const char* name, bool value);
     __declspec(dllexport) void Animator_SetInt(int entityID, const char* name, int value);

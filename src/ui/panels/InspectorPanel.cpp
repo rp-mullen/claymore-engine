@@ -428,106 +428,88 @@ void InspectorPanel::DrawComponents(EntityID entity) {
     }
 
     if (data->Mesh && ImGui::CollapsingHeader("Mesh")) {
-        // Material view: choose between built-in and user materials
-        {
-            ImGui::TextDisabled("Material View");
-            // Collect materials from AssetLibrary (user-defined)
-            struct MatOpt { std::string name; std::string path; bool isBuiltIn; };
-            static std::vector<MatOpt> s_options;
-            s_options.clear();
-            // Built-in
-            s_options.push_back({"Default PBR", "<builtin:DefaultPBR>", true});
-            s_options.push_back({"Skinned PBR", "<builtin:SkinnedPBR>", true});
-            // User-defined: scan assets/*.mat (quick scan)
-            auto root = Project::GetAssetDirectory(); if (root.empty()) root = std::filesystem::path("assets");
-            if (std::filesystem::exists(root)) {
-                for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
-                    if (!p.is_regular_file()) continue; auto ext = p.path().extension().string(); std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-                    if (ext == ".mat") s_options.push_back({ p.path().stem().string(), p.path().string(), false });
-                }
+        MeshComponent* meshComp = data->Mesh.get();
+        ImGui::TextDisabled("Material View");
+
+        // Material select (built-in or user) for each slot (at least one)
+        struct MatOpt { std::string name; std::string path; bool isBuiltIn; };
+        static std::vector<MatOpt> s_options;
+        s_options.clear();
+        s_options.push_back({ "Default PBR", "<builtin:DefaultPBR>", true });
+        s_options.push_back({ "Skinned PBR", "<builtin:SkinnedPBR>", true });
+        auto root = Project::GetAssetDirectory(); if (root.empty()) root = std::filesystem::path("assets");
+        if (std::filesystem::exists(root)) {
+            for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
+                if (!p.is_regular_file()) continue; auto ext = p.path().extension().string(); std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                if (ext == ".mat") s_options.push_back({ p.path().stem().string(), p.path().string(), false });
             }
-            // Current selection label
-            std::string curLabel = data->Mesh->material ? data->Mesh->material->GetName() : std::string("<none>");
-            if (ImGui::BeginCombo("Material", curLabel.c_str())) {
+        }
+
+        if (meshComp->materials.empty() && meshComp->material) meshComp->materials = { meshComp->material };
+        for (size_t mi = 0; mi < meshComp->materials.size(); ++mi) {
+            ImGui::PushID((int)mi);
+            std::string label = std::string("Material ") + std::to_string(mi);
+            std::string curLabel = (meshComp->materials[mi] ? meshComp->materials[mi]->GetName() : std::string("<none>"));
+            if (ImGui::BeginCombo(label.c_str(), curLabel.c_str())) {
                 for (int i = 0; i < (int)s_options.size(); ++i) {
                     bool sel = false;
                     if (ImGui::Selectable(s_options[i].name.c_str(), sel)) {
+                        std::shared_ptr<Material> newMat;
                         if (s_options[i].isBuiltIn) {
-                            if (s_options[i].name == "Default PBR") {
-                                data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
-                            } else if (s_options[i].name == "Skinned PBR") {
-                                data->Mesh->material = MaterialManager::Instance().CreateSkinnedPBRMaterial();
-                            }
+                            if (s_options[i].name == "Default PBR") newMat = MaterialManager::Instance().CreateDefaultPBRMaterial();
+                            else if (s_options[i].name == "Skinned PBR") newMat = MaterialManager::Instance().CreateSkinnedPBRMaterial();
                         } else {
-                            // Load or create a PBR material from JSON defaults (legacy path for now)
-                            MaterialAssetDesc desc; if (LoadMaterialAsset(s_options[i].path, desc)) {
-                                data->Mesh->material = CreateMaterialFromAsset(desc);
-                            }
+                            MaterialAssetDesc desc; if (LoadMaterialAsset(s_options[i].path, desc)) newMat = CreateMaterialFromAsset(desc);
+                        }
+                        if (newMat) {
+                            meshComp->materials[mi] = newMat;
+                            if (mi == 0) meshComp->material = newMat; // keep primary in sync
                         }
                     }
                 }
                 ImGui::EndCombo();
             }
+            ImGui::PopID();
         }
-        registry.DrawComponentUI("Mesh", data->Mesh.get());
 
-        // Unique material toggle
-                bool unique = data->Mesh->UniqueMaterial;
+        // Draw per-component UI (textures for slots, blendshapes, etc.)
+        registry.DrawComponentUI("Mesh", meshComp);
+
+        // Unique material toggle (applies to primary material instance)
+        bool unique = meshComp->UniqueMaterial;
         if (ImGui::Checkbox("Unique Material", &unique)) {
-            if (unique && !data->Mesh->UniqueMaterial) {
-                // Make a shallow copy of the material so this entity can have unique overrides
-                if (data->Mesh->material) {
-                    // NOTE: Assumes PBRMaterial for now; deep copy constructor
-                    auto base = data->Mesh->material;
-                    // Attempt to clone by copy construction if derived from Material
-                    // If not copyable, fall back to same pointer.
-                    std::shared_ptr<Material> clone;
-                    if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(base)) {
-                        clone = std::make_shared<PBRMaterial>(*pbr);
-                    } else {
-                        // Fallback: use the same shared instance (no unique copy possible)
-                        clone = base;
-                    }
-                    data->Mesh->material = clone;
+            if (unique && !meshComp->UniqueMaterial) {
+                if (!meshComp->materials.empty() && meshComp->materials[0]) {
+                    auto base = meshComp->materials[0]; std::shared_ptr<Material> clone;
+                    if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(base)) clone = std::make_shared<PBRMaterial>(*pbr);
+                    else clone = base;
+                    meshComp->materials[0] = clone;
+                    meshComp->material = clone;
                 }
             }
-            data->Mesh->UniqueMaterial = unique;
+            meshComp->UniqueMaterial = unique;
         }
 
-        // Property overrides (MaterialPropertyBlock)
-        if (!data->Mesh->UniqueMaterial) {
+        // Property overrides (MaterialPropertyBlock) on the mesh
+        if (!meshComp->UniqueMaterial) {
             ImGui::Separator();
             ImGui::TextDisabled("Material Overrides (Property Block)");
-            // Color tint as example
             glm::vec4 tint(1.0f);
-            auto itTint = data->Mesh->PropertyBlock.Vec4Uniforms.find("u_ColorTint");
-            if (itTint != data->Mesh->PropertyBlock.Vec4Uniforms.end())
-                tint = itTint->second;
-            if (ImGui::ColorEdit4("Tint", &tint.x)) {
-                data->Mesh->PropertyBlock.Vec4Uniforms["u_ColorTint"] = tint;
-            }
+            auto itTint = meshComp->PropertyBlock.Vec4Uniforms.find("u_ColorTint");
+            if (itTint != meshComp->PropertyBlock.Vec4Uniforms.end()) tint = itTint->second;
+            if (ImGui::ColorEdit4("Tint", &tint.x)) meshComp->PropertyBlock.Vec4Uniforms["u_ColorTint"] = tint;
 
-            // Albedo texture override via drag-drop
             bgfx::TextureHandle overrideTex = BGFX_INVALID_HANDLE;
-            auto itTex = data->Mesh->PropertyBlock.Textures.find("s_albedo");
-            if (itTex != data->Mesh->PropertyBlock.Textures.end())
-                overrideTex = itTex->second;
-
+            auto itTex = meshComp->PropertyBlock.Textures.find("s_albedo");
+            if (itTex != meshComp->PropertyBlock.Textures.end()) overrideTex = itTex->second;
             ImGui::Text("Albedo Texture Override:");
-            if (bgfx::isValid(overrideTex)) {
-                ImGui::ImageButton("OverrideTex", (ImTextureID)(uintptr_t)overrideTex.idx, ImVec2(64,64));
-            } else {
-                ImGui::Button("Drop texture", ImVec2(64,64));
-            }
+            if (bgfx::isValid(overrideTex)) ImGui::ImageButton("OverrideTex", (ImTextureID)(uintptr_t)overrideTex.idx, ImVec2(64,64));
+            else ImGui::Button("Drop texture", ImVec2(64,64));
             if (ImGui::BeginDragDropTarget()) {
                 if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
-                    const char* path = (const char*)payload->Data;
-                    if (path) {
+                    const char* path = (const char*)payload->Data; if (path) {
                         bgfx::TextureHandle tex = TextureLoader::Load2D(path);
-                        if (bgfx::isValid(tex)) {
-                            data->Mesh->PropertyBlock.Textures["s_albedo"] = tex;
-                            data->Mesh->PropertyBlockTexturePaths["s_albedo"] = std::string(path);
-                        }
+                        if (bgfx::isValid(tex)) { meshComp->PropertyBlock.Textures["s_albedo"] = tex; meshComp->PropertyBlockTexturePaths["s_albedo"] = std::string(path); }
                     }
                 }
                 ImGui::EndDragDropTarget();
@@ -535,19 +517,21 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         }
 
         ImGui::Spacing();
-        // Sleeker removal affordance
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.23f, 0.25f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.30f, 0.33f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.25f, 0.25f, 1.0f));
         if (ImGui::Button("Remove Component", ImVec2(-1, 0))) {
             if (data->Mesh) {
-                // Only release references; do not attempt to destroy shared GPU buffers here
                 data->Mesh->mesh = nullptr;
                 data->Mesh->material.reset();
                 data->Mesh.reset();
             }
         }
         ImGui::PopStyleColor(3);
+    }
+
+    if (data->UnifiedMorph && ImGui::CollapsingHeader("Unified Morphs")) {
+        registry.DrawComponentUI("Unified Morphs", data->UnifiedMorph.get());
     }
 
     if (data->Light && ImGui::CollapsingHeader("Light")) {
