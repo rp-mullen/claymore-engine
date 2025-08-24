@@ -33,7 +33,7 @@ public class MyTestScript : ScriptComponent
 
    public override void OnCreate()
       {
-      Console.WriteLine("Made it to the start of OnCreate");
+      Console.WriteLine("Made it to the start of OnCreate!");
       Console.WriteLine("[MyTestScript] Referencing Entity " + refEntity.EntityID);
       _ = DoAsyncMethod();
       }
@@ -211,3 +211,4 @@ public class MyTestScript : ScriptComponent
       return Quaternion.CreateFromRotationMatrix(m);
       }
    }
+

@@ -2004,6 +2004,8 @@ bool Serializer::SaveSceneToFile(Scene& scene, const std::string& filepath) {
         file.close();
         
         std::cout << "[Serializer] Scene saved to: " << filepath << std::endl;
+        // Clear editor dirty flag on successful save
+        scene.ClearDirty();
         return true;
     }
     catch (const std::exception& e) {

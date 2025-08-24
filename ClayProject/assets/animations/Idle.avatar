@@ -157,183 +157,183 @@
         },
         {
             "bone": 25,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 35,
+            "name": "mixamorig:LeftHandThumb1",
+            "present": true
         },
         {
             "bone": 26,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 36,
+            "name": "mixamorig:LeftHandThumb2",
+            "present": true
         },
         {
             "bone": 27,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 37,
+            "name": "mixamorig:LeftHandThumb3",
+            "present": true
         },
         {
             "bone": 28,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 39,
+            "name": "mixamorig:LeftHandIndex1",
+            "present": true
         },
         {
             "bone": 29,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 40,
+            "name": "mixamorig:LeftHandIndex2",
+            "present": true
         },
         {
             "bone": 30,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 41,
+            "name": "mixamorig:LeftHandIndex3",
+            "present": true
         },
         {
             "bone": 31,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 43,
+            "name": "mixamorig:LeftHandMiddle1",
+            "present": true
         },
         {
             "bone": 32,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 44,
+            "name": "mixamorig:LeftHandMiddle2",
+            "present": true
         },
         {
             "bone": 33,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 45,
+            "name": "mixamorig:LeftHandMiddle3",
+            "present": true
         },
         {
             "bone": 34,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 47,
+            "name": "mixamorig:LeftHandRing1",
+            "present": true
         },
         {
             "bone": 35,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 48,
+            "name": "mixamorig:LeftHandRing2",
+            "present": true
         },
         {
             "bone": 36,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 49,
+            "name": "mixamorig:LeftHandRing3",
+            "present": true
         },
         {
             "bone": 37,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 51,
+            "name": "mixamorig:LeftHandPinky1",
+            "present": true
         },
         {
             "bone": 38,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 52,
+            "name": "mixamorig:LeftHandPinky2",
+            "present": true
         },
         {
             "bone": 39,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 53,
+            "name": "mixamorig:LeftHandPinky3",
+            "present": true
         },
         {
             "bone": 40,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 11,
+            "name": "mixamorig:RightHandThumb1",
+            "present": true
         },
         {
             "bone": 41,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 12,
+            "name": "mixamorig:RightHandThumb2",
+            "present": true
         },
         {
             "bone": 42,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 13,
+            "name": "mixamorig:RightHandThumb3",
+            "present": true
         },
         {
             "bone": 43,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 15,
+            "name": "mixamorig:RightHandIndex1",
+            "present": true
         },
         {
             "bone": 44,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 16,
+            "name": "mixamorig:RightHandIndex2",
+            "present": true
         },
         {
             "bone": 45,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 17,
+            "name": "mixamorig:RightHandIndex3",
+            "present": true
         },
         {
             "bone": 46,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 19,
+            "name": "mixamorig:RightHandMiddle1",
+            "present": true
         },
         {
             "bone": 47,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 20,
+            "name": "mixamorig:RightHandMiddle2",
+            "present": true
         },
         {
             "bone": 48,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 21,
+            "name": "mixamorig:RightHandMiddle3",
+            "present": true
         },
         {
             "bone": 49,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 23,
+            "name": "mixamorig:RightHandRing1",
+            "present": true
         },
         {
             "bone": 50,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 24,
+            "name": "mixamorig:RightHandRing2",
+            "present": true
         },
         {
             "bone": 51,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 25,
+            "name": "mixamorig:RightHandRing3",
+            "present": true
         },
         {
             "bone": 52,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 27,
+            "name": "mixamorig:RightHandPinky1",
+            "present": true
         },
         {
             "bone": 53,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 28,
+            "name": "mixamorig:RightHandPinky2",
+            "present": true
         },
         {
             "bone": 54,
-            "index": -1,
-            "name": "",
-            "present": false
+            "index": 29,
+            "name": "mixamorig:RightHandPinky3",
+            "present": true
         },
         {
             "bone": 55,

@@ -68,6 +68,7 @@ void PrefabEditorPanel::OnImGuiRender()
 
     // Visible title plus hidden unique ID to avoid collisions when opening same-named prefabs
     std::string displayName = "Prefab Editor - " + fs::path(m_PrefabPath).filename().string();
+    if (m_IsDirty) displayName += "*";
     std::string windowTitle = displayName + std::string("###PrefabEditor|") + m_PrefabPath;
     if (m_FocusNextFrame) { ImGui::SetNextWindowFocus(); m_FocusNextFrame = false; }
     if (!ImGui::Begin(windowTitle.c_str(), &m_IsOpen, ImGuiWindowFlags_MenuBar)) {
@@ -83,6 +84,7 @@ void PrefabEditorPanel::OnImGuiRender()
             // Save the selected entity and its subtree to preserve hierarchy
             if (m_SelectedEntity != -1) {
                 if (Serializer::SavePrefabSubtreeToFile(m_Scene, m_SelectedEntity, m_PrefabPath)) {
+                        m_IsDirty = false;
                         // Ensure prefab is registered and has a .meta
                         try {
                             std::filesystem::path p(m_PrefabPath);
@@ -136,6 +138,8 @@ void PrefabEditorPanel::OnImGuiRender()
             (uint32_t)fullHeight,
             m_ViewportPanel.GetPanelCamera());
         m_ViewportPanel.OnImGuiRenderEmbedded(tex, "PrefabViewportImage");
+        // If user manipulated transforms, mark panel dirty when scene is dirty
+        if (m_Scene.IsDirty()) m_IsDirty = true;
     }
     ImGui::EndChild();
 

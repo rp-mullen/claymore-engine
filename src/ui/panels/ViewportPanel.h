@@ -36,6 +36,9 @@ public:
     // Accessor for embedded camera (nullptr when using global camera)
     class Camera* GetPanelCamera() const { return m_Camera.get(); }
 
+    // UI: allow parent layer to set the display scene name and dirty flag for window title
+    void SetDisplaySceneTitle(const std::string& title) { m_DisplaySceneTitle = title; }
+
     // Focus/hover state (main viewport window only)
     bool IsWindowFocusedOrHovered() const { return m_WindowFocusedOrHovered; }
 
@@ -110,4 +113,7 @@ private:
     std::unique_ptr<class Camera> m_Camera;
 
     bool m_WindowFocusedOrHovered = false;
+
+    // Window title display for main viewport (e.g., scene name + '*')
+    std::string m_DisplaySceneTitle;
 };

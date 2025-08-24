@@ -25,6 +25,8 @@ public:
     // Prefab path and focus request for UILayer dedup/focus behavior
     const std::string& GetPrefabPath() const { return m_PrefabPath; }
     void RequestFocus() { m_FocusNextFrame = true; }
+    bool IsDirty() const { return m_IsDirty; }
+    void ClearDirty() { m_IsDirty = false; }
 private:
     // Helper to load prefab file into the internal scene
     void LoadPrefab(const std::string& path);
@@ -36,6 +38,7 @@ private:
     bool m_Docked = false;
     mutable bool m_IsFocusedOrHovered = false;
     bool m_FocusNextFrame = false;
+    bool m_IsDirty = false;
 
     Scene m_Scene;
     EntityID m_SelectedEntity = -1;

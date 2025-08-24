@@ -75,6 +75,8 @@ public:
     // Asset importing
     void ImportAsset(const std::string& path);
     void ImportModel(const std::string& path);
+    // Hot-swap entities in the active scene that reference this model path/GUID
+    void HotSwapModelInScene(const std::string& modelPath);
     void ImportTexture(const std::string& path);
     void ImportShader(const std::string& path);
     void ImportMaterial(const std::string& path);

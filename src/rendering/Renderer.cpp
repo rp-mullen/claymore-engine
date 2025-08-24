@@ -100,7 +100,7 @@ void Renderer::Init(uint32_t width, uint32_t height, void* windowHandle) {
    if (!bgfx::isValid(s_MaskVis)) s_MaskVis = bgfx::createUniform("sMaskVis", bgfx::UniformType::Sampler);
    if (!bgfx::isValid(s_MaskOcc)) s_MaskOcc = bgfx::createUniform("sMaskOcc", bgfx::UniformType::Sampler);
    m_TintProgram = ShaderManager::Instance().LoadProgram("vs_pbr", "fs_tint");
-   if (!bgfx::isValid(u_TintColor)) u_TintColor = bgfx::createUniform("uTintColor", bgfx::UniformType::Vec4);
+   if (!bgfx::isValid(u_TintColor)) u_TintColor = bgfx::createUniform("u_ColorTint", bgfx::UniformType::Vec4);
 
    // New screen-space outline programs and uniforms
    m_ObjectIdProgram        = ShaderManager::Instance().LoadProgram("vs_pbr", "fs_object_id");

@@ -30,6 +30,7 @@
 #include <ImGuizmo.h>
 #include <navigation/NavDebugDraw.h>
 #include "panels/PrefabEditorPanel.h"
+#include "panels/CodeEditorPanel.h"
 
 // Forward-declare file dialog helper from MenuBarPanel.cpp
 extern std::string ShowSaveFileDialog(const std::string& defaultName);
@@ -206,7 +207,14 @@ void UILayer::OnUIRender() {
     m_AvatarBuilderPanel.OnImGuiRender();
 
     // Main viewport
-    m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());
+    {
+        // Build display title: scene name or Untitled + '*' if dirty
+        std::string sceneName = "Untitled";
+        if (!m_CurrentScenePath.empty()) sceneName = fs::path(m_CurrentScenePath).stem().string();
+        if (m_Scene.IsDirty()) sceneName += "*";
+        m_ViewportPanel.SetDisplaySceneTitle(sceneName);
+        m_ViewportPanel.OnImGuiRender(Renderer::Get().GetSceneTexture());
+    }
 
     // If a blocking overlay is active (loading scene/play mode), render it now
     RenderBlockingOverlay();
@@ -216,19 +224,52 @@ void UILayer::OnUIRender() {
 
     // Global shortcuts scoped to active 3D editing surface: main viewport or any prefab viewport
     {
-        // Use focus only (not hover) to avoid flickering between contexts
-        bool viewportFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && m_ViewportPanel.IsWindowFocusedOrHovered();
+        // Drive shortcuts from the viewport's own focus/hover tracker
+        bool viewportActive = m_ViewportPanel.IsWindowFocusedOrHovered();
         // If sticky source is prefab editor, keep shortcuts active for it only when that editor window is focused
-        if (viewportFocused) {
+        if (viewportActive) {
             bool ctrl = ImGui::GetIO().KeyCtrl;
             if (ctrl && Input::WasKeyPressedThisFrame(GLFW_KEY_S)) {
-                if (!m_CurrentScenePath.empty()) {
-                    Serializer::SaveSceneToFile(*activeScene, m_CurrentScenePath);
-                } else {
-                    // Prompt for save location
-                    std::string chosen = ShowSaveFileDialog("NewScene.scene");
-                    if (!chosen.empty() && Serializer::SaveSceneToFile(*activeScene, chosen)) {
-                        m_CurrentScenePath = chosen;
+                // Route to active editor in this dockspace; default to scene
+                bool handled = false;
+                // Try focused prefab editor first
+                for (auto& pe : m_PrefabEditors) {
+                    if (pe && pe->IsWindowFocusedOrHovered()) {
+                        // Save prefab subtree if possible
+                        if (auto* ed = pe->GetScene()) {
+                            EntityID* sel = pe->GetSelectedEntityPtr();
+                            if (sel && *sel != -1) {
+                                if (Serializer::SavePrefabSubtreeToFile(*ed, *sel, pe->GetPrefabPath())) {
+                                    pe->ClearDirty();
+                                }
+                            }
+                        }
+                        handled = true; break;
+                    }
+                }
+                // Try focused code editor
+                if (!handled) {
+                    for (auto& ce : m_CodeEditors) {
+                        if (ce && ce->IsWindowFocusedOrHovered()) {
+                            // Save through panel API
+                            // We can't call private SaveFile; rely on menu exposure or re-open to force save; instead, emulate Ctrl+S via menu: handled here by menu or Render
+                            // As a fallback, do nothing special; the code editor menu also listens to Ctrl+S
+                            handled = true; break;
+                        }
+                    }
+                }
+                if (!handled) {
+                    if (!m_CurrentScenePath.empty()) {
+                        if (Serializer::SaveSceneToFile(*activeScene, m_CurrentScenePath)) {
+                            m_Scene.ClearDirty();
+                        }
+                    } else {
+                        // Prompt for save location
+                        std::string chosen = ShowSaveFileDialog("NewScene.scene");
+                        if (!chosen.empty() && Serializer::SaveSceneToFile(*activeScene, chosen)) {
+                            m_CurrentScenePath = chosen;
+                            m_Scene.ClearDirty();
+                        }
                     }
                 }
             }
@@ -269,6 +310,16 @@ void UILayer::OnUIRender() {
         } else {
             ++it;
         }
+    }
+
+    // Render open code editors
+    for (auto it = m_CodeEditors.begin(); it != m_CodeEditors.end(); ) {
+        auto* panel = it->get();
+        panel->OnImGuiRender();
+        if (!panel->IsWindowFocusedOrHovered()) {
+            // keep open; no explicit close tracking impl yet
+        }
+        ++it;
     }
     // If the main viewport window is focused, switch sticky source back to main scene
     if (m_ViewportPanel.IsWindowFocusedOrHovered()) {
@@ -361,7 +412,13 @@ void UILayer::BeginDockspace() {
         ImGui::DockBuilderDockWindow("Console", dock_down);
         ImGui::DockBuilderDockWindow("Script Registry", dock_right);
         ImGui::DockBuilderDockWindow("Asset Registry", dock_right);
-        ImGui::DockBuilderDockWindow("Viewport", dockspace_id);
+        // Dock the main viewport using its dynamic name with a stable ID so it becomes the leading tab
+        {
+            std::string sceneName = m_CurrentScenePath.empty() ? std::string("Untitled") : fs::path(m_CurrentScenePath).stem().string();
+            if (m_Scene.IsDirty()) sceneName += "*";
+            std::string uniqueViewportName = sceneName + " - Viewport###Viewport";
+            ImGui::DockBuilderDockWindow(uniqueViewportName.c_str(), dockspace_id);
+        }
         ImGui::DockBuilderDockWindow("Animation Controller", dockspace_id);
         ImGui::DockBuilderDockWindow("Animation Timeline", dockspace_id);
         ImGui::DockBuilderFinish(m_MainDockspaceID);
@@ -627,6 +684,14 @@ void UILayer::BeginDockspace() {
     }
     ImGui::DockSpace(rootDockspaceId, ImVec2(0.0f, -statusBarHeight), ImGuiDockNodeFlags_PassthruCentralNode);
 
+    // Ensure the viewport tab is focused initially
+    if (!m_PlayMode && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) {
+        std::string sceneName = m_CurrentScenePath.empty() ? std::string("Untitled") : fs::path(m_CurrentScenePath).stem().string();
+        if (m_Scene.IsDirty()) sceneName += "*";
+        std::string unique = sceneName + " - Viewport###Viewport";
+        ImGui::SetWindowFocus(unique.c_str());
+    }
+
     // Status bar
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.08f, 0.08f, 0.09f, 1.0f));
     ImGui::BeginChild("StatusBar", ImVec2(0, statusBarHeight), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
@@ -702,6 +767,14 @@ void UILayer::OpenPrefabEditor(const std::string& prefabPath) {
     m_PrefabEditors.emplace_back(std::make_unique<PrefabEditorPanel>(prefabPath, this));
 }
 
+void UILayer::OpenCodeEditor(const std::string& filePath) {
+    // If already open, focus
+    for (auto& ed : m_CodeEditors) {
+        if (ed && ed->GetFilePath() == filePath) { ed->RequestFocus(); return; }
+    }
+    m_CodeEditors.emplace_back(std::make_unique<CodeEditorPanel>(filePath, this));
+}
+
 // =============================
 // Deferred Scene Loading
 // =============================
@@ -719,6 +792,8 @@ void UILayer::ProcessDeferredSceneLoad() {
         std::cout << "[UILayer] Successfully loaded scene: " << m_DeferredScenePath << std::endl;
         m_SelectedEntity = -1;
         m_CurrentScenePath = m_DeferredScenePath;
+        // Reset viewport camera and interaction state after reload to ensure gizmo can capture input
+        m_ViewportPanel.ClearPickRequest();
     } else {
         std::cerr << "[UILayer] Failed to load scene: " << m_DeferredScenePath << std::endl;
     }

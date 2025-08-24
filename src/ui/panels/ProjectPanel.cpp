@@ -492,6 +492,8 @@ void ProjectPanel::DrawFileList(const std::string& folderPath) {
                 std::transform(extlc.begin(), extlc.end(), extlc.begin(), ::tolower);
                 if (extlc == ".json" && norm.find("/assets/prefabs/") != std::string::npos) {
                     if (m_UILayer) m_UILayer->OpenPrefabEditor(fullPath);
+                } else if (extlc == ".cs" || extlc == ".shader" || extlc == ".hlsl" || extlc == ".glsl") {
+                    if (m_UILayer) m_UILayer->OpenCodeEditor(fullPath);
                 }
             }
          }

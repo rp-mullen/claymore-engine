@@ -43,25 +43,96 @@ int Picking::PickEntityRay(const Ray& ray, Scene& scene) {
     int pickedEntity = -1;
     float closestT = FLT_MAX;
 
+    // First pass: collect candidate hits with distance, then sort by distance ascending.
+    struct Hit { EntityID id; float t; float diag; };
+    std::vector<Hit> hits; hits.reserve(scene.GetEntities().size());
     for (auto& entity : scene.GetEntities()) {
         auto* data = scene.GetEntityData(entity.GetID());
         if (!data || !data->Mesh) continue;
+        // Skip invisible entities entirely
+        if (!data->Visible) continue;
 
         // Use precomputed world matrix (includes parent hierarchy)
         glm::mat4 transform = data->Transform.WorldMatrix;
+        // Optional early-out: if camera is inside the entity's OBB, skip picking this entity
+        // This helps when navigating inside large enclosing meshes (e.g., room walls)
+        if (data->Mesh && data->Mesh->mesh) {
+            const Mesh& meshBoundsSrc = *data->Mesh->mesh.get();
+            // Only if bounds are valid (min <= max across axes)
+            glm::vec3 bmin = meshBoundsSrc.BoundsMin;
+            glm::vec3 bmax = meshBoundsSrc.BoundsMax;
+            // Transform camera (ray origin) to local space and test against AABB
+            glm::mat4 inv = glm::inverse(transform);
+            glm::vec3 camLocal = glm::vec3(inv * glm::vec4(ray.Origin, 1.0f));
+            const float eps = 1e-4f;
+            bool inside = (camLocal.x > bmin.x - eps && camLocal.x < bmax.x + eps &&
+                           camLocal.y > bmin.y - eps && camLocal.y < bmax.y + eps &&
+                           camLocal.z > bmin.z - eps && camLocal.z < bmax.z + eps);
+            if (inside) {
+                // Skip this enclosing entity to allow picking objects within
+                continue;
+            }
+        }
 
-        float tTri;
+        float tTri = FLT_MAX;
+        bool triHit = false;
         // Take a strong reference to guard against entity deletion during this loop
         std::shared_ptr<Mesh> meshRef = data->Mesh->mesh;
         if (!meshRef) continue;
-        if (RayIntersectsMesh(ray, *meshRef.get(), transform, tTri)) {
-            if (tTri < closestT && tTri > 0.0f) {
-                closestT = tTri;
-                pickedEntity = entity.GetID();
+        triHit = RayIntersectsMesh(ray, *meshRef.get(), transform, tTri);
+
+        // Fallback: if triangle data is not available or no tri hit, intersect against OBB from mesh bounds
+        float tObb = FLT_MAX;
+        bool obbHit = false;
+        {
+            const glm::vec3 bmin = meshRef->BoundsMin;
+            const glm::vec3 bmax = meshRef->BoundsMax;
+            if (bmax.x > bmin.x && bmax.y > bmin.y && bmax.z > bmin.z) {
+                float tTmp;
+                if (RayIntersectsOBB(ray, transform, bmin, bmax, tTmp)) {
+                    if (tTmp > 0.0f) { obbHit = true; tObb = tTmp; }
+                }
             }
         }
+
+        bool anyHit = false; float tHit = FLT_MAX;
+        if (triHit && tTri > 0.0f) { anyHit = true; tHit = tTri; }
+        if (obbHit && tObb > 0.0f && tObb < tHit) { anyHit = true; tHit = tObb; }
+
+        if (anyHit) {
+            // Approximate world-space diagonal of the entity's bounds for size biasing
+            glm::vec3 bmin = meshRef->BoundsMin;
+            glm::vec3 bmax = meshRef->BoundsMax;
+            glm::vec3 corners[8] = {
+                {bmin.x,bmin.y,bmin.z},{bmax.x,bmin.y,bmin.z},{bmin.x,bmax.y,bmin.z},{bmax.x,bmax.y,bmin.z},
+                {bmin.x,bmin.y,bmax.z},{bmax.x,bmin.y,bmax.z},{bmin.x,bmax.y,bmax.z},{bmax.x,bmax.y,bmax.z}
+            };
+            glm::vec3 wmin( FLT_MAX), wmax(-FLT_MAX);
+            for (int i=0;i<8;i++) {
+                glm::vec3 wp = glm::vec3(transform * glm::vec4(corners[i], 1.0f));
+                wmin = glm::min(wmin, wp);
+                wmax = glm::max(wmax, wp);
+            }
+            float diag = glm::length(wmax - wmin);
+            hits.push_back({ entity.GetID(), tHit, diag });
+        }
     }
-    return pickedEntity;
+    if (hits.empty()) return -1;
+    std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b){ return a.t < b.t; });
+
+    // Prefer smallest object among near-depth candidates to avoid selecting large enclosing geometry
+    float nearestT = hits.front().t;
+    float windowAbs = 0.5f;                // 0.5 units depth window
+    float windowRel = glm::max(0.1f, nearestT * 0.05f); // 5% of distance, at least 0.1
+    float window = glm::max(windowAbs, windowRel);
+
+    EntityID bestId = hits.front().id;
+    float bestDiag = hits.front().diag;
+    for (const auto& h : hits) {
+        if (h.t > nearestT + window) break;
+        if (h.diag < bestDiag) { bestDiag = h.diag; bestId = h.id; }
+    }
+    return bestId;
 }
 
 // =============================

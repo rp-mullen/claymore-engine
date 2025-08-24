@@ -14,6 +14,7 @@ uniform vec4 u_cameraPos;          // camera position in world space
 uniform vec4 u_ambientFog;         // xyz = ambient color * intensity, w = flags (bit0: fog enabled)
 uniform vec4 u_fogParams;          // x = fogDensity, yzw = fog color
 uniform vec4 u_skyParams;          // x = proceduralSky flag
+uniform vec4 u_ColorTint;
 
 // PBR lighting calculation function
 vec3 CalculatePBRLighting(vec3 N, vec3 V, vec3 L, vec3 baseColor, float metallic, float roughness, vec3 lightColor, float lightIntensity) {
@@ -59,6 +60,7 @@ void main()
     
     // Sample material properties
     vec3 baseColor = texture2D(s_albedo, v_texcoord0.xy).rgb;
+    baseColor *= u_ColorTint.rgb;
     float metallic = texture2D(s_metallicRoughness, v_texcoord0.xy).r;
     float roughness = texture2D(s_metallicRoughness, v_texcoord0.xy).g;
 

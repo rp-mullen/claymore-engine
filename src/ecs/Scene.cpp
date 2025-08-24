@@ -147,6 +147,8 @@ Entity Scene::CreateEntity(const std::string& name) {
 
    Entity entity(id, this);
    m_EntityList.push_back(entity);
+   // Editor: mark scene dirty on structural change
+   MarkDirty();
 
    return entity;
 }
@@ -161,6 +163,8 @@ Entity Scene::CreateEntityExact(const std::string& name) {
 
    Entity entity(id, this);
    m_EntityList.push_back(entity);
+   // Editor: mark scene dirty on structural change
+   MarkDirty();
 
    return entity;
 }
@@ -248,6 +252,9 @@ void Scene::RemoveEntity(EntityID id) {
             [&](const Entity& e) { return e.GetID() == id; }),
         m_EntityList.end());
     m_Entities.erase(id);
+
+    // Editor: mark scene dirty on structural change
+    MarkDirty();
 
     std::cout << "[Scene] Removed entity " << id << " and all its children" << std::endl;
 }

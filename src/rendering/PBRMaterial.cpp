@@ -13,6 +13,8 @@ PBRMaterial::PBRMaterial(const std::string& name, bgfx::ProgramHandle program)
     m_AlbedoTex = BGFX_INVALID_HANDLE;
     m_MetallicRoughnessTex = BGFX_INVALID_HANDLE;
     m_NormalTex = BGFX_INVALID_HANDLE;
+    // Default tint to white so shaders multiply by 1
+    SetUniform("u_ColorTint", glm::vec4(1.0f));
    }
 
 PBRMaterial::PBRMaterial(const std::string& name, bgfx::ProgramHandle program, uint64_t stateFlags)
@@ -24,6 +26,8 @@ PBRMaterial::PBRMaterial(const std::string& name, bgfx::ProgramHandle program, u
 	m_AlbedoTex = BGFX_INVALID_HANDLE;
 	m_MetallicRoughnessTex = BGFX_INVALID_HANDLE;
 	m_NormalTex = BGFX_INVALID_HANDLE;
+    // Default tint to white
+    SetUniform("u_ColorTint", glm::vec4(1.0f));
 }
 
 void PBRMaterial::SetAlbedoTexture(bgfx::TextureHandle texture) { m_AlbedoTex = texture; }

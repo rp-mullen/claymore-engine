@@ -490,7 +490,62 @@ void AssetPipeline::ImportModel(const std::string& path) {
                 }
             }
         }
+        // After import: hot-swap in active scene
+        AssetPipeline::Instance().HotSwapModelInScene(path);
         });
+}
+void AssetPipeline::HotSwapModelInScene(const std::string& modelPath) {
+    // Resolve GUID for this path if known
+    ClaymoreGUID guid = AssetLibrary::Instance().GetGUIDForPath(modelPath);
+    Scene& scene = Scene::Get();
+    for (const auto& e : scene.GetEntities()) {
+        auto* d = scene.GetEntityData(e.GetID()); if (!d || !d->Mesh) continue;
+        bool matches = false;
+        if (d->Mesh->mesh && !d->Mesh->MeshName.empty()) {
+            // Fallback: if MeshName reflects source file stem, compare
+            std::string stem = std::filesystem::path(modelPath).stem().string();
+            matches |= (d->Mesh->MeshName == stem);
+        }
+        if (d->Mesh->meshReference.guid == guid) matches = true;
+        // Also try direct path mapping in AssetLibrary
+        if (!matches) {
+            if (auto* entry = AssetLibrary::Instance().GetAsset(modelPath)) {
+                matches = (entry->reference.guid == d->Mesh->meshReference.guid);
+            }
+        }
+        if (!matches) continue;
+
+        // Preserve scene deltas
+        TransformComponent savedXf = d->Transform;
+        auto savedMat = d->Mesh->material;
+        auto savedMats = d->Mesh->materials;
+        auto savedPB = d->Mesh->PropertyBlock;
+
+        // Reload mesh from AssetLibrary (meshbin fast path)
+        std::shared_ptr<Mesh> newMesh;
+        if (auto* entry = AssetLibrary::Instance().GetAsset(modelPath)) {
+            newMesh = AssetLibrary::Instance().LoadMesh(entry->reference);
+        }
+        if (!newMesh) {
+            // As a fallback, re-import on the fly
+            newMesh = AssetLibrary::Instance().LoadMesh(d->Mesh->meshReference);
+        }
+        if (!newMesh) continue;
+
+        d->Mesh->mesh = newMesh;
+        // Keep materials and property overrides; do not touch transform
+        d->Mesh->material = savedMat;
+        d->Mesh->materials = savedMats;
+        d->Mesh->PropertyBlock = savedPB;
+
+        // Recompute bounds and rebuild collider if needed
+        if (d->Collider && d->Collider->ShapeType == ColliderShape::Mesh) {
+            d->Collider->BuildShape(d->Mesh->mesh.get());
+        }
+
+        d->Transform = savedXf;
+        d->Transform.TransformDirty = true;
+    }
 }
 
 // ---------------------------------------

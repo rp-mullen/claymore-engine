@@ -22,31 +22,26 @@ void Material::ApplyPropertyBlock(const MaterialPropertyBlock& block) const
     // Vec4 overrides
     for (const auto& kv : block.Vec4Uniforms)
     {
-        bgfx::UniformHandle handle = BGFX_INVALID_HANDLE;
         auto it = m_Uniforms.find(kv.first);
-        if (it != m_Uniforms.end())
-        {
-            handle = it->second.handle;
-        }
-        else
-        {
-            // Create transient uniform with this name
-            handle = bgfx::createUniform(kv.first.c_str(), bgfx::UniformType::Vec4);
-        }
-        if (bgfx::isValid(handle))
-        {
-            bgfx::setUniform(handle, &kv.second);
-        }
+        if (it == m_Uniforms.end())
+            continue; // skip unknown uniforms to avoid creating/leaking at runtime
+        bgfx::setUniform(it->second.handle, &kv.second);
     }
 
     // Texture overrides: assumes sampler uniform with same name already exists in shader
     uint8_t slot = 0;
     for (const auto& kv : block.Textures)
     {
-        bgfx::UniformHandle sampler = bgfx::createUniform(kv.first.c_str(), bgfx::UniformType::Sampler);
-        if (bgfx::isValid(sampler) && bgfx::isValid(kv.second))
-        {
-            bgfx::setTexture(slot++, sampler, kv.second);
+        // Cache sampler uniforms by name to avoid per-frame creation/leaks
+        struct SamplerCache { std::unordered_map<std::string, bgfx::UniformHandle> map; };
+        static SamplerCache s_cache;
+        bgfx::UniformHandle sampler = BGFX_INVALID_HANDLE;
+        auto itS = s_cache.map.find(kv.first);
+        if (itS != s_cache.map.end()) sampler = itS->second; else {
+            sampler = bgfx::createUniform(kv.first.c_str(), bgfx::UniformType::Sampler);
+            if (bgfx::isValid(sampler)) s_cache.map.emplace(kv.first, sampler);
         }
+        if (bgfx::isValid(sampler) && bgfx::isValid(kv.second))
+            bgfx::setTexture(slot++, sampler, kv.second);
     }
 }

@@ -15,10 +15,12 @@
 #include "ecs/Scene.h"
 #include "panels/ScriptRegistryPanel.h"
 #include "panels/AssetRegistryPanel.h"
+#include "panels/PrefabEditorPanel.h"
+#include "panels/CodeEditorPanel.h"
 
 #include <vector>
 #include <memory>
-
+ 
 extern std::vector<std::string> g_RegisteredScriptNames;
 
 class UILayer {
@@ -54,6 +56,8 @@ public:
     // Prefab editor management
     void OpenPrefabEditor(const std::string& prefabPath);
     bool AnyPrefabViewportFocused() const;
+    // Code editor management
+    void OpenCodeEditor(const std::string& filePath);
     // Access to Project panel
     ProjectPanel& GetProjectPanel() { return m_ProjectPanel; }
     class AnimTimelinePanel& GetTimelinePanel() { return m_AnimTimelinePanel; }
@@ -107,6 +111,7 @@ private:
 	ProfilerPanel m_ProfilerPanel;
     AvatarBuilderPanel m_AvatarBuilderPanel;
     std::vector<std::unique_ptr<PrefabEditorPanel>> m_PrefabEditors;
+    std::vector<std::unique_ptr<CodeEditorPanel>> m_CodeEditors;
 
     // Overlay state
     bool m_BlockingOverlayActive = false;
@@ -126,6 +131,9 @@ private:
     // Misc
     bool m_FocusConsoleNextFrame = false;
     bool m_PlayMode = false;
+
+    // One-off docking for viewport when using dynamic window label
+    bool m_DockViewportOnce = false;
 
     // Deferred load
     bool m_HasDeferredSceneLoad = false;

@@ -128,7 +128,8 @@ set(EXTERNAL_SOURCES
     external/ImGuizmo/ImSequencer.cpp
     external/ImGuizmo/ImCurveEdit.cpp
     external/ImGuizmo/GraphEditor.cpp
-    external/imnodes/imnodes.cpp)
+    external/imnodes/imnodes.cpp
+    external/imgui_colortextedit/TextEditor.cpp)
 
 add_executable(Claymore
     ${ENGINE_SOURCES}
@@ -140,6 +141,7 @@ target_include_directories(Claymore PRIVATE
     external/bx/include
     external/bimg/include
     external/imgui
+    external/imgui_colortextedit
     external/bgfx/examples
     external/bgfx/examples/common
     

@@ -120,7 +120,60 @@ static inline bool IsFinite3(const glm::vec3& v)
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
 }
 
+// Normalize blend shape names coming from various importers/exporters.
+// Some pipelines (e.g., certain FBX exports) may produce names like
+// "MeshName.ShapeName" or even duplicated patterns like "Sex.Sex".
+// For unified morph control we want consistent names across meshes, so
+// we strip redundant prefixes when the suffix clearly repeats the same
+// token or the mesh name.
+static std::string NormalizeBlendShapeName(const std::string& rawName, const std::string& meshName)
+{
+    // Fast path: empty or short name
+    if (rawName.empty()) return rawName;
+
+    // Find the last separator among '.', ':', '/'
+    size_t sepPos = rawName.find_last_of(".:/");
+    if (sepPos != std::string::npos && sepPos + 1 < rawName.size())
+    {
+        std::string head = rawName.substr(0, sepPos);
+        std::string tail = rawName.substr(sepPos + 1);
+
+        // If the tail matches the mesh name, prefer the tail
+        if (!meshName.empty() && tail == meshName)
+            return tail;
+
+        // If the last token before the separator equals the tail, prefer the tail
+        size_t headSep = head.find_last_of(".:/");
+        std::string headLast = (headSep == std::string::npos) ? head : head.substr(headSep + 1);
+        if (!headLast.empty() && headLast == tail)
+            return tail;
+    }
+
+    // Special-case duplicated token split by a single '.' (e.g., "Sex.Sex")
+    size_t dot = rawName.find('.');
+    if (dot != std::string::npos && dot + 1 < rawName.size())
+    {
+        std::string left = rawName.substr(0, dot);
+        std::string right = rawName.substr(dot + 1);
+        if (left == right)
+            return right;
+    }
+
+    return rawName;
+}
+
 // --------------------------------- Loader ----------------------------------
+bool ModelLoader::s_FlipY = false;
+bool ModelLoader::s_FlipZ = false;
+bool ModelLoader::s_RotateY180 = true;
+
+void ModelLoader::SetFlipYAxis(bool enabled) { s_FlipY = enabled; }
+void ModelLoader::SetFlipZAxis(bool enabled) { s_FlipZ = enabled; }
+bool ModelLoader::GetFlipYAxis() { return s_FlipY; }
+bool ModelLoader::GetFlipZAxis() { return s_FlipZ; }
+void ModelLoader::SetRotateY180(bool enabled) { s_RotateY180 = enabled; }
+bool ModelLoader::GetRotateY180() { return s_RotateY180; }
+
 Model ModelLoader::LoadModel(const std::string& filepath)
 {
     // Initialize the predefined layouts once (from VertexTypes.h)
@@ -221,14 +274,18 @@ Model ModelLoader::LoadModel(const std::string& filepath)
     result.Materials.reserve(scene->mNumMeshes);
     result.BlendShapes.reserve(scene->mNumMeshes);
 
-    // Import option: flip Y coordinate to convert between up-axis conventions (non-skinned meshes only)
-    constexpr bool kFlipYOnImport = true;
+    // Import options for non-skinned meshes
+    const bool kFlipYOnImport = s_FlipY;
+    const bool kFlipZOnImport = s_FlipZ;
+    const bool kRotateY180    = s_RotateY180;
 
     for (unsigned mi = 0; mi < scene->mNumMeshes; ++mi)
     {
         aiMesh* aMesh = scene->mMeshes[mi];
         const bool hasSkin = (aMesh->mNumBones > 0);
-        const bool flipThisMesh = (kFlipYOnImport && !hasSkin);
+        const bool flipYThisMesh = (kFlipYOnImport && !hasSkin);
+        const bool flipZThisMesh = (kFlipZOnImport && !hasSkin);
+        const bool rotateY180ThisMesh = (kRotateY180 && !hasSkin);
 
         // ---- Material (create first so we can attach textures later)
         std::shared_ptr<Material> mat;
@@ -248,6 +305,16 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         {
             std::string albedo, mr, normal;
             ExtractPbrTextures(scene->mMaterials[aMesh->mMaterialIndex], albedo, mr, normal);
+            // Also fetch base color tint if present and seed MaterialPropertyBlock
+            aiColor4D baseCol(1,1,1,1);
+            if (scene->mMaterials[aMesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE, baseCol) == AI_SUCCESS) {
+                glm::vec4 tint(baseCol.r, baseCol.g, baseCol.b, baseCol.a);
+                // Store into a standard uniform name used by shaders
+                // We'll push this via PropertyBlock at render time; seed here as a default suggestion
+                // Since Material doesn't expose default PB, we attach a default into Mat name map
+                // (Use material uniform so it binds every draw)
+                const_cast<Material*>(mat.get())->SetUniform("u_ColorTint", tint);
+            }
 
             // Attempt to map material textures to extracted assets under assets/textures/<modelName>
             auto* pbr = dynamic_cast<PBRMaterial*>(mat.get());
@@ -321,10 +388,11 @@ Model ModelLoader::LoadModel(const std::string& filepath)
             else
                 normal = glm::normalize(normal);
 
-            if (flipThisMesh) {
-                pos.y = -pos.y;
-                normal.y = -normal.y;
-            }
+            if (flipYThisMesh) { pos.y = -pos.y; normal.y = -normal.y; }
+            if (flipZThisMesh) { pos.z = -pos.z; normal.z = -normal.z; }
+            if (rotateY180ThisMesh) { pos.x = -pos.x; normal.x = -normal.x; }
+            // Renormalize after flips
+            normal = glm::normalize(normal);
 
             // Always keep a CPU copy of base data for morph blending (skinned and non-skinned)
             meshVerticesCPU.push_back(glm::vec3(pos.x, pos.y, pos.z));
@@ -405,10 +473,10 @@ Model ModelLoader::LoadModel(const std::string& filepath)
                 else
                     normal = glm::normalize(normal);
 
-                if (flipThisMesh) {
-                    pos.y = -pos.y;
-                    normal.y = -normal.y;
-                }
+                if (flipYThisMesh) { pos.y = -pos.y; normal.y = -normal.y; }
+                if (flipZThisMesh) { pos.z = -pos.z; normal.z = -normal.z; }
+                if (rotateY180ThisMesh) { pos.x = -pos.x; normal.x = -normal.x; }
+                normal = glm::normalize(normal);
 
                 const glm::ivec4& bi = vertIndices[i];
                 const glm::vec4& bw = vertWeights[i];
@@ -430,8 +498,9 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         {
             const aiFace& face = aMesh->mFaces[f];
             if (face.mNumIndices != 3) continue;
-            if (flipThisMesh) {
-                // Preserve front-face after axis flip by reversing winding
+            // Reverse winding only when the scaling changes handedness (odd number of axis flips)
+            if (!(hasSkin)) {
+                // Preserve front-face after axis flips by reversing winding
                 indices32.push_back((uint32_t)face.mIndices[0]);
                 indices32.push_back((uint32_t)face.mIndices[2]);
                 indices32.push_back((uint32_t)face.mIndices[1]);
@@ -510,11 +579,15 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         for (unsigned i = 0; i < aMesh->mNumVertices; ++i)
         {
             aiVector3D p = aMesh->mVertices[i];
-            if (flipThisMesh) p.y = -p.y;
+            if (flipYThisMesh) p.y = -p.y;
+            if (flipZThisMesh) p.z = -p.z;
+            if (rotateY180ThisMesh) p.x = -p.x;
             mesh->Vertices.emplace_back(p.x , p.y , p.z );
 
             aiVector3D n = aMesh->mNormals ? aMesh->mNormals[i] : aiVector3D(0, 0, 1);
-            if (flipThisMesh) n.y = -n.y;
+            if (flipYThisMesh) n.y = -n.y;
+            if (flipZThisMesh) n.z = -n.z;
+            if (rotateY180ThisMesh) n.x = -n.x;
             mesh->Normals.emplace_back(n.x, n.y, n.z);
         }
         mesh->Indices = indices32;
@@ -542,7 +615,7 @@ Model ModelLoader::LoadModel(const std::string& filepath)
             {
                 aiAnimMesh* anim = aMesh->mAnimMeshes[a];
                 BlendShape bs;
-                bs.Name = anim->mName.C_Str();
+                bs.Name = NormalizeBlendShapeName(anim->mName.C_Str(), aMesh->mName.C_Str());
                 bs.DeltaPos.reserve(aMesh->mNumVertices);
                 bs.DeltaNormal.reserve(aMesh->mNumVertices);
 
@@ -551,13 +624,17 @@ Model ModelLoader::LoadModel(const std::string& filepath)
                     // Assimp stores target positions; convert to deltas relative to base mesh
                     const glm::vec3 baseP = (v < meshVerticesCPU.size()) ? meshVerticesCPU[v] : glm::vec3(0);
                     aiVector3D ap = anim->mVertices[v];
-                    if (flipThisMesh) ap.y = -ap.y; // match axis flip applied to base
+                    if (flipYThisMesh) ap.y = -ap.y; // match axis flip applied to base
+                    if (flipZThisMesh) ap.z = -ap.z;
+                    if (rotateY180ThisMesh) ap.x = -ap.x;
                     const glm::vec3 tgtP(ap.x, ap.y, ap.z);
                     bs.DeltaPos.emplace_back(tgtP - baseP);
 
                     const glm::vec3 baseN = (v < meshNormalsCPU.size()) ? meshNormalsCPU[v] : glm::vec3(0, 1, 0);
                     aiVector3D an = anim->mNormals ? anim->mNormals[v] : aiVector3D(0, 0, 0);
-                    if (flipThisMesh) an.y = -an.y;
+                    if (flipYThisMesh) an.y = -an.y;
+                    if (flipZThisMesh) an.z = -an.z;
+                    if (rotateY180ThisMesh) an.x = -an.x;
                     const glm::vec3 tgtN(an.x, an.y, an.z);
                     bs.DeltaNormal.emplace_back(tgtN - baseN);
                 }

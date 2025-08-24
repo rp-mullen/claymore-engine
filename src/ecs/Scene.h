@@ -43,7 +43,7 @@ public:
    void DestroyEntity(Entity e) {RemoveEntity(e.GetID());}
 
    void SetParent(EntityID child, EntityID parent);
-   void SetChild(EntityID parent, EntityID child) {SetParent(child, parent);}
+   void SetChild(EntityID parent, EntityID child) {SetParent(child, parent);} 
 
    // Transform Updates
    void UpdateTransforms();
@@ -69,6 +69,11 @@ public:
 
    bool HasComponent(const char* componentName);
 
+   // Dirty-state API for editor serialization tracking
+   void MarkDirty() { m_IsDirty = true; }
+   void ClearDirty() { m_IsDirty = false; }
+   bool IsDirty() const { return m_IsDirty; }
+
    Camera* GetActiveCamera();
     Environment& GetEnvironment() { return m_Environment; }
     const Environment& GetEnvironment() const { return m_Environment; }
@@ -83,4 +88,5 @@ private:
    EntityID m_NextID = 1;
     Environment m_Environment{};
     std::vector<EntityID> m_PendingRemovals;
+   bool m_IsDirty = false;
    };

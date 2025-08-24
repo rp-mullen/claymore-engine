@@ -31,7 +31,14 @@
 // RENDER VIEWPORT PANEL
 // =============================================================
 void ViewportPanel::OnImGuiRender(bgfx::TextureHandle sceneTexture) {
-    ImGui::Begin("Viewport");
+    const char* base = "Viewport";
+    if (!m_DisplaySceneTitle.empty()) {
+        std::string title = m_DisplaySceneTitle + " - " + base;
+        std::string unique = title + std::string("###Viewport");
+        ImGui::Begin(unique.c_str());
+    } else {
+        ImGui::Begin(base);
+    }
     m_WindowFocusedOrHovered = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) ||
                                ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
     // Reuse the same rendering path as embedded panels so behavior is identical
@@ -87,9 +94,8 @@ void ViewportPanel::OnImGuiRenderEmbedded(bgfx::TextureHandle sceneTexture, cons
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect(min.x, min.y, max.x - min.x, max.y - min.y);
 
-        // If the viewport image item is active while hovering the gizmo, release it so the gizmo can capture drag
-        if (ImGuizmo::IsOver() && ImGui::IsItemActive() && !ImGuizmo::IsUsing())
-        {
+        // Ensure clicks over the gizmo are not captured by the Image item so the gizmo can drag
+        if (ImGuizmo::IsOver() && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             ImGui::ClearActiveID();
         }
         ImGui::PopID();
@@ -480,6 +486,8 @@ void ViewportPanel::DrawGizmo() {
         data->Transform.Scale = scale;
         // Ensure transform updates propagate to children
         m_Context->MarkTransformDirty(*m_SelectedEntity);
+        // Mark owning scene as dirty for serialization tracking
+        if (m_Context) { m_Context->MarkDirty(); }
     }
 }
 
