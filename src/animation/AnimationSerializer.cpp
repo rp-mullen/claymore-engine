@@ -1,5 +1,7 @@
 #include "animation/AnimationSerializer.h"
 #include <fstream>
+#include <filesystem>
+#include <editor/Project.h>
 #include "animation/PropertyTrack.h"
 #include "animation/AnimationAsset.h"
 #include "animation/HumanoidAvatar.h"
@@ -124,7 +126,18 @@ bool SaveAnimationClip(const AnimationClip& clip, const std::string& path) {
 AnimationClip LoadAnimationClip(const std::string& path) {
     AnimationClip empty{};
     try {
+        // Try open as-is first
         std::ifstream file(path);
+        if (!file.is_open()) {
+            // Fallback: treat as project-relative
+            try {
+                std::filesystem::path base = Project::GetProjectDirectory();
+                if (!base.empty()) {
+                    std::filesystem::path alt = base / path;
+                    file.open(alt.string());
+                }
+            } catch (...) {}
+        }
         if (!file.is_open()) {
             std::cerr << "[AnimationSerializer] Failed to open animation clip: " << path << "\n";
             return empty;
@@ -364,7 +377,19 @@ bool SaveAnimationAsset(const AnimationAsset& asset, const std::string& path)
 
 AnimationAsset LoadAnimationAsset(const std::string& path)
 {
-    std::ifstream f(path); if (!f.is_open()) return AnimationAsset{}; json j; f >> j; return DeserializeAnimationAsset(j);
+    std::ifstream f(path);
+    if (!f.is_open()) {
+        // Fallback: treat as project-relative
+        try {
+            std::filesystem::path base = Project::GetProjectDirectory();
+            if (!base.empty()) {
+                std::filesystem::path alt = base / path;
+                f.open(alt.string());
+            }
+        } catch (...) {}
+    }
+    if (!f.is_open()) return AnimationAsset{};
+    json j; f >> j; return DeserializeAnimationAsset(j);
 }
 
 AnimationAsset WrapLegacyClipAsAsset(const AnimationClip& clip)

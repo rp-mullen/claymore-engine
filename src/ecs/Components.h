@@ -77,10 +77,16 @@ struct MeshComponent {
     std::shared_ptr<Material> material;
     // Optional: support multiple materials per mesh (slot 0..N-1)
     std::vector<std::shared_ptr<Material>> materials;
+    // Optional: per-slot property blocks, aligned with materials
+    std::vector<MaterialPropertyBlock> SlotPropertyBlocks;
     bool UniqueMaterial = false; // If true, this entity uses its own material instance
     MaterialPropertyBlock PropertyBlock;
     // Persistable file paths for texture overrides in PropertyBlock
     std::unordered_map<std::string, std::string> PropertyBlockTexturePaths;
+    // Persistable per-slot texture override paths (aligned with SlotPropertyBlocks)
+    std::vector<std::unordered_map<std::string, std::string>> SlotPropertyBlockTexturePaths;
+    // For merged meshes: the original submesh indices (fileIDs) that were combined
+    std::vector<int> CombinedSubmeshFileIDs;
 
 	BlendShapeComponent* BlendShapes = nullptr;
 

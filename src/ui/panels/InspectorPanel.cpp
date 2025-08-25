@@ -448,11 +448,28 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         }
 
         if (meshComp->materials.empty() && meshComp->material) meshComp->materials = { meshComp->material };
-        for (size_t mi = 0; mi < meshComp->materials.size(); ++mi) {
-            ImGui::PushID((int)mi);
-            std::string label = std::string("Material ") + std::to_string(mi);
-            std::string curLabel = (meshComp->materials[mi] ? meshComp->materials[mi]->GetName() : std::string("<none>"));
-            if (ImGui::BeginCombo(label.c_str(), curLabel.c_str())) {
+
+        // Slot selector dropdown to keep UI compact
+        static int s_selectedSlot = 0;
+        int maxSlots = (int)meshComp->materials.size(); if (maxSlots <= 0) maxSlots = 1;
+        if (s_selectedSlot >= maxSlots) s_selectedSlot = maxSlots - 1;
+        std::string slotLabel = std::string("Slot ") + std::to_string(s_selectedSlot);
+        if (ImGui::BeginCombo("Material Slot", slotLabel.c_str())) {
+            for (int i = 0; i < (int)meshComp->materials.size(); ++i) {
+                bool sel = (i == s_selectedSlot);
+                std::string entry = std::string("Slot ") + std::to_string(i);
+                if (ImGui::Selectable(entry.c_str(), sel)) s_selectedSlot = i;
+            }
+            ImGui::EndCombo();
+        }
+
+        // Expose selected slot index to drawers via ImGui storage
+        ImGui::GetStateStorage()->SetInt(ImGui::GetID("SelectedMaterialSlot"), s_selectedSlot);
+
+        // Picker for the selected slot's material
+        if ((size_t)s_selectedSlot < meshComp->materials.size()) {
+            std::string curLabel = (meshComp->materials[s_selectedSlot] ? meshComp->materials[s_selectedSlot]->GetName() : std::string("<none>"));
+            if (ImGui::BeginCombo("Material", curLabel.c_str())) {
                 for (int i = 0; i < (int)s_options.size(); ++i) {
                     bool sel = false;
                     if (ImGui::Selectable(s_options[i].name.c_str(), sel)) {
@@ -466,17 +483,16 @@ void InspectorPanel::DrawComponents(EntityID entity) {
                             MaterialAssetDesc desc; if (LoadMaterialAsset(s_options[i].path, desc)) newMat = CreateMaterialFromAsset(desc);
                         }
                         if (newMat) {
-                            meshComp->materials[mi] = newMat;
-                            if (mi == 0) meshComp->material = newMat; // keep primary in sync
+                            meshComp->materials[s_selectedSlot] = newMat;
+                            if (s_selectedSlot == 0) meshComp->material = newMat; // keep primary in sync
                         }
                     }
                 }
                 ImGui::EndCombo();
             }
-            ImGui::PopID();
         }
 
-        // Draw per-component UI (textures for slots, blendshapes, etc.)
+        // Draw compact per-slot UI via component drawer: shows textures etc. for the selected slot
         registry.DrawComponentUI("Mesh", meshComp);
 
         // PSX parameter UI only when PSX shaders are active on this material
@@ -516,16 +532,16 @@ void InspectorPanel::DrawComponents(EntityID entity) {
             }
         }
 
-        // Unique material toggle (applies to primary material instance)
+        // Unique material toggle (applies to the selected slot's material instance)
         bool unique = meshComp->UniqueMaterial;
         if (ImGui::Checkbox("Unique Material", &unique)) {
             if (unique && !meshComp->UniqueMaterial) {
-                if (!meshComp->materials.empty() && meshComp->materials[0]) {
-                    auto base = meshComp->materials[0]; std::shared_ptr<Material> clone;
+                if (!meshComp->materials.empty() && meshComp->materials[s_selectedSlot]) {
+                    auto base = meshComp->materials[s_selectedSlot]; std::shared_ptr<Material> clone;
                     if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(base)) clone = std::make_shared<PBRMaterial>(*pbr);
                     else clone = base;
-                    meshComp->materials[0] = clone;
-                    meshComp->material = clone;
+                    meshComp->materials[s_selectedSlot] = clone;
+                    if (s_selectedSlot == 0) meshComp->material = clone;
                 }
             }
             meshComp->UniqueMaterial = unique;
@@ -535,14 +551,21 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         if (!meshComp->UniqueMaterial) {
             ImGui::Separator();
             ImGui::TextDisabled("Material Overrides (Property Block)");
+            // Ensure slot arrays are sized
+            if (meshComp->SlotPropertyBlocks.size() < meshComp->materials.size()) meshComp->SlotPropertyBlocks.resize(meshComp->materials.size());
+            if (meshComp->SlotPropertyBlockTexturePaths.size() < meshComp->materials.size()) meshComp->SlotPropertyBlockTexturePaths.resize(meshComp->materials.size());
+
+            MaterialPropertyBlock& pb = (s_selectedSlot < (int)meshComp->SlotPropertyBlocks.size()) ? meshComp->SlotPropertyBlocks[s_selectedSlot] : meshComp->PropertyBlock;
+            auto& paths = (s_selectedSlot < (int)meshComp->SlotPropertyBlockTexturePaths.size()) ? meshComp->SlotPropertyBlockTexturePaths[s_selectedSlot] : meshComp->PropertyBlockTexturePaths;
+
             glm::vec4 tint(1.0f);
-            auto itTint = meshComp->PropertyBlock.Vec4Uniforms.find("u_ColorTint");
-            if (itTint != meshComp->PropertyBlock.Vec4Uniforms.end()) tint = itTint->second;
-            if (ImGui::ColorEdit4("Tint", &tint.x)) meshComp->PropertyBlock.Vec4Uniforms["u_ColorTint"] = tint;
+            auto itTint = pb.Vec4Uniforms.find("u_ColorTint");
+            if (itTint != pb.Vec4Uniforms.end()) tint = itTint->second;
+            if (ImGui::ColorEdit4("Tint", &tint.x)) pb.Vec4Uniforms["u_ColorTint"] = tint;
 
             bgfx::TextureHandle overrideTex = BGFX_INVALID_HANDLE;
-            auto itTex = meshComp->PropertyBlock.Textures.find("s_albedo");
-            if (itTex != meshComp->PropertyBlock.Textures.end()) overrideTex = itTex->second;
+            auto itTex = pb.Textures.find("s_albedo");
+            if (itTex != pb.Textures.end()) overrideTex = itTex->second;
             ImGui::Text("Albedo Texture Override:");
             if (bgfx::isValid(overrideTex)) ImGui::ImageButton("OverrideTex", (ImTextureID)(uintptr_t)overrideTex.idx, ImVec2(64,64));
             else ImGui::Button("Drop texture", ImVec2(64,64));
@@ -550,7 +573,7 @@ void InspectorPanel::DrawComponents(EntityID entity) {
                 if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ASSET_FILE")) {
                     const char* path = (const char*)payload->Data; if (path) {
                         bgfx::TextureHandle tex = TextureLoader::Load2D(path);
-                        if (bgfx::isValid(tex)) { meshComp->PropertyBlock.Textures["s_albedo"] = tex; meshComp->PropertyBlockTexturePaths["s_albedo"] = std::string(path); }
+                        if (bgfx::isValid(tex)) { pb.Textures["s_albedo"] = tex; paths["s_albedo"] = std::string(path); }
                     }
                 }
                 ImGui::EndDragDropTarget();

@@ -17,6 +17,10 @@
 #include <unordered_set>
 
 #include "ecs/Scene.h"
+#include <rendering/VertexTypes.h>
+#include <rendering/Mesh.h>
+#include <rendering/MaterialManager.h>
+#include <bgfx/bgfx.h>
 
 // Jobs for parallel scene deserialization
 #include "jobs/Jobs.h"
@@ -221,19 +225,39 @@ json Serializer::SerializeMesh(const MeshComponent& mesh) {
     }
     data["uniqueMaterial"] = mesh.UniqueMaterial;
 
-    if (mesh.material) {
-        data["materialName"] = mesh.material->GetName();
-        // Store material properties if it's a PBR material
-        if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(mesh.material)) {
-            data["materialType"] = "PBR";
-            // Persist texture source paths for unique materials
-            if (mesh.UniqueMaterial) {
-                if (!pbr->GetAlbedoPath().empty()) data["mat_albedoPath"] = pbr->GetAlbedoPath();
-                if (!pbr->GetMetallicRoughnessPath().empty()) data["mat_mrPath"] = pbr->GetMetallicRoughnessPath();
-                if (!pbr->GetNormalPath().empty()) data["mat_normalPath"] = pbr->GetNormalPath();
-            }
-        }
+    // Persist materials list (names only) and primary for backward compat
+    if (!mesh.materials.empty()) {
+        json jlist = json::array();
+        for (auto& m : mesh.materials) jlist.push_back(m ? m->GetName() : std::string(""));
+        data["materials"] = std::move(jlist);
     }
+    if (mesh.material) data["materialName"] = mesh.material->GetName();
+
+    // Persist per-slot property blocks
+    if (!mesh.SlotPropertyBlocks.empty()) {
+        json slots = json::array();
+        for (size_t i = 0; i < mesh.SlotPropertyBlocks.size(); ++i) {
+            const auto& pb = mesh.SlotPropertyBlocks[i];
+            json jpb;
+            if (!pb.Vec4Uniforms.empty()) {
+                json jv = json::object();
+                for (const auto& kv : pb.Vec4Uniforms) jv[kv.first] = { kv.second.x, kv.second.y, kv.second.z, kv.second.w };
+                jpb["vec4"] = std::move(jv);
+            }
+            if (!pb.Textures.empty()) {
+                json jt = json::object();
+                if (i < mesh.SlotPropertyBlockTexturePaths.size()) {
+                    for (const auto& kv : mesh.SlotPropertyBlockTexturePaths[i]) jt[kv.first] = kv.second;
+                }
+                if (!jt.empty()) jpb["textures"] = std::move(jt);
+            }
+            slots.push_back(std::move(jpb));
+        }
+        data["slotPropertyBlocks"] = std::move(slots);
+    }
+
+    // Persist combined submesh indices if present
+    if (!mesh.CombinedSubmeshFileIDs.empty()) data["combinedSubmeshes"] = mesh.CombinedSubmeshFileIDs;
 
     // Persist PropertyBlock overrides
     if (!mesh.PropertyBlock.Vec4Uniforms.empty()) {
@@ -320,11 +344,116 @@ void Serializer::DeserializeMesh(const json& data, MeshComponent& mesh) {
         }
     }
      
+    // If this mesh was previously merged from multiple submeshes, reconstruct it now
+    std::vector<int> combinedIds;
+    if (data.contains("combinedSubmeshes") && data["combinedSubmeshes"].is_array()) {
+        for (const auto& v : data["combinedSubmeshes"]) combinedIds.push_back(v.get<int>());
+    }
+    if (combinedIds.size() > 1) {
+        // Load original model for these indices
+        std::string modelPath = AssetLibrary::Instance().GetPathForGUID(mesh.meshReference.guid);
+        if (!modelPath.empty()) {
+            Model mdl = ModelLoader::LoadModel(modelPath);
+            // Build a combined mesh similar to Scene::InstantiateModel
+            std::shared_ptr<Mesh> combined = std::make_shared<Mesh>();
+            combined->Dynamic = false;
+            combined->Vertices.clear(); combined->Normals.clear(); combined->UVs.clear(); combined->Indices.clear();
+            combined->Submeshes.clear();
+            uint32_t vbase = 0, ibase = 0;
+            bool groupIsSkinned = false;
+            for (size_t i = 0; i < combinedIds.size(); ++i) {
+                int idx = combinedIds[i]; if (idx < 0 || idx >= (int)mdl.Meshes.size()) continue;
+                std::shared_ptr<Mesh> src = mdl.Meshes[idx]; if (!src) continue;
+                groupIsSkinned = groupIsSkinned || src->HasSkinning();
+                uint32_t thisBase = vbase;
+                combined->Vertices.insert(combined->Vertices.end(), src->Vertices.begin(), src->Vertices.end());
+                combined->Normals.insert(combined->Normals.end(), src->Normals.begin(), src->Normals.end());
+                combined->UVs.insert(combined->UVs.end(), src->UVs.begin(), src->UVs.end());
+                if (src->HasSkinning()) {
+                    combined->BoneWeights.insert(combined->BoneWeights.end(), src->BoneWeights.begin(), src->BoneWeights.end());
+                    combined->BoneIndices.insert(combined->BoneIndices.end(), src->BoneIndices.begin(), src->BoneIndices.end());
+                }
+                vbase += (uint32_t)src->Vertices.size();
+                uint32_t start = ibase;
+                for (uint32_t id : src->Indices) combined->Indices.push_back(id + thisBase);
+                uint32_t count = (uint32_t)src->Indices.size();
+                ibase += count;
+                Mesh::Submesh sm; sm.indexStart = start; sm.indexCount = count; sm.baseVertex = thisBase; sm.materialSlot = (uint32_t)i;
+                combined->Submeshes.push_back(sm);
+            }
+
+            combined->ComputeBounds();
+            // Upload buffers
+            if (groupIsSkinned) {
+                std::vector<SkinnedPBRVertex> verts; verts.reserve(combined->Vertices.size());
+                for (size_t i = 0; i < combined->Vertices.size(); ++i) {
+                    const glm::vec3& p = combined->Vertices[i];
+                    const glm::vec3& n = (i < combined->Normals.size()) ? combined->Normals[i] : glm::vec3(0,1,0);
+                    const glm::vec2& uv = (i < combined->UVs.size()) ? combined->UVs[i] : glm::vec2(0,0);
+                    glm::ivec4 bi = (i < combined->BoneIndices.size()) ? combined->BoneIndices[i] : glm::ivec4(0);
+                    glm::vec4  bw = (i < combined->BoneWeights.size()) ? combined->BoneWeights[i] : glm::vec4(1,0,0,0);
+                    verts.push_back({ p.x,p.y,p.z, n.x,n.y,n.z, uv.x,uv.y, (uint8_t)bi.x,(uint8_t)bi.y,(uint8_t)bi.z,(uint8_t)bi.w, bw.x,bw.y,bw.z,bw.w });
+                }
+                const bgfx::Memory* vbMem = bgfx::copy(verts.data(), (uint32_t)(sizeof(SkinnedPBRVertex) * verts.size()));
+                combined->dvbh = bgfx::createDynamicVertexBuffer(vbMem, SkinnedPBRVertex::layout);
+                combined->Dynamic = true;
+            } else {
+                std::vector<PBRVertex> verts; verts.reserve(combined->Vertices.size());
+                for (size_t i = 0; i < combined->Vertices.size(); ++i) {
+                    const glm::vec3& p = combined->Vertices[i];
+                    const glm::vec3& n = (i < combined->Normals.size()) ? combined->Normals[i] : glm::vec3(0,1,0);
+                    const glm::vec2& uv = (i < combined->UVs.size()) ? combined->UVs[i] : glm::vec2(0,0);
+                    verts.push_back({ p.x,p.y,p.z, n.x,n.y,n.z, uv.x, uv.y });
+                }
+                const bgfx::Memory* vbMem = bgfx::copy(verts.data(), (uint32_t)(sizeof(PBRVertex) * verts.size()));
+                combined->vbh = bgfx::createVertexBuffer(vbMem, PBRVertex::layout);
+                combined->Dynamic = false;
+            }
+            uint32_t maxIdx = 0; for (uint32_t v : combined->Indices) maxIdx = std::max(maxIdx, v);
+            if (maxIdx >= 65536u) {
+                const bgfx::Memory* imem = bgfx::copy(combined->Indices.data(), (uint32_t)(combined->Indices.size() * sizeof(uint32_t)));
+                combined->ibh = bgfx::createIndexBuffer(imem, BGFX_BUFFER_INDEX32);
+            } else {
+                std::vector<uint16_t> idx16; idx16.reserve(combined->Indices.size());
+                for (uint32_t v : combined->Indices) idx16.push_back((uint16_t)v);
+                const bgfx::Memory* imem = bgfx::copy(idx16.data(), (uint32_t)(idx16.size() * sizeof(uint16_t)));
+                combined->ibh = bgfx::createIndexBuffer(imem);
+            }
+            combined->numVertices = (uint32_t)combined->Vertices.size();
+            combined->numIndices = (uint32_t)combined->Indices.size();
+
+            // Materials for each slot using scene defaults (presets)
+            Scene& sc = Scene::Get();
+            mesh.materials.clear();
+            for (size_t i = 0; i < combinedIds.size(); ++i) {
+                int idx = combinedIds[i];
+                std::shared_ptr<Material> mat;
+                bool isSkinned = (idx >= 0 && idx < (int)mdl.Meshes.size() && mdl.Meshes[idx] && mdl.Meshes[idx]->HasSkinning());
+                if (isSkinned) mat = MaterialManager::Instance().CreateSceneSkinnedDefaultMaterial(&sc);
+                else mat = MaterialManager::Instance().CreateSceneDefaultMaterial(&sc);
+                mesh.materials.push_back(mat);
+            }
+            mesh.mesh = combined;
+            mesh.CombinedSubmeshFileIDs = combinedIds;
+        }
+    }
+
+    // Restore materials list if present
+    mesh.materials.clear();
+    if (data.contains("materials") && data["materials"].is_array()) {
+        for (const auto& jn : data["materials"]) {
+            // Ignore names and use scene defaults to match current preset
+            std::shared_ptr<Material> m = MaterialManager::Instance().CreateSceneDefaultMaterial(&Scene::Get());
+            mesh.materials.push_back(m);
+        }
+    }
+     
     // Material: if not already set by caller (e.g., skinned detection), assign default PBR
     if (!mesh.material) {
 		Scene& scene = Scene::Get();
         mesh.material = MaterialManager::Instance().CreateSceneDefaultMaterial(&scene);
     }
+    if (!mesh.materials.empty()) mesh.material = mesh.materials[0];
 
     // If the material is unique and we have texture source paths, restore them
     if (mesh.UniqueMaterial) {
@@ -369,6 +498,44 @@ void Serializer::DeserializeMesh(const json& data, MeshComponent& mesh) {
                 mesh.PropertyBlock.Textures[uniform] = tex;
             }
         }
+    }
+
+    // Restore per-slot property blocks
+    mesh.SlotPropertyBlocks.clear();
+    if (data.contains("slotPropertyBlocks") && data["slotPropertyBlocks"].is_array()) {
+        mesh.SlotPropertyBlockTexturePaths.clear();
+        for (const auto& jpb : data["slotPropertyBlocks"]) {
+            MaterialPropertyBlock pb;
+            if (jpb.contains("vec4")) {
+                for (auto it = jpb["vec4"].begin(); it != jpb["vec4"].end(); ++it) {
+                    auto arr = it.value(); if (arr.is_array() && arr.size() == 4) {
+                        glm::vec4 v(arr[0], arr[1], arr[2], arr[3]);
+                        pb.Vec4Uniforms[it.key()] = v;
+                    }
+                }
+            }
+            if (jpb.contains("textures")) {
+                std::unordered_map<std::string, std::string> slotPaths;
+                for (auto it = jpb["textures"].begin(); it != jpb["textures"].end(); ++it) {
+                    std::string path = it.value().get<std::string>();
+                    if (!path.empty()) {
+                        bgfx::TextureHandle t = TextureLoader::Load2D(path);
+                        if (bgfx::isValid(t)) {
+                            pb.Textures[it.key()] = t;
+                            slotPaths[it.key()] = path;
+                        }
+                    }
+                }
+                mesh.SlotPropertyBlockTexturePaths.push_back(std::move(slotPaths));
+            }
+            mesh.SlotPropertyBlocks.push_back(std::move(pb));
+        }
+    }
+
+    // Restore combined submesh indices
+    mesh.CombinedSubmeshFileIDs.clear();
+    if (data.contains("combinedSubmeshes") && data["combinedSubmeshes"].is_array()) {
+        for (const auto& v : data["combinedSubmeshes"]) mesh.CombinedSubmeshFileIDs.push_back(v.get<int>());
     }
 }
 

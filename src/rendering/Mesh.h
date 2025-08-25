@@ -19,6 +19,15 @@ struct Mesh {
     std::vector<glm::vec2> UVs;
     std::vector<uint32_t> Indices;
 
+    // Optional submesh ranges for multi-material draws on a single mesh
+    struct Submesh {
+        uint32_t indexStart = 0;   // starting index within Indices
+        uint32_t indexCount = 0;   // number of indices in this submesh
+        uint32_t baseVertex = 0;   // first vertex of this submesh in Vertices
+        uint32_t materialSlot = 0; // material slot index to use for this submesh
+    };
+    std::vector<Submesh> Submeshes;
+
     // Skinning (optional)
     std::vector<glm::vec4> BoneWeights; // xyzw weight
     std::vector<glm::ivec4> BoneIndices;

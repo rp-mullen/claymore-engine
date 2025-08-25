@@ -439,7 +439,40 @@ void Renderer::RenderScene(Scene& scene) {
       memcpy(transform, glm::value_ptr(data->Transform.WorldMatrix), sizeof(float) * 16);
 
 
-      DrawMesh(*meshPtr.get(), transform, *data->Mesh->material, &data->Mesh->PropertyBlock);
+      // If the mesh has submeshes and the component has multiple materials, draw per submesh/material slot
+      if (!meshPtr->Submeshes.empty() && !data->Mesh->materials.empty()) {
+         for (const auto& sm : meshPtr->Submeshes) {
+            const size_t slot = sm.materialSlot < data->Mesh->materials.size() ? sm.materialSlot : 0;
+            const Material* mat = data->Mesh->materials[slot] ? data->Mesh->materials[slot].get() : data->Mesh->material.get();
+            if (!mat) mat = data->Mesh->material.get();
+            bgfx::setTransform(transform);
+            if (meshPtr->Dynamic) {
+               if (bgfx::isValid(meshPtr->dvbh)) {
+                  bgfx::setVertexBuffer(0, meshPtr->dvbh, 0, meshPtr->numVertices);
+               } else {
+                  continue;
+               }
+            } else {
+               bgfx::setVertexBuffer(0, meshPtr->vbh);
+            }
+            // Submit only the sub-range of indices
+            bgfx::setIndexBuffer(meshPtr->ibh, sm.indexStart, sm.indexCount);
+            // Normal matrix for this draw
+            glm::mat4 modelMtx = glm::make_mat4(transform);
+            glm::mat3 n3 = glm::transpose(glm::inverse(glm::mat3(modelMtx)));
+            glm::mat4 normalMat4(1.0f); normalMat4[0] = glm::vec4(n3[0], 0.0f); normalMat4[1] = glm::vec4(n3[1], 0.0f); normalMat4[2] = glm::vec4(n3[2], 0.0f);
+            bgfx::setUniform(u_normalMat, glm::value_ptr(normalMat4));
+
+            mat->BindUniforms();
+            if (data->Mesh && !data->Mesh->PropertyBlock.Empty())
+               mat->ApplyPropertyBlock(data->Mesh->PropertyBlock);
+            bgfx::setState(mat->GetStateFlags());
+            if (bgfx::isValid(mat->GetProgram()))
+               bgfx::submit(1, mat->GetProgram());
+         }
+      } else {
+         DrawMesh(*meshPtr.get(), transform, *data->Mesh->material, &data->Mesh->PropertyBlock);
+      }
       }
 
    // --------------------------------------
@@ -1084,7 +1117,41 @@ void Renderer::RenderScene(Scene& scene, uint16_t viewId)
 
       float transform[16]; memcpy(transform, glm::value_ptr(data->Transform.WorldMatrix), sizeof(float) * 16);
 
-      DrawMesh(*meshPtr.get(), transform, *data->Mesh->material, viewId, &data->Mesh->PropertyBlock);
+      if (!meshPtr->Submeshes.empty() && !data->Mesh->materials.empty()) {
+         for (const auto& sm : meshPtr->Submeshes) {
+            const size_t slot = sm.materialSlot < data->Mesh->materials.size() ? sm.materialSlot : 0;
+            const Material* mat = data->Mesh->materials[slot] ? data->Mesh->materials[slot].get() : data->Mesh->material.get();
+            if (!mat) mat = data->Mesh->material.get();
+            bgfx::setTransform(transform);
+            if (meshPtr->Dynamic) {
+               if (bgfx::isValid(meshPtr->dvbh)) {
+                  bgfx::setVertexBuffer(0, meshPtr->dvbh, 0, meshPtr->numVertices);
+               } else { continue; }
+            } else {
+               bgfx::setVertexBuffer(0, meshPtr->vbh);
+            }
+            bgfx::setIndexBuffer(meshPtr->ibh, sm.indexStart, sm.indexCount);
+            // Normal matrix for this draw
+            glm::mat4 modelMtx = glm::make_mat4(transform);
+            glm::mat3 n3 = glm::transpose(glm::inverse(glm::mat3(modelMtx)));
+            glm::mat4 normalMat4(1.0f); normalMat4[0] = glm::vec4(n3[0], 0.0f); normalMat4[1] = glm::vec4(n3[1], 0.0f); normalMat4[2] = glm::vec4(n3[2], 0.0f);
+            bgfx::setUniform(u_normalMat, glm::value_ptr(normalMat4));
+            mat->BindUniforms();
+            // Apply per-slot property block if present; else fall back to component block
+            const MaterialPropertyBlock* pb = nullptr;
+            if (data->Mesh && sm.materialSlot < data->Mesh->SlotPropertyBlocks.size()) {
+               if (!data->Mesh->SlotPropertyBlocks[sm.materialSlot].Empty()) pb = &data->Mesh->SlotPropertyBlocks[sm.materialSlot];
+            }
+            if (!pb && data->Mesh && !data->Mesh->PropertyBlock.Empty()) pb = &data->Mesh->PropertyBlock;
+            if (pb) mat->ApplyPropertyBlock(*pb);
+            bgfx::setState(mat->GetStateFlags());
+            if (bgfx::isValid(mat->GetProgram())) {
+               bgfx::submit(viewId, mat->GetProgram());
+            }
+         }
+      } else {
+         DrawMesh(*meshPtr.get(), transform, *data->Mesh->material, viewId, &data->Mesh->PropertyBlock);
+      }
       }
    }
 

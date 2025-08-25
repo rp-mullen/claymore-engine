@@ -71,19 +71,7 @@ inline void RegisterComponentDrawers() {
     registry.Register<MeshComponent>("Mesh", [](MeshComponent& m) {
         ImGui::Text("Mesh Name: %s", m.MeshName.c_str());
         if (!m.material && m.materials.empty()) return;
-        if (!m.materials.empty()) {
-            for (size_t i = 0; i < m.materials.size(); ++i) {
-                auto mat = m.materials[i];
-                ImGui::Text("Material %d: %s", (int)i, mat ? mat->GetName().c_str() : "<none>");
-            }
-        } else if (m.material) {
-            ImGui::Text("Material: %s", m.material->GetName().c_str());
-        }
-
-        // Attempt to cast to PBRMaterial on primary slot to expose texture slots
-        auto matForUI = (!m.materials.empty() ? m.materials[0] : m.material);
-        if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(matForUI)) {
-            auto drawTexSlot = [&](const char* label, bgfx::TextureHandle& tex) {
+        auto drawTexSlot = [&](const char* label, bgfx::TextureHandle& tex) {
                 ImGui::Separator();
                 ImGui::Text("%s", label);
                 ImTextureID texId = (ImTextureID)(uintptr_t)(bgfx::isValid(tex) ? tex.idx : 0);
@@ -118,9 +106,28 @@ inline void RegisterComponentDrawers() {
                 }
             };
 
-            drawTexSlot("Albedo", pbr->m_AlbedoTex);
-            drawTexSlot("MetallicRoughness", pbr->m_MetallicRoughnessTex);
-            drawTexSlot("Normal", pbr->m_NormalTex);
+        // Draw only the selected slot (InspectorPanel provides the selection index)
+        int selectedSlot = 0;
+        if (ImGui::GetStateStorage()) {
+            // Use an ImGui state key to retrieve current slot from InspectorPanel
+            ImGuiID key = ImGui::GetID("SelectedMaterialSlot");
+            selectedSlot = ImGui::GetStateStorage()->GetInt(key, 0);
+        }
+        if (!m.materials.empty() && (size_t)selectedSlot < m.materials.size()) {
+            auto mat = m.materials[selectedSlot];
+            ImGui::TextDisabled("%s", mat ? mat->GetName().c_str() : "<none>");
+            if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(mat)) {
+                drawTexSlot("Albedo", pbr->m_AlbedoTex);
+                drawTexSlot("MetallicRoughness", pbr->m_MetallicRoughnessTex);
+                drawTexSlot("Normal", pbr->m_NormalTex);
+            }
+        } else if (m.material) {
+            ImGui::TextDisabled("%s", m.material->GetName().c_str());
+            if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(m.material)) {
+                drawTexSlot("Albedo", pbr->m_AlbedoTex);
+                drawTexSlot("MetallicRoughness", pbr->m_MetallicRoughnessTex);
+                drawTexSlot("Normal", pbr->m_NormalTex);
+            }
         }
         // Blend shape sliders
         if (m.BlendShapes) {

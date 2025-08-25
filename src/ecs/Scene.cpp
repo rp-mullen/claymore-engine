@@ -36,6 +36,8 @@ namespace fs = std::filesystem;
 #include <windows.h>
 #include "animation/AvatarSerializer.h"
 #include "serialization/Serializer.h"
+#include <rendering/VertexTypes.h>
+#include <bgfx/bgfx.h>
 
 #include "jobs/JobSystem.h"
 #include "jobs/ParallelFor.h"
@@ -615,72 +617,200 @@ EntityID Scene::InstantiateModel(const std::string& path, const glm::vec3& rootP
 
 
     //--------------------------------------------------------------------
-    // Create one entity per mesh as child of the root entity
+    // Create one entity per node; if a node contains multiple meshes,
+    // merge them into a single Mesh with multiple submeshes/material slots.
     //--------------------------------------------------------------------
     // Axis correction disabled: geometry import now flips Y at vertex level (ModelLoader),
     // so applying an additional 180-degree X rotation here would negate the effect.
 
-    std::vector<EntityID> createdMeshEntities(model.Meshes.size(), INVALID_ENTITY_ID);
+    // Group mesh indices by originating node name
+    std::unordered_map<std::string, std::vector<size_t>> groupByNode;
+    std::vector<std::string> groupOrder;
     for (size_t i = 0; i < model.Meshes.size(); ++i) {
-        const auto& meshPtr = model.Meshes[i];
-        if (!meshPtr) continue;
+        std::string key = (i < meshEntityNames.size() && !meshEntityNames[i].empty()) ? meshEntityNames[i] : (std::string("Mesh_") + std::to_string(i));
+        if (groupByNode.find(key) == groupByNode.end()) groupOrder.push_back(key);
+        groupByNode[key].push_back(i);
+    }
 
-        // Pick an entity name derived from FBX content
-        std::string desiredName = (i < meshEntityNames.size()) ? meshEntityNames[i] : std::string();
-        if (desiredName.empty()) {
-            // Fallback to Assimp mesh name if node name was empty
-            if (i < aScene->mNumMeshes) {
-                desiredName = aScene->mMeshes[i]->mName.C_Str();
-            }
-        }
-        if (desiredName.empty()) desiredName = std::string("Mesh_") + std::to_string(i);
+    std::vector<EntityID> createdMeshEntities(model.Meshes.size(), INVALID_ENTITY_ID);
 
+    for (const std::string& nodeName : groupOrder) {
+        const std::vector<size_t>& indices = groupByNode[nodeName];
+        if (indices.empty()) continue;
+
+        // Use the first mesh as reference for transform and skinning mode
+        size_t i0 = indices[0];
+        std::shared_ptr<Mesh> refMesh = model.Meshes[i0]; if (!refMesh) continue;
+        const bool groupIsSkinned = refMesh->HasSkinning();
+
+        // Verify all in group share skinning mode; if not, split fallback: handle individually
+        bool mixedSkin = false; for (size_t idx : indices) { auto m = model.Meshes[idx]; if (!m) continue; if (m->HasSkinning() != groupIsSkinned) { mixedSkin = true; break; } }
+        std::vector<size_t> workList = indices;
+        if (mixedSkin) { workList = { i0 }; }
+
+        // Build entity
+        std::string desiredName = nodeName;
         Entity meshEntity = CreateEntity(desiredName);
         EntityID meshID = meshEntity.GetID();
+        auto* meshData = GetEntityData(meshID); if (!meshData) continue;
 
-        // >>> CHANGE: parent skinned meshes to SkeletonRoot (not ImportedModel root)
-        const bool isSkinned = meshPtr->HasSkinning();
-        SetParent(meshID, (isSkinned && skeletonRootID != -1) ? skeletonRootID : rootID);
+        // Parent to skeleton root if skinned
+        SetParent(meshID, (groupIsSkinned && skeletonRootID != -1) ? skeletonRootID : rootID);
 
-        auto* meshData = GetEntityData(meshID);
-        if (!meshData) continue;
-
-        // Decompose the mesh-local transform you already computed (relative to FBX root)
-        glm::vec3 translation, scale, skew;
-        glm::vec4 perspective;
-        glm::quat rotationQuat;
-        glm::decompose(meshTransforms[i], scale, rotationQuat, translation, skew, perspective);
-
+        // Set transform from first mesh's relative transform
+        glm::vec3 translation, scale, skew; glm::vec4 perspective; glm::quat rotationQuat;
+        glm::decompose(meshTransforms[i0], scale, rotationQuat, translation, skew, perspective);
         meshData->Transform.Position = translation;
         meshData->Transform.Scale = scale;
-        // For non-bone entities keep Euler as primary unless needed
-            meshData->Transform.Rotation = glm::degrees(glm::eulerAngles(rotationQuat));
+        meshData->Transform.Rotation = glm::degrees(glm::eulerAngles(rotationQuat));
         meshData->Transform.TransformDirty = true;
 
-        auto mat = (i < model.Materials.size() && model.Materials[i]) ? model.Materials[i]
-            : MaterialManager::Instance().CreateDefaultPBRMaterial();
-        meshData->Mesh = std::make_unique<MeshComponent>(meshPtr, desiredName, mat);
-
-        // Fill an AssetReference for this submesh so it can serialize via GUID, not name
-        // We treat each submesh as (guid of model, fileID = submesh index, type = Mesh)
-        ClaymoreGUID guid = AssetLibrary::Instance().GetGUIDForPath(path);
-        if (guid.high != 0 || guid.low != 0) {
-            meshData->Mesh->meshReference = AssetReference(guid, static_cast<int32_t>(i), static_cast<int32_t>(AssetType::Mesh));
-        }
-
-            if (isSkinned) {
-            meshData->Skinning = std::make_unique<SkinningComponent>();
+        // If only one mesh in this node, keep as-is (no merge)
+        if (workList.size() == 1) {
+            size_t i = workList[0];
+            auto mat = (i < model.Materials.size() && model.Materials[i]) ? model.Materials[i]
+                : MaterialManager::Instance().CreateDefaultPBRMaterial();
+            meshData->Mesh = std::make_unique<MeshComponent>(model.Meshes[i], desiredName, mat);
+            // Asset reference per submesh index
+            ClaymoreGUID guid = AssetLibrary::Instance().GetGUIDForPath(path);
+            if (guid.high != 0 || guid.low != 0) {
+                meshData->Mesh->meshReference = AssetReference(guid, static_cast<int32_t>(i), static_cast<int32_t>(AssetType::Mesh));
+            }
+            if (groupIsSkinned) {
+                meshData->Skinning = std::make_unique<SkinningComponent>();
                 meshData->Skinning->SkeletonRoot = skeletonRootID;
                 meshData->Skinning->Palette.resize(model.BoneNames.size(), glm::mat4(1.0f));
             }
-
             if (i < model.BlendShapes.size() && !model.BlendShapes[i].Shapes.empty()) {
                 auto bsPtr = std::make_unique<BlendShapeComponent>(model.BlendShapes[i]);
                 meshData->Mesh->BlendShapes = bsPtr.get();
                 meshData->BlendShapes = std::move(bsPtr);
             }
-
             createdMeshEntities[i] = meshID;
+            continue;
+        }
+
+        // Merge meshes in this node into one Mesh with submeshes
+        // Build combined CPU arrays and submesh descriptors
+        std::shared_ptr<Mesh> combined = std::make_shared<Mesh>();
+        combined->Dynamic = false;
+        uint32_t vertexBase = 0;
+        uint32_t indexBase = 0;
+        combined->Vertices.clear(); combined->Normals.clear(); combined->UVs.clear(); combined->Indices.clear();
+        if (groupIsSkinned) { combined->BoneWeights.clear(); combined->BoneIndices.clear(); }
+        combined->Submeshes.clear();
+
+        std::vector<std::shared_ptr<Material>> slotMats; slotMats.reserve(workList.size());
+
+        for (size_t si = 0; si < workList.size(); ++si) {
+            size_t i = workList[si];
+            std::shared_ptr<Mesh> src = model.Meshes[i]; if (!src) continue;
+            // Append vertices
+            uint32_t thisBase = vertexBase;
+            combined->Vertices.insert(combined->Vertices.end(), src->Vertices.begin(), src->Vertices.end());
+            combined->Normals.insert(combined->Normals.end(), src->Normals.begin(), src->Normals.end());
+            combined->UVs.insert(combined->UVs.end(), src->UVs.begin(), src->UVs.end());
+            if (groupIsSkinned) {
+                combined->BoneWeights.insert(combined->BoneWeights.end(), src->BoneWeights.begin(), src->BoneWeights.end());
+                combined->BoneIndices.insert(combined->BoneIndices.end(), src->BoneIndices.begin(), src->BoneIndices.end());
+            }
+            vertexBase += (uint32_t)src->Vertices.size();
+            // Append indices with offset
+            uint32_t start = indexBase;
+            for (uint32_t idx : src->Indices) combined->Indices.push_back(idx + thisBase);
+            uint32_t count = (uint32_t)src->Indices.size();
+            indexBase += count;
+
+            Mesh::Submesh sm; sm.indexStart = start; sm.indexCount = count; sm.baseVertex = thisBase; sm.materialSlot = (uint32_t)si;
+            combined->Submeshes.push_back(sm);
+
+            // Material slot
+            auto mat = (i < model.Materials.size() && model.Materials[i]) ? model.Materials[i]
+                : MaterialManager::Instance().CreateDefaultPBRMaterial();
+            slotMats.push_back(mat);
+            // Remember original submesh fileID
+            meshData->Mesh.reset(); // ensure not holding stale
+
+            // Preserve dynamic if any part is dynamic
+            combined->Dynamic = combined->Dynamic || src->Dynamic;
+        }
+
+        // Compute bounds
+        combined->ComputeBounds();
+
+        // Upload combined GPU buffers using static PBR or skinned layout
+        // Note: Use same packing as ModelLoader
+        const bgfx::VertexLayout* layoutPtr = nullptr;
+        const bgfx::Memory* vbMem = nullptr;
+        if (groupIsSkinned) {
+            std::vector<SkinnedPBRVertex> verts; verts.reserve(combined->Vertices.size());
+            for (size_t i = 0; i < combined->Vertices.size(); ++i) {
+                const glm::vec3& p = combined->Vertices[i];
+                const glm::vec3& n = (i < combined->Normals.size()) ? combined->Normals[i] : glm::vec3(0,1,0);
+                const glm::vec2& uv = (i < combined->UVs.size()) ? combined->UVs[i] : glm::vec2(0,0);
+                glm::ivec4 bi = (i < combined->BoneIndices.size()) ? combined->BoneIndices[i] : glm::ivec4(0);
+                glm::vec4  bw = (i < combined->BoneWeights.size()) ? combined->BoneWeights[i] : glm::vec4(1,0,0,0);
+                verts.push_back({ p.x,p.y,p.z, n.x,n.y,n.z, uv.x,uv.y, (uint8_t)bi.x,(uint8_t)bi.y,(uint8_t)bi.z,(uint8_t)bi.w, bw.x,bw.y,bw.z,bw.w });
+            }
+            vbMem = bgfx::copy(verts.data(), (uint32_t)(sizeof(SkinnedPBRVertex) * verts.size()));
+            layoutPtr = &SkinnedPBRVertex::layout;
+            combined->dvbh = bgfx::createDynamicVertexBuffer(vbMem, *layoutPtr);
+            combined->Dynamic = true;
+        } else {
+            std::vector<PBRVertex> verts; verts.reserve(combined->Vertices.size());
+            for (size_t i = 0; i < combined->Vertices.size(); ++i) {
+                const glm::vec3& p = combined->Vertices[i];
+                const glm::vec3& n = (i < combined->Normals.size()) ? combined->Normals[i] : glm::vec3(0,1,0);
+                const glm::vec2& uv = (i < combined->UVs.size()) ? combined->UVs[i] : glm::vec2(0,0);
+                verts.push_back({ p.x,p.y,p.z, n.x,n.y,n.z, uv.x, uv.y });
+            }
+            vbMem = bgfx::copy(verts.data(), (uint32_t)(sizeof(PBRVertex) * verts.size()));
+            layoutPtr = &PBRVertex::layout;
+            combined->vbh = bgfx::createVertexBuffer(vbMem, *layoutPtr);
+            combined->Dynamic = false;
+        }
+
+        // Index buffer: switch to 16 or 32-bit depending on max index
+        uint32_t maxIdx = 0; for (uint32_t v : combined->Indices) maxIdx = std::max(maxIdx, v);
+        if (maxIdx >= 65536u) {
+            const bgfx::Memory* imem = bgfx::copy(combined->Indices.data(), (uint32_t)(combined->Indices.size() * sizeof(uint32_t)));
+            combined->ibh = bgfx::createIndexBuffer(imem, BGFX_BUFFER_INDEX32);
+        } else {
+            std::vector<uint16_t> idx16; idx16.reserve(combined->Indices.size());
+            for (uint32_t v : combined->Indices) idx16.push_back((uint16_t)v);
+            const bgfx::Memory* imem = bgfx::copy(idx16.data(), (uint32_t)(idx16.size() * sizeof(uint16_t)));
+            combined->ibh = bgfx::createIndexBuffer(imem);
+        }
+        combined->numVertices = (uint32_t)combined->Vertices.size();
+        combined->numIndices = (uint32_t)combined->Indices.size();
+
+        // Assign component
+        auto primaryMat = !slotMats.empty() && slotMats[0] ? slotMats[0] : MaterialManager::Instance().CreateDefaultPBRMaterial();
+        meshData->Mesh = std::make_unique<MeshComponent>(combined, desiredName, primaryMat);
+        meshData->Mesh->materials = slotMats;
+        meshData->Mesh->CombinedSubmeshFileIDs.clear();
+        for (size_t si = 0; si < workList.size(); ++si) meshData->Mesh->CombinedSubmeshFileIDs.push_back((int)workList[si]);
+
+        // Asset reference uses node-based fileID by first index
+        ClaymoreGUID guid = AssetLibrary::Instance().GetGUIDForPath(path);
+        if (guid.high != 0 || guid.low != 0) {
+            meshData->Mesh->meshReference = AssetReference(guid, static_cast<int32_t>(i0), static_cast<int32_t>(AssetType::Mesh));
+        }
+
+        if (groupIsSkinned) {
+            meshData->Skinning = std::make_unique<SkinningComponent>();
+            meshData->Skinning->SkeletonRoot = skeletonRootID;
+            meshData->Skinning->Palette.resize(model.BoneNames.size(), glm::mat4(1.0f));
+        }
+
+        // Blend shapes: attach from the first mesh if available
+        if (i0 < model.BlendShapes.size() && !model.BlendShapes[i0].Shapes.empty()) {
+            auto bsPtr = std::make_unique<BlendShapeComponent>(model.BlendShapes[i0]);
+            meshData->Mesh->BlendShapes = bsPtr.get();
+            meshData->BlendShapes = std::move(bsPtr);
+        }
+
+        for (size_t i : workList) createdMeshEntities[i] = meshID;
     }
 
     // Build UnifiedMorph on skeleton root (or model root) for shared morph names across meshes
