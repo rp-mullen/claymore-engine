@@ -9,11 +9,13 @@
 #include "rendering/PBRMaterial.h"
 #include "ecs/Components.h"
 
-#include "ComponentInterop.h"
+#include "ComponentInterop.h" 
 
 GetEntityPosition_fn GetEntityPositionPtr = &GetEntityPosition;
 SetEntityPosition_fn SetEntityPositionPtr = &SetEntityPosition;
 FindEntityByName_fn  FindEntityByNamePtr = &FindEntityByName;
+GetEntities_fn      GetEntitiesPtr = &GetEntities;
+GetEntityCount_fn   GetEntityCountPtr = &GetEntityCount;
 CreateEntity_fn  CreateEntityPtr = &CreateEntity;
 DestroyEntity_fn DestroyEntityPtr = &DestroyEntity;
 GetEntityByID_fn GetEntityByIDPtr = &GetEntityByID;
@@ -78,6 +80,21 @@ extern "C"
     {
         Entity entity = Scene::Get().FindEntityByID(entityID);
         return entity.GetID();
+    }
+
+    __declspec(dllexport) int* GetEntities()
+       {
+       static std::vector<int> s_EntityIDs;
+       const auto& entities = Scene::Get().GetEntities();
+       s_EntityIDs.resize(entities.size());
+       for (size_t i = 0; i < entities.size(); i++)
+          s_EntityIDs[i] = entities[i].GetID();
+       return s_EntityIDs.data();
+       }
+
+    __declspec(dllexport) int GetEntityCount()
+    {
+        return (int)Scene::Get().GetEntities().size();
     }
 
     // Rotation (Euler degrees)

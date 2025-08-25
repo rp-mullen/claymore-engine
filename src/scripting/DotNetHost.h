@@ -44,10 +44,12 @@ void* CreateScriptInstance(const std::string& className);
 using GetEntityPosition_fn     = void(*)(int entityID, float* outX, float* outY, float* outZ);
 using SetEntityPosition_fn     = void(*)(int entityID, float x, float y, float z);
 using FindEntityByName_fn      = int (*)(const char* name);
+using GetEntities_fn           = int* (*)();
+using GetEntityCount_fn        = int (*)();
 // Entity management
 using CreateEntity_fn          = int (*)(const char* name);
 using DestroyEntity_fn         = void(*)(int entityID);
-// Rotation & Scale
+// Rotation & Scale 
 using GetEntityRotation_fn     = void(*)(int entityID, float* outX, float* outY, float* outZ);
 using SetEntityRotation_fn     = void(*)(int entityID, float x, float y, float z);
 using GetEntityRotationQuat_fn = void(*)(int entityID, float* outX, float* outY, float* outZ, float* outW);
@@ -99,6 +101,8 @@ using EnsureInstalled_fn = void(__stdcall*)();
 extern GetEntityPosition_fn   GetEntityPositionPtr;
 extern SetEntityPosition_fn   SetEntityPositionPtr;
 extern FindEntityByName_fn    FindEntityByNamePtr;
+extern GetEntities_fn         GetEntitiesPtr;
+extern GetEntityCount_fn      GetEntityCountPtr;
 extern CreateEntity_fn        CreateEntityPtr;
 extern DestroyEntity_fn       DestroyEntityPtr;
 extern GetEntityByID_fn       GetEntityByIDPtr;

@@ -46,6 +46,16 @@ void AnimationSystem::Update(::Scene& scene, float deltaTime) {
         if (player.AnimatorMode == AnimationPlayerComponent::Mode::ControllerAnimated && !player.Controller && !player.ControllerPath.empty()) {
             try {
                 std::ifstream in(player.ControllerPath);
+                if (!in.is_open()) {
+                    // Try resolve relative to project directory
+                    try {
+                        std::filesystem::path base = Project::GetProjectDirectory();
+                        if (!base.empty()) {
+                            std::filesystem::path alt = base / player.ControllerPath;
+                            in.open(alt.string());
+                        }
+                    } catch(...) {}
+                }
                 if (in) {
                     nlohmann::json j; in >> j;
                     auto ctrl = std::make_shared<cm::animation::AnimatorController>();

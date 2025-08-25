@@ -10,7 +10,7 @@
 #include <glm/gtx/quaternion.hpp>
 
 #include <algorithm>
-
+ 
 namespace cm { namespace animation { namespace ik {
 
 static inline glm::quat FromTo(const glm::vec3& a, const glm::vec3& b) {

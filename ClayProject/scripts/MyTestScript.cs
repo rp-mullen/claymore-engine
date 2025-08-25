@@ -35,7 +35,17 @@ public class MyTestScript : ScriptComponent
       {
       Console.WriteLine("Made it to the start of OnCreate!");
       Console.WriteLine("[MyTestScript] Referencing Entity " + refEntity.EntityID);
-      _ = DoAsyncMethod();
+      Console.WriteLine("[MyTestScript] Globals : Random Value = " + Globals.RandomRange(0f, 100f));
+      //_ = DoAsyncMethod();
+      var debugCube = Entity.FindFirstEntityByScript<DebugCube>();
+      if (debugCube.EntityID != null)
+         {
+         Console.WriteLine("Found DebugCube entity with ID " + debugCube.EntityID);
+         }
+      else
+         {
+         Console.WriteLine("DebugCube entity not found!");
+         }
       }
 
    private async Task DoAsyncMethod()
@@ -68,15 +78,20 @@ public class MyTestScript : ScriptComponent
             }
          }
 
-      if (Input.GetKey(KeyCode.F))
-        {
-            running = true;
+      running = Input.GetKey(KeyCode.F);
 
-        }
-      else
-        {
-            running = false;
-        }
+      if (Input.GetKey(KeyCode.M))
+         {
+         BlendMorph B = self.GetScript<BlendMorph>();
+         if (B == null)
+            {
+            Console.WriteLine("BlendMorph not found");
+            }
+         else
+            {
+            B.SetMorph(1.0f);
+            }
+         }
 
       // Update orbit angles from mouse when captured
       if (mouseCaptured)
@@ -133,7 +148,6 @@ public class MyTestScript : ScriptComponent
          }
 
       // --- Smooth Animator "Speed" param (no snapping) ---
-      var self = new Entity(EntityID);
       var animator = self.GetComponent<Animator>();
       if (animator != null)
          {

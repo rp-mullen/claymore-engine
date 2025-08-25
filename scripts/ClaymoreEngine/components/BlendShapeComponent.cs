@@ -24,5 +24,6 @@ namespace ClaymoreEngine
                 yield return ComponentInterop.GetBlendShapeName(entity.EntityID, i);
             }
         }
-    }
+
+      }
 }

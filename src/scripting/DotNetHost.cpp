@@ -565,6 +565,8 @@ void SetupEntityInterop(std::filesystem::path fullPath)
            (void*)GetEntityPositionPtr,
            (void*)SetEntityPositionPtr,
            (void*)FindEntityByNamePtr,
+           (void*)GetEntitiesPtr,
+           (void*)GetEntityCountPtr,
            (void*)CreateEntityPtr,
            (void*)DestroyEntityPtr,
            (void*)GetEntityByIDPtr,

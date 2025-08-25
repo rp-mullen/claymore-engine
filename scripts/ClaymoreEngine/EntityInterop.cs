@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -18,9 +19,11 @@ namespace ClaymoreEngine
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void GetEntityPositionFn(int entityID, out float x, out float y, out float z);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void SetEntityPositionFn(int entityID, float x, float y, float z);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  FindEntityByNameFn([MarshalAs(UnmanagedType.LPStr)] string name);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate IntPtr  GetEntitiesFn();
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  GetEntityCountFn();
 
-        // Entity management
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  CreateEntityFn([MarshalAs(UnmanagedType.LPStr)] string name);
+      // Entity management
+      [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  CreateEntityFn([MarshalAs(UnmanagedType.LPStr)] string name);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate void DestroyEntityFn(int entityID);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int  GetEntityByIDFn(int entityID);
 
@@ -40,8 +43,9 @@ namespace ClaymoreEngine
         public static GetEntityPositionFn  GetEntityPosition;
         public static SetEntityPositionFn  SetEntityPosition;
         public static FindEntityByNameFn   FindEntityByName;
-
-        public static CreateEntityFn       CreateEntity;
+        public static GetEntitiesFn        GetEntitiesRaw;
+        public static GetEntityCountFn     GetEntityCount;
+      public static CreateEntityFn         CreateEntity;
         public static DestroyEntityFn      DestroyEntity;
         public static GetEntityByIDFn      GetEntityByID;
 
@@ -63,7 +67,7 @@ namespace ClaymoreEngine
 
         public static unsafe void InitializeInterop(IntPtr* ptrs, int count)
         {
-            if (count < 14) // Expect 14 core functions now (added quat rot get/set)
+            if (count < 15) // Expect 14 core functions now (added quat rot get/set)
             {
                 Console.WriteLine($"[EntityInterop] Expected >=14 function pointers, received {count}.");
                 return;
@@ -73,6 +77,9 @@ namespace ClaymoreEngine
             GetEntityPosition  = Marshal.GetDelegateForFunctionPointer<GetEntityPositionFn> (ptrs[i++]);
             SetEntityPosition  = Marshal.GetDelegateForFunctionPointer<SetEntityPositionFn> (ptrs[i++]);
             FindEntityByName   = Marshal.GetDelegateForFunctionPointer<FindEntityByNameFn>  (ptrs[i++]);
+            GetEntitiesRaw     = Marshal.GetDelegateForFunctionPointer<GetEntitiesFn>(ptrs[i++]);
+            GetEntityCount     = Marshal.GetDelegateForFunctionPointer<GetEntityCountFn>(ptrs[i++]);
+
 
             CreateEntity       = Marshal.GetDelegateForFunctionPointer<CreateEntityFn>      (ptrs[i++]);
             DestroyEntity      = Marshal.GetDelegateForFunctionPointer<DestroyEntityFn>     (ptrs[i++]);
@@ -130,6 +137,16 @@ namespace ClaymoreEngine
             return new Vector3(x, y, z);
         }
         public static void SetScale(int entityID, Vector3 scale) => SetEntityScale(entityID, scale.X, scale.Y, scale.Z);
+
+        public static int[] GetEntities()
+        {
+            IntPtr ptr = GetEntitiesRaw();
+            int count = GetEntityCount();
+            if (ptr == IntPtr.Zero || count <= 0) return Array.Empty<int>();
+            int[] ids = new int[count];
+            Marshal.Copy(ptr, ids, 0, count);
+            return ids;
+        }
 
     }
 }

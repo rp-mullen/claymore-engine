@@ -781,8 +781,17 @@ json Serializer::SerializeAnimator(const cm::animation::AnimationPlayerComponent
     j["mode"] = (a.AnimatorMode == cm::animation::AnimationPlayerComponent::Mode::ControllerAnimated) ? "controller" : "player";
     j["playbackSpeed"] = a.PlaybackSpeed;
     j["rootMotion"] = (int)a.RootMotion;
-    j["controllerPath"] = a.ControllerPath;
-    j["singleClipPath"] = a.SingleClipPath;
+    // Write paths relative to project root to keep scenes portable
+    auto makeRel = [](const std::string& p)->std::string{
+        if (p.empty()) return p;
+        try {
+            fs::path base = Project::GetProjectDirectory();
+            if (!base.empty()) return FileSystem::Normalize(fs::relative(fs::path(p), base).string());
+        } catch(...) {}
+        return FileSystem::Normalize(p);
+    };
+    j["controllerPath"] = makeRel(a.ControllerPath);
+    j["singleClipPath"] = makeRel(a.SingleClipPath);
     j["playOnStart"] = a.PlayOnStart;
     j["loop"] = (!a.ActiveStates.empty() ? a.ActiveStates.front().Loop : true);
     return j;
@@ -795,8 +804,24 @@ void Serializer::DeserializeAnimator(const json& j, cm::animation::AnimationPlay
                                               : cm::animation::AnimationPlayerComponent::Mode::AnimationPlayerAnimated;
     a.PlaybackSpeed = j.value("playbackSpeed", 1.0f);
     a.RootMotion = static_cast<cm::animation::AnimationPlayerComponent::RootMotionMode>(j.value("rootMotion", 0));
-    a.ControllerPath = j.value("controllerPath", "");
-    a.SingleClipPath = j.value("singleClipPath", "");
+    // Read and normalize; if absolute under project, convert to project-relative for portability
+    auto norm = [](const std::string& s){ return FileSystem::Normalize(s); };
+    auto absToRelIfUnderProj = [](const std::string& p)->std::string{
+        if (p.empty()) return p;
+        try {
+            fs::path pp = fs::path(p);
+            fs::path base = Project::GetProjectDirectory();
+            if (!base.empty()) {
+                if (pp.is_absolute()) {
+                    std::error_code ec; fs::path rel = fs::relative(pp, base, ec);
+                    if (!ec) return FileSystem::Normalize(rel.string());
+                }
+            }
+        } catch(...) {}
+        return FileSystem::Normalize(p);
+    };
+    a.ControllerPath = absToRelIfUnderProj(norm(j.value("controllerPath", "")));
+    a.SingleClipPath = absToRelIfUnderProj(norm(j.value("singleClipPath", "")));
     a.PlayOnStart = j.value("playOnStart", true);
     if (a.ActiveStates.empty()) a.ActiveStates.push_back({});
     a.ActiveStates.front().Loop = j.value("loop", true);

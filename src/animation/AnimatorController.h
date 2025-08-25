@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <optional>
 #include <nlohmann/json.hpp>
+#include <filesystem>
+#include <editor/Project.h>
 
 namespace cm {
 namespace animation {
@@ -161,23 +163,49 @@ struct AnimatorController {
         c.IntThreshold = j.value("iThreshold", 0);
     }
 
+    inline static std::string _NormalizeSlashes(const std::string& in) {
+        std::string s = in; for (char& c : s) if (c == '\\') c = '/'; return s;
+    }
+    inline static std::string _MakeProjectRelative(const std::string& path) {
+        if (path.empty()) return path;
+        try {
+            std::filesystem::path p(path);
+            std::filesystem::path base = Project::GetProjectDirectory();
+            if (!base.empty()) {
+                std::filesystem::path rel = std::filesystem::relative(p, base);
+                return _NormalizeSlashes(rel.string());
+            }
+        } catch (...) {}
+        return _NormalizeSlashes(path);
+    }
+    inline static std::string _ResolveProjectRelative(const std::string& path) {
+        if (path.empty()) return path;
+        try {
+            std::filesystem::path p(path);
+            if (p.is_absolute()) return _NormalizeSlashes(p.string());
+            std::filesystem::path base = Project::GetProjectDirectory();
+            if (!base.empty()) return _NormalizeSlashes((base / p).string());
+        } catch (...) {}
+        return _NormalizeSlashes(path);
+    }
+
     inline void to_json(nlohmann::json& j, const Blend1DEntry& e) {
-        j = nlohmann::json{{"key", e.Key}, {"clip", e.ClipPath}, {"asset", e.AssetPath}};
+        j = nlohmann::json{{"key", e.Key}, {"clip", _MakeProjectRelative(e.ClipPath)}, {"asset", _MakeProjectRelative(e.AssetPath)}};
     }
     inline void from_json(const nlohmann::json& j, Blend1DEntry& e) {
         e.Key = j.value("key", 0.0f);
-        e.ClipPath = j.value("clip", "");
-        e.AssetPath = j.value("asset", "");
+        e.ClipPath = _NormalizeSlashes(j.value("clip", ""));
+        e.AssetPath = _NormalizeSlashes(j.value("asset", ""));
     }
 
     inline void to_json(nlohmann::json& j, const AnimatorState& s) {
-        j = nlohmann::json{{"id", s.Id}, {"name", s.Name}, {"clip", s.ClipPath}, {"asset", s.AnimationAssetPath}, {"speed", s.Speed}, {"loop", s.Loop}, {"x", s.EditorPosX}, {"y", s.EditorPosY}, {"kind", (int)s.Kind}, {"blendParam", s.Blend1DParam}, {"entries", s.Blend1DEntries}};
+        j = nlohmann::json{{"id", s.Id}, {"name", s.Name}, {"clip", _MakeProjectRelative(s.ClipPath)}, {"asset", _MakeProjectRelative(s.AnimationAssetPath)}, {"speed", s.Speed}, {"loop", s.Loop}, {"x", s.EditorPosX}, {"y", s.EditorPosY}, {"kind", (int)s.Kind}, {"blendParam", s.Blend1DParam}, {"entries", s.Blend1DEntries}};
     }
     inline void from_json(const nlohmann::json& j, AnimatorState& s) {
         s.Id = j.value("id", -1);
         s.Name = j.value("name", "");
-        s.ClipPath = j.value("clip", "");
-        s.AnimationAssetPath = j.value("asset", "");
+        s.ClipPath = _NormalizeSlashes(j.value("clip", ""));
+        s.AnimationAssetPath = _NormalizeSlashes(j.value("asset", ""));
         s.Speed = j.value("speed", 1.0f);
         s.Loop = j.value("loop", true);
         s.EditorPosX = j.value("x", 0.0f);

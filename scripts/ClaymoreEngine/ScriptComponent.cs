@@ -17,5 +17,6 @@ public abstract class ScriptComponent
    {
       EntityID = entity.EntityID;
       self = entity;
+      ScriptRegistry.Register(this);
    }
 }
