@@ -409,15 +409,40 @@ void AssetPipeline::ImportModel(const std::string& path) {
             if (s2 && s2->HasMaterials()) {
                 for (unsigned mi = 0; mi < s2->mNumMaterials; ++mi) {
                     const aiMaterial* aim = s2->mMaterials[mi];
-                    auto get = [&](aiTextureType t)->std::string {
-                        aiString str; if (aim->GetTextureCount(t)>0 && aim->GetTexture(t,0,&str)==AI_SUCCESS) return std::string(str.C_Str()); return std::string(); };
+
+                    // Gather all texture paths across many stacks and indices (robust for various exporters)
                     std::vector<std::string> texPaths;
-                    std::string albedo = get(aiTextureType_BASE_COLOR); if (albedo.empty()) albedo = get(aiTextureType_DIFFUSE);
-                    if (!albedo.empty()) texPaths.push_back(albedo);
-                    std::string normal = get(aiTextureType_NORMALS); if (normal.empty()) normal = get(aiTextureType_HEIGHT); if (!normal.empty()) texPaths.push_back(normal);
-                    std::string mr = get(aiTextureType_UNKNOWN); if (mr.empty()) mr = get(aiTextureType_METALNESS); if (!mr.empty()) texPaths.push_back(mr);
+                    auto maybeAdd = [&](const std::string& p){ if (!p.empty() && std::find(texPaths.begin(), texPaths.end(), p) == texPaths.end()) texPaths.push_back(p); };
+                    auto gatherType = [&](aiTextureType t){
+                        const unsigned count = aim->GetTextureCount(t);
+                        for (unsigned ti = 0; ti < count; ++ti) { aiString s; if (aim->GetTexture(t, ti, &s) == AI_SUCCESS) maybeAdd(std::string(s.C_Str())); }
+                    };
+
+                    // Common and extended stacks
+                    gatherType(aiTextureType_BASE_COLOR);
+                    gatherType(aiTextureType_DIFFUSE);
+                    gatherType(aiTextureType_SPECULAR);
+                    gatherType(aiTextureType_AMBIENT);
+                    gatherType(aiTextureType_EMISSIVE);
+                    gatherType(aiTextureType_NORMALS);
+                    gatherType(aiTextureType_HEIGHT);
+                    gatherType(aiTextureType_SHININESS);
+                    gatherType(aiTextureType_OPACITY);
+                    gatherType(aiTextureType_DISPLACEMENT);
+                    gatherType(aiTextureType_LIGHTMAP);
+                    gatherType(aiTextureType_REFLECTION);
+                    gatherType(aiTextureType_METALNESS);
+                    gatherType(aiTextureType_DIFFUSE_ROUGHNESS);
+                    gatherType(aiTextureType_AMBIENT_OCCLUSION);
+                    gatherType(aiTextureType_CLEARCOAT);
+                    gatherType(aiTextureType_SHEEN);
+                    gatherType(aiTextureType_TRANSMISSION);
+                    gatherType(aiTextureType_UNKNOWN);
 
                     for (const auto& tpath : texPaths) {
+                        // Skip obvious embedded markers; embedded extraction not implemented here
+                        if (!tpath.empty() && tpath[0] == '*') continue;
+
                         fs::path psrc = tpath;
                         if (!fs::exists(psrc)) psrc = src.parent_path() / tpath;
                         if (!fs::exists(psrc)) continue;
@@ -433,6 +458,70 @@ void AssetPipeline::ImportModel(const std::string& path) {
                 }
             }
         } catch(...) { std::cerr << "[FBXImport] Texture capture step failed: " << path << std::endl; }
+
+        // --------- Failsafe: grep PNG file paths referenced in FBX and copy any missing ---------
+        try {
+            fs::path src(path);
+            std::string modelName = src.stem().string();
+            fs::path proj = Project::GetProjectDirectory();
+            fs::path texRoot = proj / "assets" / "textures" / modelName;
+            std::error_code ec; fs::create_directories(texRoot, ec);
+
+            std::ifstream fin(path, std::ios::binary);
+            if (fin) {
+                std::vector<char> buf((std::istreambuf_iterator<char>(fin)), std::istreambuf_iterator<char>());
+
+                auto isAllowed = [](char c) -> bool {
+                    unsigned char uc = static_cast<unsigned char>(c);
+                    return std::isalnum(uc) || c=='_' || c=='-' || c=='.' || c=='/' || c=='\\';
+                };
+
+                std::vector<std::string> candidates;
+                auto addUnique = [&](const std::string& s){ if (!s.empty() && std::find(candidates.begin(), candidates.end(), s)==candidates.end()) candidates.push_back(s); };
+
+                for (size_t i = 0; i + 4 <= buf.size(); ++i) {
+                    char c0 = buf[i+0];
+                    char c1 = (i+1<buf.size()?buf[i+1]:0);
+                    char c2 = (i+2<buf.size()?buf[i+2]:0);
+                    char c3 = (i+3<buf.size()?buf[i+3]:0);
+                    if (c0=='.' && (c1=='p'||c1=='P') && (c2=='n'||c2=='N') && (c3=='g'||c3=='G')) {
+                        // Expand backwards to include path/filename
+                        size_t start = i;
+                        while (start>0 && isAllowed(buf[start-1])) --start;
+                        // Expand forwards to include any trailing path parts (unlikely after extension, but safe)
+                        size_t end = i+4;
+                        while (end<buf.size() && isAllowed(buf[end])) ++end;
+                        if (end>start) {
+                            std::string token(buf.data()+start, buf.data()+end);
+                            // Normalize separators to the local FS style
+                            for (char& ch : token) if (ch=='\\') ch = '\\';
+                            addUnique(token);
+                        }
+                    }
+                }
+
+                for (const auto& tpath : candidates) {
+                    // Skip embedded markers (e.g., "*0")
+                    if (!tpath.empty() && tpath[0]=='*') continue;
+
+                    fs::path psrc = tpath;
+                    if (!fs::exists(psrc)) psrc = src.parent_path() / tpath;
+                    if (!fs::exists(psrc)) psrc = src.parent_path() / fs::path(tpath).filename();
+                    if (!fs::exists(psrc)) continue;
+
+                    fs::path pdst = texRoot / psrc.filename();
+                    if (!fs::exists(pdst)) {
+                        fs::copy_file(psrc, pdst, fs::copy_options::overwrite_existing, ec);
+                        std::string vpath = pdst.string(); std::replace(vpath.begin(), vpath.end(), '\\', '/');
+                        size_t pos = vpath.find("assets/"); if (pos != std::string::npos) vpath = vpath.substr(pos);
+                        AssetMetadata tmeta; tmeta.guid = ClaymoreGUID::Generate(); tmeta.type = "texture"; tmeta.sourcePath = vpath; tmeta.processedPath = vpath;
+                        nlohmann::json tj = tmeta; std::ofstream outm((pdst.string()+".meta").c_str()); if (outm) outm << tj.dump(4);
+                        AssetLibrary::Instance().RegisterAsset(AssetReference(tmeta.guid, 0, (int)AssetType::Texture), AssetType::Texture, vpath, pdst.filename().string());
+                        std::cout << "[FBXImport] Grep-copied PNG to: " << pdst << std::endl;
+                    }
+                }
+            }
+        } catch(...) { std::cerr << "[FBXImport] PNG grep step failed: " << path << std::endl; }
 
         // --------- Extract animations (unified .anim as primary) ---------
         using namespace cm::animation;
@@ -498,53 +587,152 @@ void AssetPipeline::HotSwapModelInScene(const std::string& modelPath) {
     // Resolve GUID for this path if known
     ClaymoreGUID guid = AssetLibrary::Instance().GetGUIDForPath(modelPath);
     Scene& scene = Scene::Get();
+
+    // Helper: does this entity (or any descendant) contain a mesh from the target GUID?
+    std::function<bool(EntityID)> subtreeHasGuid = [&](EntityID id) -> bool {
+        auto* d = scene.GetEntityData(id); if (!d) return false;
+        if (d->Mesh && d->Mesh->meshReference.guid == guid && (guid.high != 0 || guid.low != 0)) return true;
+        for (EntityID c : d->Children) if (subtreeHasGuid(c)) return true;
+        return false;
+    };
+
+    // Collect candidate roots to replace (top-most nodes whose subtree references the guid)
+    std::vector<EntityID> roots;
     for (const auto& e : scene.GetEntities()) {
-        auto* d = scene.GetEntityData(e.GetID()); if (!d || !d->Mesh) continue;
-        bool matches = false;
-        if (d->Mesh->mesh && !d->Mesh->MeshName.empty()) {
-            // Fallback: if MeshName reflects source file stem, compare
-            std::string stem = std::filesystem::path(modelPath).stem().string();
-            matches |= (d->Mesh->MeshName == stem);
+        EntityID id = e.GetID();
+        auto* d = scene.GetEntityData(id); if (!d) continue;
+        if (!subtreeHasGuid(id)) continue;
+        // If parent also has target in its subtree, skip (we want top-most)
+        if (d->Parent != (EntityID)-1) {
+            if (subtreeHasGuid(d->Parent)) continue;
         }
-        if (d->Mesh->meshReference.guid == guid) matches = true;
-        // Also try direct path mapping in AssetLibrary
-        if (!matches) {
-            if (auto* entry = AssetLibrary::Instance().GetAsset(modelPath)) {
-                matches = (entry->reference.guid == d->Mesh->meshReference.guid);
+        roots.push_back(id);
+    }
+    if (roots.empty()) return;
+
+    // Utility: compute relative path using names; normalize by stripping trailing _digits
+    auto normalizeName = [](const std::string& name) -> std::string {
+        size_t us = name.find_last_of('_');
+        if (us == std::string::npos) return name;
+        bool allDigits = true; for (size_t i = us + 1; i < name.size(); ++i) if (!std::isdigit(static_cast<unsigned char>(name[i]))) { allDigits = false; break; }
+        return allDigits ? name.substr(0, us) : name;
+    };
+    auto relPathOf = [&](EntityID root, EntityID node) -> std::string {
+        std::vector<std::string> parts;
+        EntityID cur = node;
+        while (cur != (EntityID)-1) {
+            auto* d = scene.GetEntityData(cur); if (!d) break;
+            parts.push_back(normalizeName(d->Name));
+            if (cur == root) break;
+            cur = d->Parent;
+        }
+        if (parts.empty()) return std::string();
+        std::reverse(parts.begin(), parts.end());
+        parts.erase(parts.begin()); // make relative
+        std::string s; for (size_t i=0;i<parts.size();++i){ s += parts[i]; if (i+1<parts.size()) s += "/"; }
+        return s;
+    };
+
+    struct NodeDelta {
+        std::string relPath; // normalized
+        TransformComponent transform;
+        bool hasMesh = false;
+        int meshFileId = -1;
+        // material overrides
+        std::shared_ptr<Material> material;
+        std::vector<std::shared_ptr<Material>> materials;
+        MaterialPropertyBlock propertyBlock;
+        bool uniqueMaterial = false;
+    };
+
+    for (EntityID root : roots) {
+        auto* rd = scene.GetEntityData(root); if (!rd) continue;
+        // Save root placement and hierarchy linkage
+        TransformComponent savedRootXf = rd->Transform;
+        EntityID savedParent = rd->Parent;
+        std::string savedName = rd->Name;
+
+        // Walk old subtree and cache deltas for nodes with meshes (and any overrides)
+        std::vector<NodeDelta> deltas;
+        std::function<void(EntityID)> dfsCache = [&](EntityID id){
+            auto* d = scene.GetEntityData(id); if (!d) return;
+            NodeDelta n; n.relPath = relPathOf(root, id); n.transform = d->Transform;
+            if (d->Mesh) {
+                n.hasMesh = true;
+                n.material = d->Mesh->material;
+                n.materials = d->Mesh->materials;
+                n.propertyBlock = d->Mesh->PropertyBlock;
+                n.uniqueMaterial = d->Mesh->UniqueMaterial;
+                n.meshFileId = d->Mesh->meshReference.fileID;
+            }
+            if (n.hasMesh) deltas.push_back(std::move(n));
+            for (EntityID c : d->Children) dfsCache(c);
+        };
+        dfsCache(root);
+
+        // Remove old subtree
+        scene.RemoveEntity(root);
+
+        // Instantiate fresh model at the same place
+        EntityID newRoot = scene.InstantiateModel(modelPath, glm::vec3(0.0f));
+        if (newRoot == (EntityID)-1 || newRoot == (EntityID)0) continue;
+        if (auto* nd = scene.GetEntityData(newRoot)) {
+            nd->Name = savedName;
+            nd->Transform = savedRootXf;
+            nd->Transform.TransformDirty = true;
+        }
+        if (savedParent != (EntityID)-1) scene.SetParent(newRoot, savedParent);
+
+        // Helper: resolve entity by relPath under newRoot; fallback to mesh fileID search
+        auto resolveByPath = [&](const std::string& path) -> EntityID {
+            EntityID target = newRoot;
+            if (path.empty()) return target;
+            std::stringstream ss(path); std::string part;
+            while (std::getline(ss, part, '/')) {
+                auto* d = scene.GetEntityData(target); if (!d) return (EntityID)-1;
+                std::string normPart = normalizeName(part);
+                EntityID next = (EntityID)-1;
+                for (EntityID c : d->Children) {
+                    auto* cd = scene.GetEntityData(c); if (!cd) continue;
+                    if (normalizeName(cd->Name) == normPart) { next = c; break; }
+                }
+                if (next == (EntityID)-1) return (EntityID)-1; target = next;
+            }
+            return target;
+        };
+        auto findByFileId = [&](int fid) -> EntityID {
+            if (fid < 0) return (EntityID)-1;
+            std::function<EntityID(EntityID)> dfs = [&](EntityID id)->EntityID{
+                auto* d = scene.GetEntityData(id); if (!d) return (EntityID)-1;
+                if (d->Mesh && d->Mesh->meshReference.fileID == fid) return id;
+                for (EntityID c : d->Children) { EntityID r = dfs(c); if (r != (EntityID)-1) return r; }
+                return (EntityID)-1;
+            }; return dfs(newRoot);
+        };
+
+        // Apply cached deltas
+        for (const auto& n : deltas) {
+            EntityID target = resolveByPath(n.relPath);
+            if (target == (EntityID)-1) target = findByFileId(n.meshFileId);
+            if (target == (EntityID)-1) continue;
+            auto* td = scene.GetEntityData(target); if (!td) continue;
+            // Transform: apply saved transform directly (user-authored)
+            td->Transform = n.transform; td->Transform.TransformDirty = true;
+            if (n.hasMesh && td->Mesh) {
+                td->Mesh->material = n.material;
+                td->Mesh->materials = n.materials;
+                td->Mesh->PropertyBlock = n.propertyBlock;
+                td->Mesh->UniqueMaterial = n.uniqueMaterial;
+                // Rebuild collider if necessary
+                if (td->Collider && td->Collider->ShapeType == ColliderShape::Mesh) {
+                    td->Collider->BuildShape(td->Mesh->mesh.get());
+                }
             }
         }
-        if (!matches) continue;
 
-        // Preserve scene deltas
-        TransformComponent savedXf = d->Transform;
-        auto savedMat = d->Mesh->material;
-        auto savedMats = d->Mesh->materials;
-        auto savedPB = d->Mesh->PropertyBlock;
-
-        // Reload mesh from AssetLibrary (meshbin fast path)
-        std::shared_ptr<Mesh> newMesh;
-        if (auto* entry = AssetLibrary::Instance().GetAsset(modelPath)) {
-            newMesh = AssetLibrary::Instance().LoadMesh(entry->reference);
-        }
-        if (!newMesh) {
-            // As a fallback, re-import on the fly
-            newMesh = AssetLibrary::Instance().LoadMesh(d->Mesh->meshReference);
-        }
-        if (!newMesh) continue;
-
-        d->Mesh->mesh = newMesh;
-        // Keep materials and property overrides; do not touch transform
-        d->Mesh->material = savedMat;
-        d->Mesh->materials = savedMats;
-        d->Mesh->PropertyBlock = savedPB;
-
-        // Recompute bounds and rebuild collider if needed
-        if (d->Collider && d->Collider->ShapeType == ColliderShape::Mesh) {
-            d->Collider->BuildShape(d->Mesh->mesh.get());
-        }
-
-        d->Transform = savedXf;
-        d->Transform.TransformDirty = true;
+        // Force transform update for the whole subtree once
+        scene.MarkTransformDirty(newRoot);
+        scene.UpdateTransforms();
     }
 }
 

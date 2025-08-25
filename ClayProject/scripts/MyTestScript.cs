@@ -6,7 +6,7 @@ using System;
 public class MyTestScript : ScriptComponent
    {
    private bool moving = false;
-   private float moveSpeed = 3.0f;
+   private float moveSpeed = 6.0f;
 
    // how quickly we rotate toward the target heading (higher = snappier)
    private float rotationSmooth = 10f;
@@ -90,10 +90,10 @@ public class MyTestScript : ScriptComponent
 
       // --- Gather input into a single move direction ---
       Vector3 moveDir = Vector3.Zero;
-      if (Input.GetKey(KeyCode.W)) moveDir += new Vector3(0f, 0f, 1f);
-      if (Input.GetKey(KeyCode.S)) moveDir += new Vector3(0f, 0f, -1f);
-      if (Input.GetKey(KeyCode.A)) moveDir += new Vector3(1f, 0f, 0f);
-      if (Input.GetKey(KeyCode.D)) moveDir += new Vector3(-1f, 0f, 0f);
+      if (Input.GetKey(KeyCode.W)) moveDir += new Vector3(0f, 0f, -1f);
+      if (Input.GetKey(KeyCode.S)) moveDir += new Vector3(0f, 0f, 1f);
+      if (Input.GetKey(KeyCode.A)) moveDir += new Vector3(-1f, 0f, 0f);
+      if (Input.GetKey(KeyCode.D)) moveDir += new Vector3(1f, 0f, 0f);
 
       moving = moveDir.LengthSquared() > 1e-6f;
 
@@ -211,4 +211,5 @@ public class MyTestScript : ScriptComponent
       return Quaternion.CreateFromRotationMatrix(m);
       }
    }
+
 

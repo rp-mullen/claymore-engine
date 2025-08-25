@@ -87,6 +87,7 @@ public:
 
     // Editor helpers
     void DrawEntityOutline(Scene& scene, EntityID selectedEntity);
+    void DrawSceneOutline(Scene& scene);
 
     // Debug draw toggles
     void SetShowGrid(bool v) { m_ShowGrid = v; }

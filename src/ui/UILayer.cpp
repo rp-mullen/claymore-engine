@@ -13,6 +13,7 @@
 #include "editor/panels/AnimationInspector.h"
 #include "editor/animation/AnimationTimelinePanel.h"
 #include <rendering/MaterialManager.h>
+#include <rendering/PBRMaterial.h>
 #include <rendering/StandardMeshManager.h>
 #include "utility/ComponentDrawerRegistry.h"
 #include "scripting/ScriptReflectionSetup.h"
@@ -668,11 +669,68 @@ void UILayer::BeginDockspace() {
         ImGui::EndCombo();
     }
 
+    // Shader preset dropdown (right next to Options)
+    ImGui::SameLine();
+    {
+        Scene& s = m_Scene;
+        const char* curLabel = (s.GetDefaultShaderPreset() == Scene::ShaderPreset::PBR) ? "PBR" : "PSX";
+        if (ImGui::BeginCombo("Shader", curLabel)) {
+            auto convertAllTo = [&](Scene::ShaderPreset target){
+                if (target == s.GetDefaultShaderPreset()) { ImGui::EndCombo(); return; }
+                // Set preset first so scene-aware creators use the new target
+                s.SetDefaultShaderPreset(target);
+                for (auto& e : s.GetEntities()) {
+                    auto* d = s.GetEntityData(e.GetID()); if (!d || !d->Mesh) continue;
+                    auto& mat = d->Mesh->material; if (!mat) continue;
+                    bool skinned = (d->Skinning != nullptr);
+                    std::string n = mat->GetName();
+                    bool isDefault = (n == "DefaultPBR" || n == "SkinnedPBR" || n == "PSX" || n == "SkinnedPSX");
+                    if (!isDefault) continue;
+                    // carry over albedo texture and tint if available
+                    bgfx::TextureHandle albedo = BGFX_INVALID_HANDLE;
+                    glm::vec4 tint(1,1,1,1);
+                    if (auto pbr = std::dynamic_pointer_cast<PBRMaterial>(mat)) {
+                        albedo = pbr->m_AlbedoTex;
+                        mat->TryGetUniform("u_ColorTint", tint);
+                    }
+                    std::shared_ptr<Material> newMat = skinned ? MaterialManager::Instance().CreateSceneSkinnedDefaultMaterial(&s)
+                                                               : MaterialManager::Instance().CreateSceneDefaultMaterial(&s);
+                    if (auto npbr = std::dynamic_pointer_cast<PBRMaterial>(newMat)) {
+                        if (bgfx::isValid(albedo)) npbr->SetAlbedoTexture(albedo);
+                    }
+                    newMat->SetUniform("u_ColorTint", tint);
+                    d->Mesh->material = newMat;
+                }
+            };
+            bool selPBR = (s.GetDefaultShaderPreset() == Scene::ShaderPreset::PBR);
+            bool selPSX = (s.GetDefaultShaderPreset() == Scene::ShaderPreset::PSX);
+            if (ImGui::Selectable("PBR", selPBR)) convertAllTo(Scene::ShaderPreset::PBR);
+            if (ImGui::Selectable("PSX", selPSX)) convertAllTo(Scene::ShaderPreset::PSX);
+            ImGui::EndCombo();
+        }
+    }
+
     ImGui::EndChild();
     ImGui::PopStyleVar();
 
     // Render any modals requested by menu items after the menu bar has closed
     m_MenuBarPanel.RenderExportPopup();
+    if (ImGui::BeginPopupModal("Project Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Default Shader for New Scenes");
+        static int projectPreset = 0; // 0=PBR, 1=PSX
+        const char* items[] = { "PBR", "PSX" };
+        ImGui::Combo("Preset", &projectPreset, items, 2);
+        ImGui::Separator();
+        if (ImGui::Button("OK")) {
+            // TODO: persist in Project when field is added
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel")) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 
     // DockSpace (below toolbar), reserve space for status bar using negative height
     ImGui::Separator();
@@ -726,7 +784,7 @@ void UILayer::CreateDebugCubeEntity() {
         StandardMeshManager::Instance().GetCubeMesh(),
         std::string("DebugCube"),
         nullptr);
-    data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+    data->Mesh->material = MaterialManager::Instance().CreateSceneDefaultMaterial(&m_Scene);
 
 }
 

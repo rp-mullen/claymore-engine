@@ -1,6 +1,7 @@
 #include "MaterialManager.h"
 #include "ShaderManager.h"
 #include "TextureLoader.h"
+#include "ecs/Scene.h"
 
 MaterialManager& MaterialManager::Instance() {
     static MaterialManager instance;
@@ -55,4 +56,40 @@ std::shared_ptr<DebugMaterial> MaterialManager::CreateDefaultDebugMaterial() {
 		defaultDebugMaterial = std::make_shared<DebugMaterial>("DefaultDebug", program);
 	}
 	return defaultDebugMaterial;
+}
+
+// Scene-preset aware creators (temporarily only PBR; PSX added later)
+std::shared_ptr<Material> MaterialManager::CreateSceneDefaultMaterial(Scene* scene) {
+    if (scene && scene->GetDefaultShaderPreset() == Scene::ShaderPreset::PSX) {
+        auto program = ShaderManager::Instance().LoadProgram("vs_psx", "fs_psx");
+        auto mat = std::make_shared<PBRMaterial>("PSX", program);
+        // Defaults similar to PBR for texture slots
+        try { static_cast<PBRMaterial*>(mat.get())->SetAlbedoTexture(TextureLoader::Load2D("assets/debug/white.png")); } catch(...) {}
+        return mat;
+    }
+    return CreateDefaultPBRMaterial();
+}
+
+std::shared_ptr<Material> MaterialManager::CreateSceneSkinnedDefaultMaterial(Scene* scene) {
+    if (scene && scene->GetDefaultShaderPreset() == Scene::ShaderPreset::PSX) {
+        auto program = ShaderManager::Instance().LoadProgram("vs_psx_skinned", "fs_psx");
+        auto mat = std::make_shared<SkinnedPBRMaterial>("SkinnedPSX", program);
+        try { static_cast<SkinnedPBRMaterial*>(mat.get())->SetAlbedoTexture(TextureLoader::Load2D("assets/debug/white.png")); } catch(...) {}
+        return mat;
+    }
+    return CreateSkinnedPBRMaterial();
+}
+
+std::shared_ptr<PBRMaterial> MaterialManager::CreatePSXMaterial() {
+    auto program = ShaderManager::Instance().LoadProgram("vs_psx", "fs_psx");
+    auto mat = std::make_shared<PBRMaterial>("PSX", program);
+    try { mat->SetAlbedoTexture(TextureLoader::Load2D("assets/debug/white.png")); } catch(...) {}
+    return mat;
+}
+
+std::shared_ptr<SkinnedPBRMaterial> MaterialManager::CreateSkinnedPSXMaterial() {
+    auto program = ShaderManager::Instance().LoadProgram("vs_psx_skinned", "fs_psx");
+    auto mat = std::make_shared<SkinnedPBRMaterial>("SkinnedPSX", program);
+    try { mat->SetAlbedoTexture(TextureLoader::Load2D("assets/debug/white.png")); } catch(...) {}
+    return mat;
 }

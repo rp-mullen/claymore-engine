@@ -350,7 +350,7 @@ EntityID Scene::InstantiateAsset(const std::string& path, const glm::vec3& posit
       data->Mesh->mesh = quadMesh;
 
       data->Mesh->MeshName = "ImageQuad";
-        data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+        data->Mesh->material = MaterialManager::Instance().CreateSceneDefaultMaterial(this);
 
       // TODO: if you want to store `tex`, create a TextureComponent or assign it in material.
 

@@ -293,9 +293,29 @@ void MenuBarPanel::OnImGuiRender() {
                     ImGui::ColorEdit3("Horizon Color", (float*)&env.SkyHorizonColor);
                     ImGui::EndTabItem();
                 }
+                if (ImGui::BeginTabItem("Outline")) {
+                    ImGui::Checkbox("Enable Outline", &env.OutlineEnabled);
+                    ImGui::ColorEdit3("Outline Color", (float*)&env.OutlineColor);
+                    ImGui::SliderFloat("Thickness (px)", &env.OutlineThickness, 1.0f, 8.0f, "%.0f");
+                    ImGui::TextDisabled("Screen-space outline applied to all visible meshes.");
+                    ImGui::EndTabItem();
+                }
                 ImGui::EndTabBar();
             }
+            // If we're in play mode (runtime scene active), mirror environment to the runtime scene so changes apply immediately
+            if (m_Context && m_Context->m_RuntimeScene) {
+                m_Context->m_RuntimeScene->GetEnvironment() = env;
+            }
             ImGui::EndMenu();
+        }
+        ImGui::EndMenu();
+    }
+
+    // EDIT MENU
+    if (ImGui::BeginMenu("Edit")) {
+        if (ImGui::MenuItem("Project Settings")) {
+            // Open a simple modal to edit project defaults (see below after EndMenuBar)
+            ImGui::OpenPopup("Project Settings");
         }
         ImGui::EndMenu();
     }

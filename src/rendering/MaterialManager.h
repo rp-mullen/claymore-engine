@@ -12,6 +12,12 @@ public:
     
     std::shared_ptr<PBRMaterial> CreateDefaultPBRMaterial();
     std::shared_ptr<SkinnedPBRMaterial> CreateSkinnedPBRMaterial();
+    // Explicit PSX creators for menus
+    std::shared_ptr<class PBRMaterial> CreatePSXMaterial();
+    std::shared_ptr<class SkinnedPBRMaterial> CreateSkinnedPSXMaterial();
+    // Scene-preset aware creators (dispatch to PBR or PSX)
+    std::shared_ptr<class Material> CreateSceneDefaultMaterial(class Scene* scene);
+    std::shared_ptr<class Material> CreateSceneSkinnedDefaultMaterial(class Scene* scene);
 
     std::shared_ptr<DebugMaterial> CreateDefaultDebugMaterial();
 };

@@ -13,6 +13,7 @@
 
 class Scene {
 public:
+   enum class ShaderPreset { PBR = 0, PSX = 1 };
    
     static Scene* CurrentScene;
 	static Scene& Get() {
@@ -78,9 +79,16 @@ public:
     Environment& GetEnvironment() { return m_Environment; }
     const Environment& GetEnvironment() const { return m_Environment; }
 
+    // Scene-wide default shader preset
+    void SetDefaultShaderPreset(ShaderPreset preset) { m_DefaultShaderPreset = preset; }
+    ShaderPreset GetDefaultShaderPreset() const { return m_DefaultShaderPreset; }
+
     // Deferred deletion API to avoid mid-render invalidation
     void QueueRemoveEntity(EntityID id);
     void ProcessPendingRemovals();
+
+    // Reset monotonically increasing ID counter (editor-only usage before full deserialization)
+    void ResetEntityIdCounter(EntityID next = 1) { m_NextID = next; }
 
 private:
    std::unordered_map<EntityID, EntityData> m_Entities;
@@ -89,4 +97,5 @@ private:
     Environment m_Environment{};
     std::vector<EntityID> m_PendingRemovals;
    bool m_IsDirty = false;
+   ShaderPreset m_DefaultShaderPreset = ShaderPreset::PBR;
    };

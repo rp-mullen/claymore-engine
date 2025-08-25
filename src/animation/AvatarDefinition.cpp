@@ -51,7 +51,24 @@ static bool name_matches(const std::string& name, const std::vector<std::string>
 {
     const std::string canon = to_canonical(name);
     for (const auto& c : candidates) {
-        if (canon.find(to_canonical(c)) != std::string::npos) return true;
+        const std::string tok = to_canonical(c);
+        size_t pos = canon.find(tok);
+        if (pos == std::string::npos) continue;
+
+        // If the token is purely alphabetic (e.g. "Spine"), do not match when a digit follows immediately
+        // in the source name (prevents matching "Spine" to "Spine2").
+        bool alpha_only = true;
+        for (char ch : tok) {
+            if (!std::isalpha(static_cast<unsigned char>(ch))) { alpha_only = false; break; }
+        }
+        if (alpha_only) {
+            size_t after = pos + tok.size();
+            if (after < canon.size() && std::isdigit(static_cast<unsigned char>(canon[after]))) {
+                continue; // reject this match; try next candidate
+            }
+        }
+
+        return true;
     }
     return false;
 }
@@ -168,6 +185,8 @@ void avatar_builders::BuildFromSkeleton(const SkeletonComponent& skeleton,
     }
 
     if (autoMap) {
+        // Track which skeleton bones have already been claimed to avoid duplicates
+        std::vector<bool> used(names.size(), false);
         for (uint16_t i = 0; i < HumanoidBoneCount; ++i) {
             HumanoidBone hb = static_cast<HumanoidBone>(i);
             auto it = seeds.find(hb);
@@ -177,10 +196,12 @@ void avatar_builders::BuildFromSkeleton(const SkeletonComponent& skeleton,
             for (size_t bi = 0; bi < names.size(); ++bi) {
                 const std::string& n = names[bi];
                 if (n.empty()) continue;
+                if (bi < used.size() && used[bi]) continue; // already assigned to another humanoid bone
                 if (name_matches(n, it->second)) {
                     outAvatar.Map[i].BoneIndex = (int32_t)bi;
                     outAvatar.Map[i].BoneName = n;
                     outAvatar.Present[i] = true;
+                    if (bi < used.size()) used[bi] = true;
                     break;
                 }
             }

@@ -14,6 +14,7 @@ public:
 
     void SetUniform(const std::string& name, const glm::vec4& value);
     virtual void BindUniforms() const;
+    bool TryGetUniform(const std::string& name, glm::vec4& outValue) const;
 
     // Apply per-instance overrides before draw
     void ApplyPropertyBlock(const struct MaterialPropertyBlock& block) const;

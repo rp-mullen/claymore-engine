@@ -188,7 +188,7 @@ std::shared_ptr<Material> AssetLibrary::LoadMaterial(const AssetReference& ref) 
         if (it == m_Assets.end()) return nullptr;
         if (it->second.material) return it->second.material;
     }
-    auto created = MaterialManager::Instance().CreateDefaultPBRMaterial();
+    auto created = MaterialManager::Instance().CreateSceneDefaultMaterial(&Scene::Get());
     {
         std::lock_guard<std::mutex> lk(m_Mutex);
         auto it = m_Assets.find(ref.guid);

@@ -341,7 +341,7 @@ EntityID InstantiatePrefab(const ClaymoreGUID& prefabGuid, Scene& dst, const Pre
             }
             // Ensure skinned material if SkinningComponent exists
             if (d->Skinning && d->Mesh && !std::dynamic_pointer_cast<SkinnedPBRMaterial>(d->Mesh->material)) {
-                d->Mesh->material = MaterialManager::Instance().CreateSkinnedPBRMaterial();
+                d->Mesh->material = MaterialManager::Instance().CreateSceneSkinnedDefaultMaterial(&Scene::Get());
             }
         }
     }
@@ -478,7 +478,7 @@ EntityID InstantiatePrefabFromAuthoringPath(const std::string& authoringPath, Sc
             std::cerr << "[Prefab] ERROR: Authoring build failed for entity '" << d->Name << "'" << std::endl;
         }
         if (d->Skinning && d->Mesh && !std::dynamic_pointer_cast<SkinnedPBRMaterial>(d->Mesh->material)) {
-            d->Mesh->material = MaterialManager::Instance().CreateSkinnedPBRMaterial();
+            d->Mesh->material = MaterialManager::Instance().CreateSceneSkinnedDefaultMaterial(&Scene::Get());
         }
         // If Skinning exists but SkeletonRoot not set, link to nearest ancestor skeleton
         if (d->Skinning && d->Skinning->SkeletonRoot == (EntityID)-1) {

@@ -464,10 +464,20 @@ void Application::Run() {
             if (editorScene.m_RuntimeScene) {
                 ScopedTimer t("Renderer/RenderScene (Play)");
                 Renderer::Get().RenderScene(*editorScene.m_RuntimeScene);
+                // Scene cosmetic outline in play mode
+                {
+                    ScopedTimer t2("Renderer/SceneOutline");
+                    Renderer::Get().DrawSceneOutline(*editorScene.m_RuntimeScene);
+                }
             } else {
                 {
                     ScopedTimer t("Renderer/RenderScene (Edit)");
                     Renderer::Get().RenderScene(editorScene);
+                }
+                // Scene cosmetic outline (environment-driven)
+                {
+                    ScopedTimer t("Renderer/SceneOutline");
+                    Renderer::Get().DrawSceneOutline(editorScene);
                 }
                 // Editor-only: draw outline for selected entity
                 {
@@ -478,6 +488,11 @@ void Application::Run() {
         } else {
             ScopedTimer t("Renderer/RenderScene (Game)");
             Renderer::Get().RenderScene(*Scene::CurrentScene);
+            // Scene cosmetic outline in standalone/game mode
+            {
+                ScopedTimer t2("Renderer/SceneOutline");
+                Renderer::Get().DrawSceneOutline(*Scene::CurrentScene);
+            }
         }
 
         // --------------------------------------

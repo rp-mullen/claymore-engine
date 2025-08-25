@@ -32,7 +32,7 @@ inline void RegisterComponentDrawers() {
         bool dirty = false;
         dirty |= ImGui::DragFloat3("Position", &t.Position.x, 0.1f);
         dirty |= ImGui::DragFloat3("Rotation", &t.Rotation.x, 0.1f);
-        // Scale with link toggle
+        // Scale with link toggle (compact aligned row)
         static bool linkScale = false;
         ImGui::Columns(2);
         ImGui::SetColumnWidth(0, 80.0f);
@@ -41,10 +41,14 @@ inline void RegisterComponentDrawers() {
         ImGui::PushID("ScaleCtl");
         float before[3] = { t.Scale.x, t.Scale.y, t.Scale.z };
         bool changedX=false, changedY=false, changedZ=false;
-        changedX = ImGui::DragFloat("X", &t.Scale.x, 0.1f); ImGui::SameLine();
-        changedY = ImGui::DragFloat("Y", &t.Scale.y, 0.1f); ImGui::SameLine();
-        changedZ = ImGui::DragFloat("Z", &t.Scale.z, 0.1f); ImGui::SameLine();
-        if (ImGui::SmallButton(linkScale ? "Unlink" : "Link")) linkScale = !linkScale;
+        float avail = ImGui::GetContentRegionAvail().x;
+        float spacing = ImGui::GetStyle().ItemInnerSpacing.x;
+        float btnW = ImGui::GetFrameHeight();
+        float fieldW = (avail - 2.0f*spacing - btnW) / 3.0f;
+        ImGui::SetNextItemWidth(fieldW); changedX = ImGui::DragFloat("X", &t.Scale.x, 0.1f);
+        ImGui::SameLine(); ImGui::SetNextItemWidth(fieldW); changedY = ImGui::DragFloat("Y", &t.Scale.y, 0.1f);
+        ImGui::SameLine(); ImGui::SetNextItemWidth(fieldW); changedZ = ImGui::DragFloat("Z", &t.Scale.z, 0.1f);
+        ImGui::SameLine(); if (ImGui::SmallButton(linkScale ? "L" : "U")) linkScale = !linkScale;
         if (linkScale) {
             // Keep proportions based on the component that changed
             int changed = (changedX?0:(changedY?1:(changedZ?2:-1)));

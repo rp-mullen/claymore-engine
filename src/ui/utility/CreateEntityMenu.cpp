@@ -27,7 +27,7 @@ bool DrawCreateEntityMenuItems(Scene* context, EntityID* selectedEntityOut)
         if (auto* d = context->GetEntityData(e.GetID())) {
             d->Mesh = std::make_unique<MeshComponent>();
             d->Mesh->mesh = StandardMeshManager::Instance().GetCubeMesh();
-            d->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+            d->Mesh->material = MaterialManager::Instance().CreateSceneDefaultMaterial(&Scene::Get());
             d->Mesh->MeshName = "Cube";
         }
         *selectedEntityOut = e.GetID();
@@ -39,7 +39,7 @@ bool DrawCreateEntityMenuItems(Scene* context, EntityID* selectedEntityOut)
         if (auto* d = context->GetEntityData(e.GetID())) {
             d->Mesh = std::make_unique<MeshComponent>();
             d->Mesh->mesh = StandardMeshManager::Instance().GetSphereMesh();
-            d->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+            d->Mesh->material = MaterialManager::Instance().CreateSceneDefaultMaterial(&Scene::Get());
             d->Mesh->MeshName = "Sphere";
         }
         *selectedEntityOut = e.GetID();
@@ -51,7 +51,7 @@ bool DrawCreateEntityMenuItems(Scene* context, EntityID* selectedEntityOut)
         if (auto* d = context->GetEntityData(e.GetID())) {
             d->Mesh = std::make_unique<MeshComponent>();
             d->Mesh->mesh = StandardMeshManager::Instance().GetPlaneMesh();
-            d->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+            d->Mesh->material = MaterialManager::Instance().CreateSceneDefaultMaterial(&Scene::Get());
             d->Mesh->MeshName = "Plane";
         }
         *selectedEntityOut = e.GetID();
@@ -63,7 +63,7 @@ bool DrawCreateEntityMenuItems(Scene* context, EntityID* selectedEntityOut)
         if (auto* d = context->GetEntityData(e.GetID())) {
             d->Mesh = std::make_unique<MeshComponent>();
             d->Mesh->mesh = StandardMeshManager::Instance().GetCapsuleMesh();
-            d->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+            d->Mesh->material = MaterialManager::Instance().CreateSceneDefaultMaterial(&Scene::Get());
             d->Mesh->MeshName = "Capsule";
         }
         *selectedEntityOut = e.GetID();

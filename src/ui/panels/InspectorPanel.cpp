@@ -437,6 +437,8 @@ void InspectorPanel::DrawComponents(EntityID entity) {
         s_options.clear();
         s_options.push_back({ "Default PBR", "<builtin:DefaultPBR>", true });
         s_options.push_back({ "Skinned PBR", "<builtin:SkinnedPBR>", true });
+        s_options.push_back({ "PSX", "<builtin:PSX>", true });
+        s_options.push_back({ "Skinned PSX", "<builtin:SkinnedPSX>", true });
         auto root = Project::GetAssetDirectory(); if (root.empty()) root = std::filesystem::path("assets");
         if (std::filesystem::exists(root)) {
             for (auto& p : std::filesystem::recursive_directory_iterator(root)) {
@@ -458,6 +460,8 @@ void InspectorPanel::DrawComponents(EntityID entity) {
                         if (s_options[i].isBuiltIn) {
                             if (s_options[i].name == "Default PBR") newMat = MaterialManager::Instance().CreateDefaultPBRMaterial();
                             else if (s_options[i].name == "Skinned PBR") newMat = MaterialManager::Instance().CreateSkinnedPBRMaterial();
+                            else if (s_options[i].name == "PSX") newMat = MaterialManager::Instance().CreatePSXMaterial();
+                            else if (s_options[i].name == "Skinned PSX") newMat = MaterialManager::Instance().CreateSkinnedPSXMaterial();
                         } else {
                             MaterialAssetDesc desc; if (LoadMaterialAsset(s_options[i].path, desc)) newMat = CreateMaterialFromAsset(desc);
                         }
@@ -474,6 +478,43 @@ void InspectorPanel::DrawComponents(EntityID entity) {
 
         // Draw per-component UI (textures for slots, blendshapes, etc.)
         registry.DrawComponentUI("Mesh", meshComp);
+
+        // PSX parameter UI only when PSX shaders are active on this material
+        std::shared_ptr<Material> baseMat = (!meshComp->materials.empty() ? meshComp->materials[0] : meshComp->material);
+        if (baseMat) {
+            std::string n = baseMat->GetName();
+            bool isPSX = (n == "PSX" || n == "SkinnedPSX");
+            if (isPSX) {
+                ImGui::Separator();
+                ImGui::TextDisabled("PSX Parameters");
+                // Read current values from material uniform if available
+                glm::vec4 psx(0,0,0,0);
+                baseMat->TryGetUniform("u_psxParams", psx);
+                float jitter = psx.x;
+                float affine = psx.y;
+                if (ImGui::SliderFloat("Vertex Jitter (px)", &jitter, 0.0f, 4.0f, "%.1f")) {
+                    psx.x = jitter; baseMat->SetUniform("u_psxParams", psx);
+                }
+                if (ImGui::SliderFloat("Affine Warp", &affine, 0.0f, 1.0f, "%.2f")) {
+                    psx.y = affine; baseMat->SetUniform("u_psxParams", psx);
+                }
+
+                // Material Property Block overrides for PSX
+                if (!meshComp->UniqueMaterial) {
+                    ImGui::Separator();
+                    ImGui::TextDisabled("PSX Overrides (Property Block)");
+                    glm::vec4 pbPsx(0,0,0,0);
+                    auto it = meshComp->PropertyBlock.Vec4Uniforms.find("u_psxParams");
+                    if (it != meshComp->PropertyBlock.Vec4Uniforms.end()) pbPsx = it->second;
+                    float jitterPB = pbPsx.x;
+                    float affinePB = pbPsx.y;
+                    bool changed = false;
+                    changed |= ImGui::SliderFloat("Override Jitter (px)", &jitterPB, 0.0f, 4.0f, "%.1f");
+                    changed |= ImGui::SliderFloat("Override Affine", &affinePB, 0.0f, 1.0f, "%.2f");
+                    if (changed) meshComp->PropertyBlock.Vec4Uniforms["u_psxParams"] = glm::vec4(jitterPB, affinePB, 0.0f, 0.0f);
+                }
+            }
+        }
 
         // Unique material toggle (applies to primary material instance)
         bool unique = meshComp->UniqueMaterial;

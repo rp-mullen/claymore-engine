@@ -70,6 +70,8 @@ void ToolbarPanel::OnImGuiRender(ImGuiID dockspace_id) {
         ImGui::EndMenu();
     }
 
+    // Shader preset now lives in UILayer next to Options
+
     ImGui::PopStyleVar();
     ImGui::End();
 }

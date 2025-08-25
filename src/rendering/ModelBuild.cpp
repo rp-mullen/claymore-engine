@@ -75,7 +75,7 @@ BuildResult BuildRendererFromAssets(const BuildModelParams& p)
 
         // Ensure skinned PBR material is used
         if (!std::dynamic_pointer_cast<SkinnedPBRMaterial>(data->Mesh->material)) {
-            data->Mesh->material = MaterialManager::Instance().CreateSkinnedPBRMaterial();
+            data->Mesh->material = MaterialManager::Instance().CreateSceneSkinnedDefaultMaterial(&Scene::Get());
         }
 
         // Build remap and used-joint list using current mesh and skeleton
@@ -98,7 +98,7 @@ BuildResult BuildRendererFromAssets(const BuildModelParams& p)
 
     // Static path: ensure we have a default PBR material if none
     if (!data->Mesh->material) {
-        data->Mesh->material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+        data->Mesh->material = MaterialManager::Instance().CreateSceneDefaultMaterial(&Scene::Get());
     }
 
     // Ensure no stale SkinningComponent remains on static meshes

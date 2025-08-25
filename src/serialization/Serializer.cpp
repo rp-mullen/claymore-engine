@@ -319,10 +319,11 @@ void Serializer::DeserializeMesh(const json& data, MeshComponent& mesh) {
             }
         }
     }
-    
+     
     // Material: if not already set by caller (e.g., skinned detection), assign default PBR
     if (!mesh.material) {
-        mesh.material = MaterialManager::Instance().CreateDefaultPBRMaterial();
+		Scene& scene = Scene::Get();
+        mesh.material = MaterialManager::Instance().CreateSceneDefaultMaterial(&scene);
     }
 
     // If the material is unique and we have texture source paths, restore them
@@ -1150,6 +1151,10 @@ json Serializer::SerializeScene( Scene& scene) {
     json sceneData;
     sceneData["version"] = "1.0";
     sceneData["entities"] = json::array();
+    // Scene default shader preset
+    try {
+        sceneData["defaultShaderPreset"] = (int)scene.GetDefaultShaderPreset();
+    } catch(...) {}
     // Environment
     try {
         const Environment& env = scene.GetEnvironment();
@@ -1166,6 +1171,10 @@ json Serializer::SerializeScene( Scene& scene) {
         jenv["proceduralSky"] = env.ProceduralSky;
         jenv["skyZenithColor"] = SerializeVec3(env.SkyZenithColor);
         jenv["skyHorizonColor"] = SerializeVec3(env.SkyHorizonColor);
+        // Cosmetic outline
+        jenv["outlineEnabled"] = env.OutlineEnabled;
+        jenv["outlineColor"] = SerializeVec3(env.OutlineColor);
+        jenv["outlineThickness"] = env.OutlineThickness;
         sceneData["environment"] = std::move(jenv);
     } catch(...) {}
     // Optional: include an asset map to help resolve GUIDs across different working copies
@@ -1251,6 +1260,13 @@ json Serializer::SerializeScene( Scene& scene) {
 
 bool Serializer::DeserializeScene(const json& data, Scene& scene) {
     if (!data.contains("entities")) return false;
+    // Default shader preset
+    try {
+        if (data.contains("defaultShaderPreset")) {
+            int v = data["defaultShaderPreset"].get<int>();
+            scene.SetDefaultShaderPreset((Scene::ShaderPreset)v);
+        }
+    } catch(...) {}
 
     try {
         std::cout << "[DeserializeBegin] version=" << data.value("version", "")
@@ -1329,6 +1345,10 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
             env.ProceduralSky = jenv.value("proceduralSky", env.ProceduralSky);
             if (jenv.contains("skyZenithColor")) env.SkyZenithColor = DeserializeVec3(jenv["skyZenithColor"]);
             if (jenv.contains("skyHorizonColor")) env.SkyHorizonColor = DeserializeVec3(jenv["skyHorizonColor"]);
+            // Cosmetic outline
+            env.OutlineEnabled = jenv.value("outlineEnabled", env.OutlineEnabled);
+            if (jenv.contains("outlineColor")) env.OutlineColor = DeserializeVec3(jenv["outlineColor"]);
+            env.OutlineThickness = jenv.value("outlineThickness", env.OutlineThickness);
         } catch(...) {}
     }
 
@@ -1341,6 +1361,8 @@ bool Serializer::DeserializeScene(const json& data, Scene& scene) {
     for (EntityID id : entitiesToRemove) {
         scene.RemoveEntity(id);
     }
+    // Reset ID counter so names don't receive incremental suffixes across reloads
+    scene.ResetEntityIdCounter(1);
     
     // First pass: Create all entities
     std::unordered_map<EntityID, EntityID> idMapping; // old ID -> new ID

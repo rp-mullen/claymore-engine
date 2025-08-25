@@ -16,6 +16,14 @@ void Material::BindUniforms() const
     }
 }
 
+bool Material::TryGetUniform(const std::string& name, glm::vec4& outValue) const
+{
+    auto it = m_Uniforms.find(name);
+    if (it == m_Uniforms.end()) return false;
+    outValue = it->second.value;
+    return true;
+}
+
 #include "MaterialPropertyBlock.h"
 void Material::ApplyPropertyBlock(const MaterialPropertyBlock& block) const
 {

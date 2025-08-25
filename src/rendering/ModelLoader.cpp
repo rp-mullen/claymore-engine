@@ -7,7 +7,7 @@
 #include "TextureLoader.h"
 #include "ShaderManager.h"
 #include "ecs/AnimationComponents.h"
-
+#include "ecs/Scene.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -165,7 +165,7 @@ static std::string NormalizeBlendShapeName(const std::string& rawName, const std
 // --------------------------------- Loader ----------------------------------
 bool ModelLoader::s_FlipY = false;
 bool ModelLoader::s_FlipZ = false;
-bool ModelLoader::s_RotateY180 = true;
+bool ModelLoader::s_RotateY180 = false;
 
 void ModelLoader::SetFlipYAxis(bool enabled) { s_FlipY = enabled; }
 void ModelLoader::SetFlipZAxis(bool enabled) { s_FlipZ = enabled; }
@@ -269,6 +269,37 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         }
     }
 
+    // ---------------- Material texture prepass (extract once for every material) ----------------
+    struct ExtractedMaterialData
+    {
+        std::string AlbedoPath;
+        std::string MetallicRoughnessPath;
+        std::string NormalPath;
+        glm::vec4   ColorTint = glm::vec4(1.0f);
+        bool        HasTint   = false;
+    };
+
+    std::vector<ExtractedMaterialData> extractedMaterials;
+    if (scene->HasMaterials())
+    {
+        extractedMaterials.resize(scene->mNumMaterials);
+        for (unsigned mi = 0; mi < scene->mNumMaterials; ++mi)
+        {
+            std::string albedo, mr, normal;
+            ExtractPbrTextures(scene->mMaterials[mi], albedo, mr, normal);
+            extractedMaterials[mi].AlbedoPath = std::move(albedo);
+            extractedMaterials[mi].MetallicRoughnessPath = std::move(mr);
+            extractedMaterials[mi].NormalPath = std::move(normal);
+
+            aiColor4D baseCol(1,1,1,1);
+            if (scene->mMaterials[mi]->Get(AI_MATKEY_COLOR_DIFFUSE, baseCol) == AI_SUCCESS)
+            {
+                extractedMaterials[mi].ColorTint = glm::vec4(baseCol.r, baseCol.g, baseCol.b, baseCol.a);
+                extractedMaterials[mi].HasTint   = true;
+            }
+        }
+    }
+
     // ---------------- Convert meshes ----------------
     result.Meshes.reserve(scene->mNumMeshes);
     result.Materials.reserve(scene->mNumMeshes);
@@ -291,29 +322,25 @@ Model ModelLoader::LoadModel(const std::string& filepath)
         std::shared_ptr<Material> mat;
         if (hasSkin)
         {
-            auto prog = ShaderManager::Instance().LoadProgram("vs_pbr_skinned", "fs_pbr_skinned");
-            mat = std::make_shared<SkinnedPBRMaterial>("SkinnedPBR", prog);
+            // Use scene preset aware material for skinned
+            Scene& sc = Scene::Get();
+            mat = MaterialManager::Instance().CreateSceneSkinnedDefaultMaterial(&sc);
         }
         else
         {
-            // Regular PBR; CPU morphs are fine with static shader
-            mat = MaterialManager::Instance().CreateDefaultPBRMaterial();
+            // Use scene preset aware material
+            Scene& sc = Scene::Get();
+            mat = MaterialManager::Instance().CreateSceneDefaultMaterial(&sc);
         }
 
-        // Extract & apply textures (glTF/FBX common slots)
+        // Extract & apply textures (using prepass results for every material)
         if (scene->HasMaterials() && aMesh->mMaterialIndex < scene->mNumMaterials)
         {
-            std::string albedo, mr, normal;
-            ExtractPbrTextures(scene->mMaterials[aMesh->mMaterialIndex], albedo, mr, normal);
-            // Also fetch base color tint if present and seed MaterialPropertyBlock
-            aiColor4D baseCol(1,1,1,1);
-            if (scene->mMaterials[aMesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE, baseCol) == AI_SUCCESS) {
-                glm::vec4 tint(baseCol.r, baseCol.g, baseCol.b, baseCol.a);
-                // Store into a standard uniform name used by shaders
-                // We'll push this via PropertyBlock at render time; seed here as a default suggestion
-                // Since Material doesn't expose default PB, we attach a default into Mat name map
-                // (Use material uniform so it binds every draw)
-                const_cast<Material*>(mat.get())->SetUniform("u_ColorTint", tint);
+            const ExtractedMaterialData& md = extractedMaterials[aMesh->mMaterialIndex];
+
+            if (md.HasTint)
+            {
+                const_cast<Material*>(mat.get())->SetUniform("u_ColorTint", md.ColorTint);
             }
 
             // Attempt to map material textures to extracted assets under assets/textures/<modelName>
@@ -336,9 +363,9 @@ Model ModelLoader::LoadModel(const std::string& filepath)
                 };
 
                 // Prefer mapped extracted textures; fall back to model-relative paths
-                std::string albedoMapped = mapToExtracted(albedo);
-                std::string mrMapped     = mapToExtracted(mr);
-                std::string normalMapped = mapToExtracted(normal);
+                std::string albedoMapped = mapToExtracted(md.AlbedoPath);
+                std::string mrMapped     = mapToExtracted(md.MetallicRoughnessPath);
+                std::string normalMapped = mapToExtracted(md.NormalPath);
 
                 if (!albedoMapped.empty() || !mrMapped.empty() || !normalMapped.empty())
                 {
@@ -349,7 +376,7 @@ Model ModelLoader::LoadModel(const std::string& filepath)
                 else
                 {
                     // No extracted match; use original relative references if present
-                    ApplyTexturesToMaterial(mat.get(), baseDir, albedo, mr, normal);
+                    ApplyTexturesToMaterial(mat.get(), baseDir, md.AlbedoPath, md.MetallicRoughnessPath, md.NormalPath);
                 }
             }
         }
@@ -499,16 +526,10 @@ Model ModelLoader::LoadModel(const std::string& filepath)
             const aiFace& face = aMesh->mFaces[f];
             if (face.mNumIndices != 3) continue;
             // Reverse winding only when the scaling changes handedness (odd number of axis flips)
-            if (!(hasSkin)) {
-                // Preserve front-face after axis flips by reversing winding
-                indices32.push_back((uint32_t)face.mIndices[0]);
-                indices32.push_back((uint32_t)face.mIndices[2]);
-                indices32.push_back((uint32_t)face.mIndices[1]);
-            } else {
-                indices32.push_back((uint32_t)face.mIndices[0]);
-                indices32.push_back((uint32_t)face.mIndices[1]);
-                indices32.push_back((uint32_t)face.mIndices[2]);
-            }
+            indices32.push_back((uint32_t)face.mIndices[0]);
+            indices32.push_back((uint32_t)face.mIndices[1]);
+            indices32.push_back((uint32_t)face.mIndices[2]);
+            
         }
 
         // ---- Create GPU buffers (use predefined layouts from VertexTypes.h)

@@ -29,4 +29,9 @@ struct Environment {
     bool ProceduralSky = false;
     glm::vec3 SkyZenithColor = glm::vec3(0.2f, 0.35f, 0.6f);
     glm::vec3 SkyHorizonColor = glm::vec3(0.7f, 0.85f, 1.0f);
+
+    // Screen-space outline (cosmetic)
+    bool OutlineEnabled = false;
+    glm::vec3 OutlineColor = glm::vec3(0.0f, 0.0f, 0.0f);
+    float OutlineThickness = 2.0f; // pixels (1..8)
 };
