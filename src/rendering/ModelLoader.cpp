@@ -25,6 +25,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
+#include <editor/Project.h>
 
 // --------------------------------- Helpers ---------------------------------
 static glm::mat4 AiToGlmTransposed(const aiMatrix4x4& m)
@@ -343,40 +344,81 @@ Model ModelLoader::LoadModel(const std::string& filepath)
                 const_cast<Material*>(mat.get())->SetUniform("u_ColorTint", md.ColorTint);
             }
 
-            // Attempt to map material textures to extracted assets under assets/textures/<modelName>
+            // Attempt to resolve textures from original paths; if those fail,
+            // fall back to <Project::Assets>/textures/<modelName>/<filename>
             auto* pbr = dynamic_cast<PBRMaterial*>(mat.get());
             if (pbr)
             {
                 const std::string modelName = std::filesystem::path(filepath).stem().string();
-                const std::filesystem::path texDir = std::filesystem::path("assets") / "textures" / modelName;
-                auto mapToExtracted = [&](const std::string& src) -> std::string {
-                    if (src.empty()) return {};
+                const std::filesystem::path texDirA = Project::GetAssetDirectory() / "textures" / modelName;
+                auto tryOriginalThenExtracted = [&](const std::string& src,
+                    void(PBRMaterial::*setTexPath)(const std::string&),
+                    bgfx::TextureHandle& outHandle)
+                {
+                    if (src.empty()) return;
+                    // 1) Try FBX-provided path relative to model location
+                    std::string original = baseDir.empty() ? src : (std::filesystem::path(baseDir) / src).string();
+                    (pbr->*setTexPath)(original);
+                    if (bgfx::isValid(outHandle)) return;
+
+                    // 2) Fallback: assets/textures/<modelName>/<filename>
                     std::string fname = std::filesystem::path(src).filename().string();
-                    std::filesystem::path candidate = texDir / fname;
-                    std::error_code ec; // avoid exceptions on missing paths
-                    if (std::filesystem::exists(candidate, ec)) return candidate.string();
+                    std::error_code ec;
+                    std::filesystem::path candidate = texDirA / fname;
+                    if (std::filesystem::exists(candidate, ec))
+                    {
+                        (pbr->*setTexPath)(candidate.string());
+                        if (bgfx::isValid(outHandle)) return;
+                    }
+                };
+
+                tryOriginalThenExtracted(md.AlbedoPath,            &PBRMaterial::SetAlbedoTextureFromPath,             pbr->m_AlbedoTex);
+                tryOriginalThenExtracted(md.MetallicRoughnessPath, &PBRMaterial::SetMetallicRoughnessTextureFromPath, pbr->m_MetallicRoughnessTex);
+                tryOriginalThenExtracted(md.NormalPath,            &PBRMaterial::SetNormalTextureFromPath,             pbr->m_NormalTex);
+
+                // Final fallback: if FBX didn't provide paths (or loads failed),
+                // probe assets/textures/<modelName> for best-effort matches by filename keywords.
+                auto findInDirByKeywords = [&](const std::vector<std::string>& keywords) -> std::string
+                {
+                    std::error_code ec;
+                    if (std::filesystem::exists(texDirA, ec))
+                    {
+                        for (auto it = std::filesystem::directory_iterator(texDirA, ec); !ec && it != std::filesystem::end(it); it.increment(ec))
+                        {
+                            if (!it->is_regular_file(ec)) continue;
+                            const std::string fname = it->path().filename().string();
+                            // Only consider common image extensions
+                            std::string ext = it->path().extension().string();
+                            std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c){ return (char)std::tolower(c); });
+                            if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".tga" && ext != ".bmp") continue;
+                            std::string lower = fname;
+                            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c){ return (char)std::tolower(c); });
+                            for (const auto& k : keywords)
+                            {
+                                if (lower.find(k) != std::string::npos)
+                                    return it->path().string();
+                            }
+                        }
+                    }
                     return {};
                 };
 
-                auto trySet = [&](const std::string& mapped, void(PBRMaterial::*setTexPath)(const std::string&)) {
-                    if (!mapped.empty()) (pbr->*setTexPath)(mapped);
-                };
-
-                // Prefer mapped extracted textures; fall back to model-relative paths
-                std::string albedoMapped = mapToExtracted(md.AlbedoPath);
-                std::string mrMapped     = mapToExtracted(md.MetallicRoughnessPath);
-                std::string normalMapped = mapToExtracted(md.NormalPath);
-
-                if (!albedoMapped.empty() || !mrMapped.empty() || !normalMapped.empty())
+                if (!bgfx::isValid(pbr->m_AlbedoTex))
                 {
-                    trySet(albedoMapped, &PBRMaterial::SetAlbedoTextureFromPath);
-                    trySet(mrMapped,     &PBRMaterial::SetMetallicRoughnessTextureFromPath);
-                    trySet(normalMapped, &PBRMaterial::SetNormalTextureFromPath);
+                    // Prefer albedo/basecolor/diffuse and common character terms
+                    std::string cand = findInDirByKeywords({"albedo","basecolor","base_color","diffuse","color","col","face","body","base"});
+                    if (!cand.empty()) pbr->SetAlbedoTextureFromPath(cand);
                 }
-                else
+                if (!bgfx::isValid(pbr->m_NormalTex))
                 {
-                    // No extracted match; use original relative references if present
-                    ApplyTexturesToMaterial(mat.get(), baseDir, md.AlbedoPath, md.MetallicRoughnessPath, md.NormalPath);
+                    std::string cand = findInDirByKeywords({"normal","norm","nrm"});
+                    if (!cand.empty()) pbr->SetNormalTextureFromPath(cand);
+                }
+                if (!bgfx::isValid(pbr->m_MetallicRoughnessTex))
+                {
+                    // Look for combined ORM or MR maps; also accept roughness/metallic keywords
+                    std::string cand = findInDirByKeywords({"metalrough","metallicrough","metal_rough","mr","orm","occlusionroughnessmetallic","rough","metal"});
+                    if (!cand.empty()) pbr->SetMetallicRoughnessTextureFromPath(cand);
                 }
             }
         }

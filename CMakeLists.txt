@@ -129,7 +129,7 @@ set(EXTERNAL_SOURCES
     external/ImGuizmo/ImCurveEdit.cpp
     external/ImGuizmo/GraphEditor.cpp
     external/imnodes/imnodes.cpp
-    external/imgui_colortextedit/TextEditor.cpp)
+    )
 
 add_executable(Claymore
     ${ENGINE_SOURCES}

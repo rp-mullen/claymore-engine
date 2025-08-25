@@ -267,6 +267,18 @@ void Application::InitWindow(int width, int height, const std::string& title) {
     });
     m_window = m_Win32Window->GetHWND();
 
+    // Ensure initial client size reflects the actual window (e.g., maximized) before bgfx init
+    if (m_window) {
+        RECT rc; if (GetClientRect((HWND)m_window, &rc)) {
+            int cw = rc.right - rc.left;
+            int ch = rc.bottom - rc.top;
+            if (cw > 0 && ch > 0) {
+                m_width = cw;
+                m_height = ch;
+            }
+        }
+    }
+
     std::cout << "[Application] Win32 window created successfully." << std::endl;
 } 
 

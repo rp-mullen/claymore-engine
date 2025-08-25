@@ -20,7 +20,7 @@ bool IKComponent::ValidateChain(const SkeletonComponent& skeleton) const {
     if (!Constraints.empty() && Constraints.size() != Chain.size() - 1) return false;
     return true;
 }
-
+ 
 void IKComponent::SetChain(const std::vector<BoneId>& ids) {
     Chain = ids;
     if (Chain.size() > (size_t)kMaxChainLen) Chain.resize(kMaxChainLen);

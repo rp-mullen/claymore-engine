@@ -8,12 +8,15 @@
 #include <vector>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 
 #define NANOSVG_IMPLEMENTATION
 #include "nanosvg.h"
 
 #define NANOSVGRAST_IMPLEMENTATION
 #include "nanosvgrast.h"
+#include <iostream>
+#include "editor/Project.h"
 
 
 bgfx::TextureHandle TextureLoader::Load2D(const std::string& path, bool generateMips)
@@ -29,6 +32,55 @@ bgfx::TextureHandle TextureLoader::Load2D(const std::string& path, bool generate
     }
     if (!data)
     {
+        // Fallback: if original path failed, try to locate a texture with the same
+        // filename inside assets/textures/** (use first match)
+        try {
+            std::filesystem::path p(path);
+            const std::string fname = p.filename().string();
+            if (!fname.empty()) {
+                std::error_code ec;
+                std::vector<std::filesystem::path> roots;
+                // Preferred: Project asset root
+                std::filesystem::path assetRoot = Project::GetAssetDirectory();
+                if (!assetRoot.empty() && std::filesystem::exists(assetRoot, ec)) {
+                    auto r = assetRoot / "textures";
+                    if (std::filesystem::exists(r, ec)) roots.push_back(r);
+                }
+                // Secondary: relative 'assets/textures' from run dir
+                auto rRel = std::filesystem::path("assets") / "textures";
+                if (std::filesystem::exists(rRel, ec)) roots.push_back(rRel);
+
+                for (const auto& root : roots) {
+                    for (std::filesystem::recursive_directory_iterator it(root, ec), end; it != end; it.increment(ec)) {
+                        if (ec) break;
+                        if (!it->is_regular_file(ec)) continue;
+                        if (it->path().filename().string() == fname) {
+                            // Try loading from this candidate
+                            stbi_uc* alt = nullptr;
+                            std::vector<uint8_t> altData;
+                            const std::string candidate = it->path().string();
+                            if (FileSystem::Instance().ReadFile(candidate, altData)) {
+                                alt = stbi_load_from_memory(altData.data(), static_cast<int>(altData.size()), &width, &height, &channels, 4);
+                            } else {
+                                alt = stbi_load(candidate.c_str(), &width, &height, &channels, 4);
+                            }
+                            if (alt) {
+                                std::cout << "[TextureLoader] Fallback resolved by filename: '" << fname << "' -> " << candidate << "\n";
+                                data = alt; // use fallback image
+                            } else {
+                                std::cout << "[TextureLoader] Candidate existed but failed to load: " << candidate << "\n";
+                            }
+                            break;
+                        }
+                    }
+                    if (data) break;
+                }
+            }
+        } catch (...) {
+            // Swallow filesystem errors, continue to procedural fallbacks
+        }
+
+        // If still not found, consider procedural debug defaults
         // Procedural fallbacks for engine default debug textures so export isn't hard-blocked by missing files
         auto ends_with = [](const std::string& s, const std::string& suffix) {
             if (suffix.size() > s.size()) return false;
@@ -63,8 +115,10 @@ bgfx::TextureHandle TextureLoader::Load2D(const std::string& path, bool generate
                                   static_cast<uint16_t>(width * 4));
             return handle;
         }
-
-        throw std::runtime_error("Failed to load texture: " + path);
+        if (!data) {
+            std::cout << "Failed to load texture: " + path << "\n";
+            return BGFX_INVALID_HANDLE;
+        }
     }
 
     // Create an empty texture first – BGFX expects raw pixel uploads via updateTexture*.

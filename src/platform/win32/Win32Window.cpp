@@ -43,7 +43,7 @@ bool Win32Window::Create(const wchar_t* title, int width, int height, bool resiz
 		nullptr, nullptr, m_hInstance, nullptr);
 	if (!m_hWnd) return false;
 
-	ShowWindow(m_hWnd, SW_SHOW);
+	ShowWindow(m_hWnd, SW_SHOWMAXIMIZED);
 	UpdateWindow(m_hWnd);
 	SetForegroundWindow(m_hWnd);
 
